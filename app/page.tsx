@@ -21,6 +21,8 @@ export default function Home() {
   const [finished, setFinished] = useState(false);
 
   const [questionCount, setQuestionCount] = useState(10);
+  const [newWord, setNewWord] = useState("");
+const [newMeaning, setNewMeaning] = useState("");
 
   const [totalCorrect, setTotalCorrect] = useState(0);
   const [totalIncorrect, setTotalIncorrect] = useState(0);
@@ -102,6 +104,40 @@ export default function Home() {
     setWords(selected);
     setIndex(0);
     setStarted(true);
+
+    const addWord = () => {
+
+  if (!newWord || !newMeaning) return;
+
+
+  const newItem = {
+    word: newWord,
+    meaning: newMeaning,
+    correct: 0,
+    incorrect: 0,
+  };
+
+
+  const updated = [
+    ...allWords,
+    newItem
+  ];
+
+
+  setAllWords(updated);
+  setWords(updated);
+
+
+  localStorage.setItem(
+    "words",
+    JSON.stringify(updated)
+  );
+
+
+  setNewWord("");
+  setNewMeaning("");
+
+};
 
   };
 
@@ -212,7 +248,34 @@ export default function Home() {
         <button onClick={startStudy}>
           学習開始
         </button>
+<hr />
 
+<h3>
+単語を追加
+</h3>
+
+
+<input
+  placeholder="単語"
+  value={newWord}
+  onChange={(e) =>
+    setNewWord(e.target.value)
+  }
+/>
+
+
+<input
+  placeholder="意味"
+  value={newMeaning}
+  onChange={(e) =>
+    setNewMeaning(e.target.value)
+  }
+/>
+
+
+<button onClick={addWord}>
+  追加
+</button>
 
       </main>
 
