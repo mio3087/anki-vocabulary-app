@@ -96,16 +96,59 @@ const [newMeaning, setNewMeaning] = useState("");
   };
 
 
-  const startStudy = () => {
+  
 
-    const selected =
-      shuffle(allWords).slice(0, questionCount);
+const startStudy = () => {
 
-    setWords(selected);
-    setIndex(0);
-    setStarted(true);
+  const selected =
+    shuffle(allWords).slice(0, questionCount);
 
-    const addWord = () => {
+  setWords(selected);
+  setIndex(0);
+  setStarted(true);
+
+};
+
+
+const addWord = () => {
+
+  if (!newWord || !newMeaning) return;
+
+
+  const newItem = {
+    word: newWord,
+    meaning: newMeaning,
+    correct: 0,
+    incorrect: 0,
+  };
+
+
+  const updated = [
+    ...allWords,
+    newItem
+  ];
+
+
+  setAllWords(updated);
+  setWords(updated);
+
+
+  localStorage.setItem(
+    "words",
+    JSON.stringify(updated)
+  );
+
+
+  setNewWord("");
+  setNewMeaning("");
+
+};
+
+
+
+
+
+
 
   if (!newWord || !newMeaning) return;
 
