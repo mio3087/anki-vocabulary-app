@@ -10,9 +10,25 @@ type Word = {
   incorrect: number;
 };
 
+type Deck = {
+  name: string;
+  words: Word[];
+};
+
+
 export default function Home() {
   const [words, setWords] = useState<Word[]>([]);
   const [allWords, setAllWords] = useState<Word[]>([]);
+
+const [decks, setDecks] = useState<Deck[]>([
+  {
+    name: "中国語",
+    words: [],
+  },
+]);
+const [currentDeck, setCurrentDeck] = useState("中国語");
+
+
   const [index, setIndex] = useState(0);
 
   const [showAnswer, setShowAnswer] = useState(false);
@@ -112,37 +128,6 @@ const startStudy = () => {
 
 const addWord = () => {
 
-  if (!newWord || !newMeaning) return;
-
-
-  const newItem = {
-    word: newWord,
-    meaning: newMeaning,
-    correct: 0,
-    incorrect: 0,
-  };
-
-
-  const updated = [
-    ...allWords,
-    newItem
-  ];
-
-
-  setAllWords(updated);
-  setWords(updated);
-
-
-  localStorage.setItem(
-    "words",
-    JSON.stringify(updated)
-  );
-
-
-  setNewWord("");
-  setNewMeaning("");
-
-};
 
 
 
@@ -262,6 +247,12 @@ const addWord = () => {
     return (
 
       <main>
+
+<h3>デッキ</h3>
+
+<p>{currentDeck}</p>
+
+
 
         <p>
           今日の学習数
