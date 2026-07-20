@@ -182,8 +182,6 @@ const addWord = () => {
 
 };
 
-  };
-
 
   const answer = (
     type: "correct" | "incorrect"
