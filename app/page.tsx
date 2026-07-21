@@ -263,11 +263,17 @@ const addWord = () => {
 
 };
 
-
+const speak = (text: string) => {
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "zh-CN";
+  speechSynthesis.speak(utterance);
+};
 
   const answer = (
     type: "correct" | "incorrect"
   ) => {
+
+
 
     setTodayCount(todayCount + 1);
 
@@ -352,7 +358,15 @@ setTimeout(() => {
   <div key={deck.name}>
 
 
-
+<button
+  onClick={() => {
+    setCurrentDeck(deck.name);
+    setWords(deck.words);
+    setAllWords(deck.words);
+  }}
+>
+  {deck.name}
+</button>
 
     
 <button
@@ -579,11 +593,15 @@ CSVインポート
       </div>
 
 
+      
+
       <div
-        className="card"
-        onClick={() =>
-          setShowAnswer(!showAnswer)
-        }
+  className="card"
+  onClick={() => {
+    setShowAnswer(!showAnswer);
+    speak(words[index].word);
+  }}
+
         style={{
           marginTop:"30px",
           padding:"40px",
