@@ -184,6 +184,10 @@ setTimeout(() => {
     selected[0].word
   );
 
+  speech.voice = speechSynthesis
+  .getVoices()
+  .find((voice) => voice.lang === "de-DE");
+
   speech.lang =
   selected[0].language === "スペイン語"
     ? "es-ES"
@@ -275,18 +279,18 @@ const addWord = () => {
 
 
 const speak = (text: string) => {
-  const utterance = new SpeechSynthesisUtterance(text);
+  const speech = new SpeechSynthesisUtterance(text);
 
-  utterance.lang =
-    words[index]?.language === "スペイン語"
-      ? "es-ES"
-      : words[index]?.language === "ドイツ語"
-      ? "de-DE"
-      : "zh-CN";
+  if (words[index]?.language === "ドイツ語") {
+    speech.lang = "de-DE";
+  } else if (words[index]?.language === "スペイン語") {
+    speech.lang = "es-ES";
+  } else {
+    speech.lang = "zh-CN";
+  }
 
-  window.speechSynthesis.speak(utterance);
+  window.speechSynthesis.speak(speech);
 };
-
 
 
   const answer = (
@@ -347,6 +351,10 @@ setTimeout(() => {
   const speech = new SpeechSynthesisUtterance(
     words[nextIndex]?.word || ""
   );
+
+  speech.voice = speechSynthesis
+  .getVoices()
+  .find((voice) => voice.lang === "de-DE");
 
   speech.lang =
   words[nextIndex]?.language === "スペイン語"
