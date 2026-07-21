@@ -192,9 +192,11 @@ setTimeout(() => {
     selected[0].word
   );
 
-  speech.voice = speechSynthesis
-  .getVoices()
-  .find((voice) => voice.lang === "de-DE");
+  const voices = speechSynthesis.getVoices();
+
+speech.voice = voices.find(
+  (voice) => voice.lang.startsWith("de")
+) || null;
 
   speech.lang = selected[0].language;
 
@@ -295,22 +297,32 @@ const speak = (text: string) => {
 
   const voices = window.speechSynthesis.getVoices();
 
-  if (words[index]?.language === "ドイツ語") {
-    speech.lang = "de-DE";
-    speech.voice = voices.find(
-      (voice) => voice.lang.startsWith("de")
-    ) || null;
-  } else if (words[index]?.language === "スペイン語") {
-    speech.lang = "es-ES";
-    speech.voice = voices.find(
-      (voice) => voice.lang.startsWith("es")
-    ) || null;
-  } else {
-    speech.lang = "zh-CN";
-    speech.voice = voices.find(
-      (voice) => voice.lang.startsWith("zh")
-    ) || null;
-  }
+console.log(voices);
+
+  if (words[index]?.language === "de-DE") {
+  speech.lang = "de-DE";
+  speech.voice = voices.find(
+    (voice) => voice.lang.startsWith("de")
+  ) || null;
+
+} else if (words[index]?.language === "es-ES") {
+  speech.lang = "es-ES";
+  speech.voice = voices.find(
+    (voice) => voice.lang.startsWith("es")
+  ) || null;
+
+} else if (words[index]?.language === "ja-JP") {
+  speech.lang = "ja-JP";
+  speech.voice = voices.find(
+    (voice) => voice.lang.startsWith("ja")
+  ) || null;
+
+} else {
+  speech.lang = "zh-CN";
+  speech.voice = voices.find(
+    (voice) => voice.lang.startsWith("zh")
+  ) || null;
+}
 
   window.speechSynthesis.speak(speech);
 };
