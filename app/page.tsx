@@ -56,7 +56,12 @@ const [newMeaning, setNewMeaning] = useState("");
 
     const data = JSON.parse(savedDecks);
 
-    setDecks(data);
+    setDecks(data.length > 0 ? data : [
+  {
+    name: "中国語",
+    words: [],
+  },
+]);
 
     const current = data.find(
       (deck: Deck) =>
@@ -365,7 +370,7 @@ setTimeout(() => {
     setAllWords(deck.words);
   }}
 >
-  {deck.name}
+  {deck.name}（{deck.words.length}語）
 </button>
 
     
