@@ -242,9 +242,15 @@ const addWord = () => {
       return {
         ...deck,
         words: [
-          ...deck.words,
-          newItem,
-        ],
+  ...deck.words,
+  {
+    word: newWord,
+    meaning: newMeaning,
+    language: deck.language,
+    correct: 0,
+    incorrect: 0,
+  },
+],
       };
 
     }
