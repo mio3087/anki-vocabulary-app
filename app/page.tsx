@@ -135,23 +135,28 @@ const [newMeaning, setNewMeaning] = useState("");
 
 
     const updatedDecks = decks.map((deck) => {
-
   if (deck.name === currentDeck) {
     return {
       ...deck,
-      words: newWords,
+      words: [...deck.words, ...newWords],
     };
   }
 
   return deck;
-
 });
+
 
 
 setDecks(updatedDecks);
 
-setWords(newWords);
-setAllWords(newWords);
+const current = updatedDecks.find(
+  (deck) => deck.name === currentDeck
+);
+
+if (current) {
+  setWords(current.words);
+  setAllWords(current.words);
+}
 
 
 localStorage.setItem(
@@ -265,14 +270,17 @@ const addWord = () => {
   setDecks(updatedDecks);
 
 
-  const current = updatedDecks.find(
-    (deck) => deck.name === currentDeck
-  );
 
 
   if (current) {
-    setWords(current.words);
-    setAllWords(current.words);
+    const current = updatedDecks.find(
+  (deck) => deck.name === currentDeck
+);
+
+if (current) {
+  setWords(current.words);
+  setAllWords(current.words);
+}
   }
 
 
