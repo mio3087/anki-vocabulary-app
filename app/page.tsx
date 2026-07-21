@@ -13,6 +13,7 @@ type Word = {
 
 type Deck = {
   name: string;
+  language: string;
   words: Word[];
 };
 
@@ -21,15 +22,20 @@ export default function Home() {
   const [words, setWords] = useState<Word[]>([]);
   const [allWords, setAllWords] = useState<Word[]>([]);
 
+
 const [decks, setDecks] = useState<Deck[]>([
   {
     name: "中国語",
+    language: "zh-CN",
     words: [],
   },
 ]);
+
+
 const [currentDeck, setCurrentDeck] = useState("中国語");
 
 const [newDeckName, setNewDeckName] = useState("");
+const [newDeckLanguage, setNewDeckLanguage] = useState("zh-CN");
 
 
   const [index, setIndex] = useState(0);
@@ -59,9 +65,10 @@ const [newMeaning, setNewMeaning] = useState("");
 
     setDecks(data.length > 0 ? data : [
   {
-    name: "中国語",
-    words: [],
-  },
+  name: "中国語",
+  language: "zh-CN",
+  words: [],
+}
 ]);
 
     const current = data.find(
@@ -108,7 +115,6 @@ const [newMeaning, setNewMeaning] = useState("");
           const [
   word,
   meaning,
-  language,
   correct,
   incorrect
 ] = line.split(",");
@@ -117,7 +123,9 @@ const [newMeaning, setNewMeaning] = useState("");
           return {
   word,
   meaning,
-  language,
+  language: decks.find(
+    (deck) => deck.name === currentDeck
+  )?.language || "zh-CN",
   correct: Number(correct) || 0,
   incorrect: Number(incorrect) || 0,
 };
@@ -188,12 +196,7 @@ setTimeout(() => {
   .getVoices()
   .find((voice) => voice.lang === "de-DE");
 
-  speech.lang =
-  selected[0].language === "スペイン語"
-    ? "es-ES"
-    : selected[0].language === "ドイツ語"
-    ? "de-DE"
-    : "zh-CN";
+  speech.lang = selected[0].language;
 
   window.speechSynthesis.speak(speech);
 
@@ -205,12 +208,13 @@ const addDeck = () => {
   if (!newDeckName) return;
 
   const updatedDecks = [
-    ...decks,
-    {
-      name: newDeckName,
-      words: [],
-    },
-  ];
+  ...decks,
+  {
+    name: newDeckName,
+    language: newDeckLanguage,
+    words: [],
+  }
+];
 
   setDecks(updatedDecks);
 
@@ -461,6 +465,18 @@ CSVインポート
     setNewDeckName(e.target.value)
   }
 />
+
+<select
+  value={newDeckLanguage}
+  onChange={(e) =>
+    setNewDeckLanguage(e.target.value)
+  }
+>
+  <option value="zh-CN">中国語</option>
+  <option value="de-DE">ドイツ語</option>
+  <option value="es-ES">スペイン語</option>
+  <option value="ja-JP">日本語</option>
+</select>
 
 <button onClick={addDeck}>
   作成
