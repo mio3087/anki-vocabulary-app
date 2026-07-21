@@ -608,7 +608,7 @@ CSVインポート
     setTotalIncorrect(0);
   }}
 >
-  学習を終了する
+  終了
 </button>
 
 
