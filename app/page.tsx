@@ -599,6 +599,19 @@ CSVインポート
       </button>
 
 
+      <button
+  onClick={() => {
+    setStarted(false);
+    setFinished(false);
+    setIndex(0);
+    setTotalCorrect(0);
+    setTotalIncorrect(0);
+  }}
+>
+  学習を終了する
+</button>
+
+
     </main>
 
   );
