@@ -271,24 +271,23 @@ const addWord = () => {
 
 };
 
+
+
+
 const speak = (text: string) => {
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "zh-CN";
-  if (currentDeck === "中国語") {
-  utterance.lang = "zh-CN";
-}
 
-if (currentDeck === "スペイン語") {
-  utterance.lang = "es-ES";
-}
+  utterance.lang =
+    words[index]?.language === "スペイン語"
+      ? "es-ES"
+      : words[index]?.language === "ドイツ語"
+      ? "de-DE"
+      : "zh-CN";
 
-if (currentDeck === "ドイツ語") {
-  utterance.lang = "de-DE";
-}
-
-window.speechSynthesis.speak(utterance);
-
+  window.speechSynthesis.speak(utterance);
 };
+
+
 
   const answer = (
     type: "correct" | "incorrect"
