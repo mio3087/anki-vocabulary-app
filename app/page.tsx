@@ -392,11 +392,11 @@ setTimeout(() => {
   .find((voice) => voice.lang === "de-DE");
 
   speech.lang =
-  words[nextIndex]?.language === "スペイン語"
-    ? "es-ES"
-    : words[nextIndex]?.language === "ドイツ語"
-    ? "de-DE"
-    : "zh-CN";
+  words[nextIndex]?.language === "es-ES"
+  ? "es-ES"
+  : words[nextIndex]?.language === "de-DE"
+  ? "de-DE"
+  : "zh-CN";
 
 window.speechSynthesis.speak(speech);
 
