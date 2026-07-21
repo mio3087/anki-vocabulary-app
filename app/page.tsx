@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { shuffle } from "./shuffle";
+import { shuffle } from "./shuffle"
 
 type Word = {
   word: string;
   meaning: string;
+  language: string;
   correct: number;
   incorrect: number;
 };
@@ -105,19 +106,21 @@ const [newMeaning, setNewMeaning] = useState("");
         .map((line) => {
 
           const [
-            word,
-            meaning,
-            correct,
-            incorrect
-          ] = line.split(",");
+  word,
+  meaning,
+  language,
+  correct,
+  incorrect
+] = line.split(",");
 
 
           return {
-            word,
-            meaning,
-            correct: Number(correct) || 0,
-            incorrect: Number(incorrect) || 0,
-          };
+  word,
+  meaning,
+  language,
+  correct: Number(correct) || 0,
+  incorrect: Number(incorrect) || 0,
+};
 
         })
         .filter((item) => item.word);
@@ -216,12 +219,7 @@ const addWord = () => {
   if (!newWord || !newMeaning) return;
 
 
-  const newItem = {
-    word: newWord,
-    meaning: newMeaning,
-    correct: 0,
-    incorrect: 0,
-  };
+  
 
 
   const updatedDecks = decks.map((deck) => {
@@ -271,7 +269,13 @@ const addWord = () => {
 const speak = (text: string) => {
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = "zh-CN";
-  speechSynthesis.speak(utterance);
+  if (currentDeck === "中国語") {
+  utterance.lang = "zh-CN";
+}
+
+if (currentDeck === "スペイン語") {
+  utterance.lang = "es-ES";
+}
 };
 
   const answer = (
@@ -333,9 +337,14 @@ setTimeout(() => {
     words[nextIndex]?.word || ""
   );
 
-  speech.lang = "zh-CN";
+  speech.lang =
+  words[nextIndex]?.language === "スペイン語"
+    ? "es-ES"
+    : words[nextIndex]?.language === "ドイツ語"
+    ? "de-DE"
+    : "zh-CN";
 
-  window.speechSynthesis.speak(speech);
+window.speechSynthesis.speak(speech);
 
 }, 300);
 
