@@ -45,6 +45,8 @@ const [newMeaning, setNewMeaning] = useState("");
   const [totalCorrect, setTotalCorrect] = useState(0);
   const [totalIncorrect, setTotalIncorrect] = useState(0);
 
+  const [todayCount, setTodayCount] = useState(0);
+
 
   useEffect(() => {
 
@@ -252,6 +254,8 @@ const addWord = () => {
     type: "correct" | "incorrect"
   ) => {
 
+    setTodayCount(todayCount + 1);
+
     const updated = [...words];
 
 
@@ -383,6 +387,10 @@ CSVインポート
         <p>
           今日の学習数
         </p>
+
+        <p>
+  今日やった単語数：{todayCount}単語
+</p>
 
 
         <button onClick={() => setQuestionCount(10)}>
@@ -601,6 +609,19 @@ CSVインポート
 
       <button
   onClick={() => {
+
+<button
+  onClick={() => {
+    setStarted(false);
+    setFinished(false);
+    setIndex(0);
+    setTotalCorrect(0);
+    setTotalIncorrect(0);
+  }}
+>
+  終了
+</button>
+
     setStarted(false);
     setFinished(false);
     setIndex(0);
