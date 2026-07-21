@@ -28,6 +28,8 @@ const [decks, setDecks] = useState<Deck[]>([
 ]);
 const [currentDeck, setCurrentDeck] = useState("中国語");
 
+const [newDeckName, setNewDeckName] = useState("");
+
 
   const [index, setIndex] = useState(0);
 
@@ -36,7 +38,7 @@ const [currentDeck, setCurrentDeck] = useState("中国語");
   const [started, setStarted] = useState(false);
   const [finished, setFinished] = useState(false);
 
-  const [questionCount, setQuestionCount] = useState(10);
+  const [questionCount, setQuestionCount] = useState<number | "all">(10);
   const [newWord, setNewWord] = useState("");
 const [newMeaning, setNewMeaning] = useState("");
 
@@ -45,14 +47,28 @@ const [newMeaning, setNewMeaning] = useState("");
 
 
   useEffect(() => {
-    const saved = localStorage.getItem("words");
 
-    if (saved) {
-      const data = JSON.parse(saved);
-      setWords(data);
-      setAllWords(data);
-    }
-  }, []);
+  const savedDecks = localStorage.getItem("decks");
+
+  if (savedDecks) {
+
+    const data = JSON.parse(savedDecks);
+
+    setDecks(data);
+
+    const current = data.find(
+      (deck: Deck) =>
+        deck.name === currentDeck
+    );
+
+    if (current && current.words.length > 0) {
+  setWords(current.words);
+  setAllWords(current.words);
+}
+  }
+
+}, []);
+
 
 
   const loadCSV = (
@@ -96,13 +112,30 @@ const [newMeaning, setNewMeaning] = useState("");
         .filter((item) => item.word);
 
 
-      setWords(newWords);
-      setAllWords(newWords);
+    const updatedDecks = decks.map((deck) => {
 
-      localStorage.setItem(
-        "words",
-        JSON.stringify(newWords)
-      );
+  if (deck.name === currentDeck) {
+    return {
+      ...deck,
+      words: newWords,
+    };
+  }
+
+  return deck;
+
+});
+
+
+setDecks(updatedDecks);
+
+setWords(newWords);
+setAllWords(newWords);
+
+
+localStorage.setItem(
+  "decks",
+  JSON.stringify(updatedDecks)
+);
 
     };
 
@@ -114,10 +147,19 @@ const [newMeaning, setNewMeaning] = useState("");
 
   
 
+  
+
 const startStudy = () => {
 
+  if (allWords.length === 0) {
+    alert("このデッキには単語がありません");
+    return;
+  }
+
   const selected =
-    shuffle(allWords).slice(0, questionCount);
+    questionCount === "all"
+      ? shuffle(allWords)
+      : shuffle(allWords).slice(0, questionCount);
 
   setWords(selected);
   setIndex(0);
@@ -125,15 +167,29 @@ const startStudy = () => {
 
 };
 
+const addDeck = () => {
+  if (!newDeckName) return;
+
+  const updatedDecks = [
+    ...decks,
+    {
+      name: newDeckName,
+      words: [],
+    },
+  ];
+
+  setDecks(updatedDecks);
+
+  localStorage.setItem(
+    "decks",
+    JSON.stringify(updatedDecks)
+  );
+
+  setCurrentDeck(newDeckName);
+  setNewDeckName("");
+};
 
 const addWord = () => {
-
-
-
-
-
-
-
 
   if (!newWord || !newMeaning) return;
 
@@ -146,19 +202,42 @@ const addWord = () => {
   };
 
 
-  const updated = [
-    ...allWords,
-    newItem
-  ];
+  const updatedDecks = decks.map((deck) => {
+
+    if (deck.name === currentDeck) {
+
+      return {
+        ...deck,
+        words: [
+          ...deck.words,
+          newItem,
+        ],
+      };
+
+    }
+
+    return deck;
+
+  });
 
 
-  setAllWords(updated);
-  setWords(updated);
+  setDecks(updatedDecks);
+
+
+  const current = updatedDecks.find(
+    (deck) => deck.name === currentDeck
+  );
+
+
+  if (current) {
+    setWords(current.words);
+    setAllWords(current.words);
+  }
 
 
   localStorage.setItem(
-    "words",
-    JSON.stringify(updated)
+    "decks",
+    JSON.stringify(updatedDecks)
   );
 
 
@@ -166,6 +245,7 @@ const addWord = () => {
   setNewMeaning("");
 
 };
+
 
 
   const answer = (
@@ -218,28 +298,7 @@ const addWord = () => {
   };
 
 
-  if (words.length === 0) {
-
-    return (
-
-      <main>
-
-        <h1>
-          CSVを読み込んでください
-        </h1>
-
-
-        <input
-          type="file"
-          accept=".csv"
-          onChange={loadCSV}
-        />
-
-      </main>
-
-    );
-
-  }
+  
 
 
   if (!started) {
@@ -248,9 +307,76 @@ const addWord = () => {
 
       <main>
 
+
+
 <h3>デッキ</h3>
 
-<p>{currentDeck}</p>
+{decks.map((deck) => (
+  <div key={deck.name}>
+
+    <button
+  onClick={() => {
+  setCurrentDeck(deck.name);
+  setAllWords([...deck.words]);
+  setWords([...deck.words]);
+  setStarted(false);
+  setIndex(0);
+}}
+>
+  {deck.name}
+</button>
+
+    
+<button
+  style={{
+    marginLeft: "10px",
+    padding: "4px 8px",
+    fontSize: "12px",
+  }}
+  onClick={() => {
+    setDecks(
+      decks.filter(
+        (d) => d.name !== deck.name
+      )
+    );
+  }}
+>
+  削除
+</button>
+
+
+
+
+  </div>
+))}
+
+<h3>
+新しいデッキ作成
+</h3>
+
+<hr />
+
+<h3>
+CSVインポート
+</h3>
+
+<input
+  type="file"
+  accept=".csv"
+  onChange={loadCSV}
+/>
+
+<input
+  placeholder="例：イタリア語"
+  value={newDeckName}
+  onChange={(e) =>
+    setNewDeckName(e.target.value)
+  }
+/>
+
+<button onClick={addDeck}>
+  作成
+</button>
 
 
 
@@ -271,15 +397,39 @@ const addWord = () => {
           100枚
         </button>
 
+        <button onClick={() => setQuestionCount(300)}>
+  300枚
+</button>
+
+<button onClick={() => setQuestionCount(500)}>
+  500枚
+</button>
+
+<button onClick={() => setQuestionCount("all")}>
+  全範囲
+</button>
+
 
         <p>
           {questionCount}枚
         </p>
 
 
-        <button onClick={startStudy}>
-          学習開始
-        </button>
+        <button
+  onClick={startStudy}
+  style={{
+    background: "#cdb4db",
+    color: "white",
+    padding: "12px 30px",
+    borderRadius: "20px",
+    border: "none",
+    fontSize: "18px",
+    cursor: "pointer",
+    marginTop: "15px",
+  }}
+>
+  学習開始
+</button>
 <hr />
 
 <h3>
@@ -411,10 +561,26 @@ const addWord = () => {
       >
 
         {showAnswer
-          ? words[index].meaning
-          : words[index].word
-        }
+  ? words[index]?.meaning
+  : words[index]?.word
+}
 
+<button
+  onClick={(e) => {
+    e.stopPropagation();
+
+    const speech =
+  new SpeechSynthesisUtterance(
+    words[index]?.word || ""
+  );
+
+    speech.lang = "zh-CN";
+
+    window.speechSynthesis.speak(speech);
+  }}
+>
+  🔊 音声
+</button>
 
       </div>
 
