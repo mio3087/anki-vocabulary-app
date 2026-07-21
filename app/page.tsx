@@ -629,22 +629,7 @@ CSVインポート
   : words[index]?.word
 }
 
-<button
-  onClick={(e) => {
-    e.stopPropagation();
 
-    const speech =
-  new SpeechSynthesisUtterance(
-    words[index]?.word || ""
-  );
-
-    speech.lang = "zh-CN";
-
-    window.speechSynthesis.speak(speech);
-  }}
->
-  🔊 音声
-</button>
 
       </div>
 
