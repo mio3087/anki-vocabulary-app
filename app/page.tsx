@@ -73,6 +73,10 @@ const [newMeaning, setNewMeaning] = useState("");
 
 
 
+
+
+
+
   const loadCSV = (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -164,8 +168,19 @@ const startStudy = () => {
       : shuffle(allWords).slice(0, questionCount);
 
   setWords(selected);
-  setIndex(0);
-  setStarted(true);
+setIndex(0);
+setStarted(true);
+
+setTimeout(() => {
+  const speech = new SpeechSynthesisUtterance(
+    selected[0].word
+  );
+
+  speech.lang = "zh-CN";
+
+  window.speechSynthesis.speak(speech);
+
+}, 300);
 
 };
 
@@ -295,7 +310,25 @@ const addWord = () => {
 
     } else {
 
-      setIndex(index + 1);
+      
+
+
+const nextIndex = index + 1;
+
+setIndex(nextIndex);
+
+setTimeout(() => {
+  const speech = new SpeechSynthesisUtterance(
+    words[nextIndex]?.word || ""
+  );
+
+  speech.lang = "zh-CN";
+
+  window.speechSynthesis.speak(speech);
+
+}, 300);
+
+
 
     }
 
@@ -318,17 +351,8 @@ const addWord = () => {
 {decks.map((deck) => (
   <div key={deck.name}>
 
-    <button
-  onClick={() => {
-  setCurrentDeck(deck.name);
-  setAllWords([...deck.words]);
-  setWords([...deck.words]);
-  setStarted(false);
-  setIndex(0);
-}}
->
-  {deck.name}
-</button>
+
+
 
     
 <button
@@ -607,20 +631,12 @@ CSVインポート
       </button>
 
 
-      <button
-  onClick={() => {
-
 <button
   onClick={() => {
-    setStarted(false);
-    setFinished(false);
-    setIndex(0);
-    setTotalCorrect(0);
-    setTotalIncorrect(0);
-  }}
->
-  終了
-</button>
+    localStorage.setItem(
+      "todayCount",
+      String(todayCount)
+    );
 
     setStarted(false);
     setFinished(false);
@@ -631,6 +647,7 @@ CSVインポート
 >
   終了
 </button>
+
 
 
     </main>
