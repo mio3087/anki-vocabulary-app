@@ -278,15 +278,28 @@ const addWord = () => {
 
 
 
+
+
 const speak = (text: string) => {
   const speech = new SpeechSynthesisUtterance(text);
 
+  const voices = window.speechSynthesis.getVoices();
+
   if (words[index]?.language === "ドイツ語") {
     speech.lang = "de-DE";
+    speech.voice = voices.find(
+      (voice) => voice.lang.startsWith("de")
+    ) || null;
   } else if (words[index]?.language === "スペイン語") {
     speech.lang = "es-ES";
+    speech.voice = voices.find(
+      (voice) => voice.lang.startsWith("es")
+    ) || null;
   } else {
     speech.lang = "zh-CN";
+    speech.voice = voices.find(
+      (voice) => voice.lang.startsWith("zh")
+    ) || null;
   }
 
   window.speechSynthesis.speak(speech);
