@@ -472,6 +472,8 @@ CSVインポート
   }
 />
 
+<p>デッキの言語</p>
+
 <select
   value={newDeckLanguage}
   onChange={(e) =>
