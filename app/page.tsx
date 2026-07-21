@@ -184,7 +184,12 @@ setTimeout(() => {
     selected[0].word
   );
 
-  speech.lang = "zh-CN";
+  speech.lang =
+  selected[0].language === "スペイン語"
+    ? "es-ES"
+    : selected[0].language === "ドイツ語"
+    ? "de-DE"
+    : "zh-CN";
 
   window.speechSynthesis.speak(speech);
 
@@ -276,6 +281,13 @@ const speak = (text: string) => {
 if (currentDeck === "スペイン語") {
   utterance.lang = "es-ES";
 }
+
+if (currentDeck === "ドイツ語") {
+  utterance.lang = "de-DE";
+}
+
+window.speechSynthesis.speak(utterance);
+
 };
 
   const answer = (
