@@ -137,24 +137,7 @@ Array.from(files).forEach((file) => {
 
 
 
-  reader.onload = () => {
-
-  alert("現在デッキ：" + currentDeck);
-
-  const text = reader.result as string;
-
-  alert(text.slice(0,100));
-
-  console.log(text);
-
-  const lines = text
-    .replace(/^\uFEFF/, "")
-    .trim()
-    .split(/\r?\n/);
-
-  console.log("読み込み行数", lines.length);
-
-};
+  
 
 reader.readAsText(file);
 
@@ -169,81 +152,7 @@ reader.readAsText(file);
 
 
 
-  console.log("読み込み行数", lines.length);
-
-      const newWords = lines
-        .map((line) => {
-
-          
-
-const parts = line.split(",").map((v) => v.trim());
-
-const word = parts[0];
-const pinyin = parts[1];
-const meaning = parts[2];
-const example = parts[3];
-const example_jp = parts[4];
-
-
   
-
-
-return {
-  word,
-  pinyin,
-  meaning,
-  example,
-  example_jp,
-  language: decks.find(
-    (deck) => deck.name === currentDeck
-  )?.language || "zh-CN",
-  correct: 0,
-  incorrect: 0,
-};
-
-
-
-
-
-
-        })
-        .filter((item) => item.word);
-console.log("作成単語", newWords);
-
-    const updatedDecks = decks.map((deck) => {
-  if (deck.name === currentDeck) {
-    return {
-      ...deck,
-      words: [...deck.words, ...newWords],
-    };
-  }
-
-  return deck;
-});
-
-
-
-setDecks(updatedDecks);
-
-const current = updatedDecks.find(
-  (deck) => deck.name === currentDeck
-);
-
-if (current) {
-  setWords(current.words);
-  setAllWords(current.words);
-}
-
-
-
-
-localStorage.setItem(
-  "decks",
-  JSON.stringify(updatedDecks)
-);
-
-setNewWord("");
-setNewMeaning("");
 
     };
 
