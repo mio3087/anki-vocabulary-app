@@ -19,6 +19,7 @@ type Deck = {
 
 
 export default function Home() {
+  console.log("HOME RENDER");
   const [words, setWords] = useState<Word[]>([]);
   const [allWords, setAllWords] = useState<Word[]>([]);
 
@@ -113,7 +114,7 @@ Array.from(files).forEach((file) => {
 
       const text = reader.result as string;
 
-      const lines = text.split("\n").slice(1);
+      const lines = text.split("\n");
 
 
       const newWords = lines
@@ -124,7 +125,7 @@ Array.from(files).forEach((file) => {
   meaning,
   correct,
   incorrect
-] = line.split(",");
+] =line.split("\t")
 
 
           return {
@@ -176,17 +177,11 @@ localStorage.setItem(
 setNewWord("");
 setNewMeaning("");
 
-
-
-
-
-
-
-
-};
+  };
 
 });
 
+};
 
 
   
@@ -823,8 +818,7 @@ CSVインポート
 
     </main>
 
-  );
+    );
 
-  }
 
 }
