@@ -82,7 +82,7 @@ const [newMeaning, setNewMeaning] = useState("");
 }
   }
 
-}, [currentDeck]);
+}, []);
 
 
 
