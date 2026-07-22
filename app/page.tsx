@@ -311,7 +311,6 @@ const addWord = () => {
         words: [
   ...deck.words,
   {
-    {
   word: newWord,
   pinyin: "",
   meaning: newMeaning,
