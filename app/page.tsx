@@ -98,6 +98,8 @@ const [newMeaning, setNewMeaning] = useState("");
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
 
+    alert("CSVボタン押された");
+
     
 
 
