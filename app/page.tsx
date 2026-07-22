@@ -114,18 +114,20 @@ Array.from(files).forEach((file) => {
 
       const text = reader.result as string;
 
+alert(text.slice(0,100));
+
+      console.log(text);
+
       const lines = text.split("\n");
 
 
       const newWords = lines
         .map((line) => {
 
-          const [
-  word,
-  meaning,
-  correct,
-  incorrect
-] = line.split(/\s+/)
+          const parts = line.split("\t");
+
+const word = parts[0];
+const meaning = parts[1];
 
 
           return {
@@ -134,8 +136,8 @@ Array.from(files).forEach((file) => {
   language: decks.find(
     (deck) => deck.name === currentDeck
   )?.language || "zh-CN",
-  correct: Number(correct) || 0,
-  incorrect: Number(incorrect) || 0,
+  correct: 0,
+  incorrect: 0,
 };
 
         })
@@ -230,34 +232,33 @@ if (germanVoice) {
 const addDeck = () => {
   if (!newDeckName) return;
 
-  const updatedDecks = [
-  ...decks,
-  {
+  const newDeck = {
     name: newDeckName,
     language: newDeckLanguage,
     words: [],
-  }
-];
+  };
 
-  
+  const updatedDecks = [
+    ...decks,
+    newDeck,
+  ];
 
   setDecks(updatedDecks);
 
-localStorage.setItem(
-  "decks",
-  JSON.stringify(updatedDecks)
-);
+  localStorage.setItem(
+    "decks",
+    JSON.stringify(updatedDecks)
+  );
 
+  setCurrentDeck(newDeck.name);
 
+  setWords([]);
+  setAllWords([]);
 
+  setNewDeckName("");
 
-setCurrentDeck(newDeckName);
-setNewDeckName("");
-
-setWords([]);
-setAllWords([]);
-
-};   // ← この1行を追加
+  alert("デッキ作成しました");
+}; // ← この1行を追加
 
 const addWord = () => {
 
