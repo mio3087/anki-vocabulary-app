@@ -108,27 +108,64 @@ const files = e.target.files;
 if (!files) return;
 
 
-
+alert("ファイル取得できた");
 
 Array.from(files).forEach((file) => {
 
+  alert("forEach入った");
+
   const reader = new FileReader();
+
+
+  alert("FileReader作成");
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   reader.onload = () => {
 
-    alert("現在デッキ：" + currentDeck);
+  alert("現在デッキ：" + currentDeck);
+
+  const text = reader.result as string;
+
+  alert(text.slice(0,100));
+
+  console.log(text);
+
+  const lines = text
+    .replace(/^\uFEFF/, "")
+    .trim()
+    .split(/\r?\n/);
+
+  console.log("読み込み行数", lines.length);
+
+};
+
+reader.readAsText(file);
+
+});
+
+
+
+
     
 
-      const text = reader.result as string;
-
-alert(text.slice(0,100));
-
-      console.log(text);
-
-    const lines = text
-  .replace(/^\uFEFF/, "")
-  .trim()
-  .split(/\r?\n/)
+    
 
 
 
