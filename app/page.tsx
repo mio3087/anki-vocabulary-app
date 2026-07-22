@@ -5,7 +5,10 @@ import { shuffle } from "./shuffle"
 
 type Word = {
   word: string;
+  pinyin: string;
   meaning: string;
+  example: string;
+  example_jp: string;
   language: string;
   correct: number;
   incorrect: number;
@@ -118,16 +121,21 @@ alert(text.slice(0,100));
 
       console.log(text);
 
-      const lines = text.split("\n");
+      const lines = text.trim().split("\n");
 
 
       const newWords = lines
         .map((line) => {
 
-          const parts = line.split("\t");
+          
+
+const parts = line.split(",");
 
 const word = parts[0];
-const meaning = parts[1];
+const pinyin = parts[1];
+const meaning = parts[2];
+const example = parts[3];
+const example_jp = parts[4];
 
 
           return {
@@ -230,7 +238,12 @@ if (germanVoice) {
 };
 
 const addDeck = () => {
-  if (!newDeckName) return;
+  alert("ボタン押された");
+
+  if (!newDeckName.trim()) {
+    alert("デッキ名を入力してください");
+    return;
+  }
 
   const newDeck = {
     name: newDeckName,
@@ -250,14 +263,22 @@ const addDeck = () => {
     JSON.stringify(updatedDecks)
   );
 
-  setCurrentDeck(newDeck.name);
+  
 
-  setWords([]);
-  setAllWords([]);
+setCurrentDeck(newDeck.name);
 
-  setNewDeckName("");
+setWords([]);
+setAllWords([]);
 
-  alert("デッキ作成しました");
+setNewDeckName("");
+
+alert("デッキ作成しました。CSVを選択してください");
+
+
+
+
+
+
 }; // ← この1行を追加
 
 const addWord = () => {
@@ -580,9 +601,20 @@ CSVインポート
   <option value="ja-JP">日本語</option>
 </select>
 
-<button onClick={addDeck}>
+
+
+<button
+  type="button"
+  onClick={() => {
+    console.log("作成クリック");
+    alert("作成ボタン押された");
+    addDeck();
+  }}
+>
   作成
 </button>
+
+
 
 
 
