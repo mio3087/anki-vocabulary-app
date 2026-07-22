@@ -123,7 +123,7 @@ alert(text.slice(0,100));
 
       console.log(text);
 
-      const lines = text.trim().split("\n");
+      const lines = text.trim().split("\n").slice(1);
 
 
       const newWords = lines
@@ -200,9 +200,9 @@ localStorage.setItem(
 setNewWord("");
 setNewMeaning("");
 
-  };
+    };
 
-});
+  });
 
 };
 
