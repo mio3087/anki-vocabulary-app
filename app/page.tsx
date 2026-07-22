@@ -205,9 +205,13 @@ setTimeout(() => {
 
   const voices = speechSynthesis.getVoices();
 
-speech.voice = voices.find(
+const germanVoice = voices.find(
   (voice) => voice.lang.startsWith("de")
-) || null;
+);
+
+if (germanVoice) {
+  speech.voice = germanVoice;
+}
 
   speech.lang = selected[0].language;
 
@@ -324,27 +328,58 @@ console.log(voices);
 
   if (words[index]?.language === "de-DE") {
   speech.lang = "de-DE";
-  speech.voice = voices.find(
-    (voice) => voice.lang.startsWith("de")
-  ) || null;
+
+
+
+
+
+
+
+
+
+const germanVoice = voices.find(
+  (voice) => voice.lang.startsWith("de")
+);
+
+if (germanVoice) {
+  speech.voice = germanVoice;
+}
+
+
+
+
+
+
 
 } else if (words[index]?.language === "es-ES") {
   speech.lang = "es-ES";
-  speech.voice = voices.find(
-    (voice) => voice.lang.startsWith("es")
-  ) || null;
+  const spanishVoice = voices.find(
+  (voice) => voice.lang.startsWith("es")
+);
+
+if (spanishVoice) {
+  speech.voice = spanishVoice;
+}
 
 } else if (words[index]?.language === "ja-JP") {
   speech.lang = "ja-JP";
-  speech.voice = voices.find(
-    (voice) => voice.lang.startsWith("ja")
-  ) || null;
+  const japaneseVoice = voices.find(
+  (voice) => voice.lang.startsWith("ja")
+);
+
+if (japaneseVoice) {
+  speech.voice = japaneseVoice;
+}
 
 } else {
   speech.lang = "zh-CN";
-  speech.voice = voices.find(
-    (voice) => voice.lang.startsWith("zh")
-  ) || null;
+  const chineseVoice = voices.find(
+  (voice) => voice.lang.startsWith("zh")
+);
+
+if (chineseVoice) {
+  speech.voice = chineseVoice;
+}
 }
 
   window.speechSynthesis.speak(speech);
@@ -410,9 +445,13 @@ setTimeout(() => {
     words[nextIndex]?.word || ""
   );
 
-  speech.voice = speechSynthesis
+  const germanVoice = speechSynthesis
   .getVoices()
   .find((voice) => voice.lang === "de-DE");
+
+if (germanVoice) {
+  speech.voice = germanVoice;
+}
 
   speech.lang =
   words[nextIndex]?.language === "es-ES"
