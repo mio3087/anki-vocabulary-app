@@ -125,7 +125,7 @@ Array.from(files).forEach((file) => {
   meaning,
   correct,
   incorrect
-] =line.split("\t")
+] = line.split(/\s+/)
 
 
           return {
