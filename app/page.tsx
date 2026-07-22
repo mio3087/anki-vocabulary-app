@@ -94,15 +94,22 @@ const [newMeaning, setNewMeaning] = useState("");
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
 
-    const file = e.target.files?.[0];
-
-    if (!file) return;
+    
 
 
-    const reader = new FileReader();
+const files = e.target.files;
+
+if (!files) return;
 
 
-    reader.onload = () => {
+
+
+Array.from(files).forEach((file) => {
+
+  const reader = new FileReader();
+
+  reader.onload = () => {
+    
 
       const text = reader.result as string;
 
@@ -174,7 +181,13 @@ setNewMeaning("");
 
 }; // ←追加
 
-reader.readAsText(file);
+
+
+
+
+
+
+};
 
 }; // ←追加
 
