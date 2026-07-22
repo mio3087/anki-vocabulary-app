@@ -138,15 +138,26 @@ const example = parts[3];
 const example_jp = parts[4];
 
 
-          return {
+  
+
+
+return {
   word,
+  pinyin,
   meaning,
+  example,
+  example_jp,
   language: decks.find(
     (deck) => deck.name === currentDeck
   )?.language || "zh-CN",
   correct: 0,
   incorrect: 0,
 };
+
+
+
+
+
 
         })
         .filter((item) => item.word);
