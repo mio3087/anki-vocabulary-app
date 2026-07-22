@@ -115,6 +115,8 @@ Array.from(files).forEach((file) => {
   const reader = new FileReader();
 
   reader.onload = () => {
+
+    alert("現在デッキ：" + currentDeck);
     
 
       const text = reader.result as string;
@@ -123,18 +125,21 @@ alert(text.slice(0,100));
 
       console.log(text);
 
-      const lines = text
-  .trim()
+    const lines = text
   .replace(/^\uFEFF/, "")
-  .split(/\r?\n/);
+  .trim()
+  .split(/\r?\n/)
 
+
+
+  console.log("読み込み行数", lines.length);
 
       const newWords = lines
         .map((line) => {
 
           
 
-const parts = line.split(",");
+const parts = line.split(",").map((v) => v.trim());
 
 const word = parts[0];
 const pinyin = parts[1];
@@ -166,7 +171,7 @@ return {
 
         })
         .filter((item) => item.word);
-
+console.log("作成単語", newWords);
 
     const updatedDecks = decks.map((deck) => {
   if (deck.name === currentDeck) {
@@ -282,9 +287,13 @@ const addDeck = () => {
   
 
 setCurrentDeck(newDeck.name);
-
 setWords([]);
 setAllWords([]);
+
+localStorage.setItem(
+  "currentDeck",
+  newDeck.name
+);
 
 setNewDeckName("");
 
