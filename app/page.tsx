@@ -123,7 +123,10 @@ alert(text.slice(0,100));
 
       console.log(text);
 
-      const lines = text.trim().split("\n").slice(1);
+      const lines = text
+  .trim()
+  .replace(/^\uFEFF/, "")
+  .split(/\r?\n/);
 
 
       const newWords = lines
