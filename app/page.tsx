@@ -65,10 +65,10 @@ const [newMeaning, setNewMeaning] = useState("");
 
     setDecks(data.length > 0 ? data : [
   {
-  name: "中国語",
-  language: "zh-CN",
-  words: [],
-}
+    name: "中国語",
+    language: "zh-CN",
+    words: [],
+  }
 ]);
 
     const current = data.find(
@@ -82,7 +82,7 @@ const [newMeaning, setNewMeaning] = useState("");
 }
   }
 
-}, []);
+}, [currentDeck]);
 
 
 
@@ -159,18 +159,24 @@ if (current) {
 }
 
 
+
+
 localStorage.setItem(
   "decks",
   JSON.stringify(updatedDecks)
 );
 
-    };
+setNewWord("");
+setNewMeaning("");
 
 
-    reader.readAsText(file);
 
-  };
 
+}; // ←追加
+
+reader.readAsText(file);
+
+}; // ←追加
 
   
 
@@ -223,16 +229,25 @@ const addDeck = () => {
   }
 ];
 
+  
+
   setDecks(updatedDecks);
 
-  localStorage.setItem(
-    "decks",
-    JSON.stringify(updatedDecks)
-  );
+localStorage.setItem(
+  "decks",
+  JSON.stringify(updatedDecks)
+);
 
-  setCurrentDeck(newDeckName);
-  setNewDeckName("");
-};
+
+
+
+setCurrentDeck(newDeckName);
+setNewDeckName("");
+
+setWords([]);
+setAllWords([]);
+
+};   // ← この1行を追加
 
 const addWord = () => {
 
@@ -267,13 +282,16 @@ const addWord = () => {
   });
 
 
+  
+
+
+
+
+
+
   setDecks(updatedDecks);
 
-
-
-
-  if (current) {
-    const current = updatedDecks.find(
+const current = updatedDecks.find(
   (deck) => deck.name === currentDeck
 );
 
@@ -281,20 +299,17 @@ if (current) {
   setWords(current.words);
   setAllWords(current.words);
 }
-  }
 
 
   localStorage.setItem(
-    "decks",
-    JSON.stringify(updatedDecks)
-  );
+  "decks",
+  JSON.stringify(updatedDecks)
+);
 
-
-  setNewWord("");
-  setNewMeaning("");
+setNewWord("");
+setNewMeaning("");
 
 };
-
 
 
 
@@ -452,12 +467,25 @@ window.speechSynthesis.speak(speech);
     fontSize: "12px",
   }}
   onClick={() => {
-    setDecks(
-      decks.filter(
-        (d) => d.name !== deck.name
-      )
-    );
-  }}
+  const updatedDecks = decks.filter(
+    (d) => d.name !== deck.name
+  );
+
+  setDecks(updatedDecks);
+
+  localStorage.setItem(
+    "decks",
+    JSON.stringify(updatedDecks)
+  );
+
+
+if (currentDeck === deck.name) {
+  setCurrentDeck("中国語");
+  setWords([]);
+  setAllWords([]);
+}
+
+}}
 >
   削除
 </button>
