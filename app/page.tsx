@@ -311,12 +311,16 @@ const addWord = () => {
         words: [
   ...deck.words,
   {
-    word: newWord,
-    meaning: newMeaning,
-    language: deck.language,
-    correct: 0,
-    incorrect: 0,
-  },
+    {
+  word: newWord,
+  pinyin: "",
+  meaning: newMeaning,
+  example: "",
+  example_jp: "",
+  language: deck.language,
+  correct: 0,
+  incorrect: 0,
+},
 ],
       };
 
