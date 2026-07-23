@@ -1,5 +1,7 @@
 "use client";
 
+
+
 import { useEffect, useState } from "react";
 import { shuffle } from "./shuffle"
 
@@ -22,7 +24,15 @@ type Deck = {
 
 
 export default function Home() {
+
+  alert("Home関数です");
+
   console.log("HOME RENDER");
+
+  console.log("HOME RENDER");
+console.log("テスト表示");
+
+
   const [words, setWords] = useState<Word[]>([]);
   const [allWords, setAllWords] = useState<Word[]>([]);
 
@@ -101,9 +111,18 @@ const [newMeaning, setNewMeaning] = useState("");
     alert("CSVボタン押された");
 
     
+const files = e.currentTarget.files;
 
+alert("ファイル取得チェック");
 
-const files = e.target.files;
+console.log(files);
+
+if (!files || files.length === 0) {
+  alert("ファイルなし");
+  return;
+}
+
+alert("ファイルあり");
 
 if (!files) return;
 
@@ -139,26 +158,100 @@ Array.from(files).forEach((file) => {
 
   
 
-reader.readAsText(file);
 
+reader.onload = () => {
+  alert("onload開始");
+
+
+
+  const text = reader.result as string;
+
+  alert(text);
+
+  const lines = text
+    .replace(/^\uFEFF/, "")
+    .trim()
+    .split(/\r?\n/);
+
+    alert(lines.length);
+
+
+  const newWords = lines
+    .map((line) => {
+
+      
+
+const parts = line.split(",");
+alert(parts.length);
+
+
+      return {
+  word: parts[0],
+  pinyin: "",
+  meaning: parts[1],
+  example: "",
+  example_jp: "",
+  language: "zh-CN",
+  correct: 0,
+  incorrect: 0,
+};
+
+    })
+    .filter((item) => item.word);
+
+
+  console.log("作成単語", newWords);
+  alert("単語数：" + newWords.length);
+
+  const updatedDecks = decks.map((deck) => {
+  if (deck.name === currentDeck) {
+    return {
+      ...deck,
+      words: [...deck.words, ...newWords],
+    };
+  }
+  return deck;
 });
 
 
 
 
-    
-
-    
 
 
 
-  
 
-    };
 
-  });
+setDecks(updatedDecks);
+
+localStorage.setItem(
+  "decks",
+  JSON.stringify(updatedDecks)
+);
+
+const current = updatedDecks.find(
+  (deck) => deck.name === currentDeck
+);
+
+
+
+if (current) {
+  setWords(current.words);
+  setAllWords(current.words);
+}
 
 };
+
+
+
+
+alert("読み込み開始");
+reader.readAsText(file);
+
+});
+};
+
+
+    
 
 
   
@@ -207,6 +300,8 @@ if (germanVoice) {
 const addDeck = () => {
   alert("ボタン押された");
 
+  alert("ここ通過");
+
   if (!newDeckName.trim()) {
     alert("デッキ名を入力してください");
     return;
@@ -225,6 +320,8 @@ const addDeck = () => {
 
   setDecks(updatedDecks);
 
+
+
   localStorage.setItem(
     "decks",
     JSON.stringify(updatedDecks)
@@ -241,7 +338,7 @@ localStorage.setItem(
   newDeck.name
 );
 
-setNewDeckName("");
+
 
 alert("デッキ作成しました。CSVを選択してください");
 
@@ -550,7 +647,11 @@ CSVインポート
 <input
   type="file"
   accept=".csv"
-  onChange={loadCSV}
+  onChange={(e) => {
+    console.log("ファイル選択イベント発生");
+    alert("ファイル選択された");
+    loadCSV(e);
+  }}
 />
 
 <input
