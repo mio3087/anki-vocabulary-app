@@ -25,7 +25,7 @@ type Deck = {
 
 export default function Home() {
 
-  alert("Home関数です");
+
 
   console.log("HOME RENDER");
 
@@ -113,7 +113,9 @@ const [newMeaning, setNewMeaning] = useState("");
     
 const files = e.currentTarget.files;
 
-alert("ファイル取得チェック");
+alert(
+  files ? "ファイル取得OK" : "ファイル取得失敗"
+);
 
 console.log(files);
 
@@ -166,7 +168,7 @@ reader.onload = () => {
 
   const text = reader.result as string;
 
-  alert(text);
+  
 
   const lines = text
     .replace(/^\uFEFF/, "")
@@ -181,20 +183,33 @@ reader.onload = () => {
 
       
 
-const parts = line.split(",");
+const parts = line.split(/,(.+)/);
 alert(parts.length);
 
 
-      return {
-  word: parts[0],
+      
+
+
+
+
+
+
+return {
+  word: parts[0].trim(),
   pinyin: "",
-  meaning: parts[1],
+  meaning: parts[1]?.trim() || "",
   example: "",
   example_jp: "",
-  language: "zh-CN",
+  language: decks.find(
+    (deck) => deck.name === currentDeck
+  )?.language || "zh-CN",
   correct: 0,
   incorrect: 0,
 };
+
+
+
+
 
     })
     .filter((item) => item.word);
