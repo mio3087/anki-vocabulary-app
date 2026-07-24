@@ -4,6 +4,8 @@
 
 import { useEffect, useState } from "react";
 import { shuffle } from "./shuffle"
+import { db } from "@/lib/firebase";
+import { collection, getDocs } from "firebase/firestore";
 
 type Word = {
   word: string;
@@ -70,6 +72,39 @@ const [newMeaning, setNewMeaning] = useState("");
 
 
   useEffect(() => {
+
+    console.log(db);
+
+const loadFirebaseWords = async () => {
+  const snapshot = await getDocs(collection(db, "words"));
+
+  const firebaseWords = snapshot.docs.map((doc) => ({
+    ...doc.data(),
+  })) as Word[];
+
+console.log("1個目の単語", firebaseWords[0].word);
+
+
+  console.log("Firebase単語:", firebaseWords);
+  setWords(firebaseWords);
+setAllWords(firebaseWords);
+
+
+setDecks([
+  {
+    name: "中国語",
+    language: "zh-CN",
+    words: firebaseWords,
+  },
+]);
+
+
+
+
+};
+
+loadFirebaseWords();
+
 
   const savedDecks = localStorage.getItem("decks");
 
@@ -184,7 +219,7 @@ reader.onload = () => {
       
 
 const parts = line.split(/,(.+)/);
-alert(parts.length);
+
 
 
       
@@ -237,8 +272,6 @@ return {
 
 
 setDecks(updatedDecks);
-
-alert("保存直前");
 
 localStorage.setItem(
   "decks",
@@ -898,10 +931,21 @@ CSVインポート
         }}
       >
 
-        {showAnswer
-  ? words[index]?.meaning
-  : words[index]?.word
-}
+        {showAnswer ? (
+  <>
+    <p>{words[index]?.meaning}</p>
+    <p>{words[index]?.example}</p>
+    <p>{words[index]?.example_jp}</p>
+  </>
+
+
+) : (
+  <>
+    <p>{words[index]?.word}</p>
+    <p>{words[index]?.pinyin}</p>
+  </>
+)}
+
 
 
 
