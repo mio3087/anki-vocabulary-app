@@ -238,6 +238,8 @@ return {
 
 setDecks(updatedDecks);
 
+alert("保存直前");
+
 localStorage.setItem(
   "decks",
   JSON.stringify(updatedDecks)
