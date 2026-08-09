@@ -1,1038 +1,255 @@
 "use client";
 
-
-
-import { useEffect, useState } from "react";
-import { shuffle } from "./shuffle"
-import { db } from "@/lib/firebase";
-import { collection, getDocs, addDoc, setDoc, doc } from "firebase/firestore";
-
-type Word = {
-  word: string;
-  pinyin: string;
-  meaning: string;
-  example: string;
-  example_jp: string;
-  language: string;
-  correct: number;
-  incorrect: number;
-  lastStudied: number;
-};
+import { useState } from "react";
 
 type Deck = {
   name: string;
   language: string;
-  words: Word[];
+  words: string[];
 };
-
 
 export default function Home() {
-
-
-
-  console.log("HOME RENDER");
-
-  console.log("HOME RENDER");
-console.log("テスト表示");
-
-
-  const [words, setWords] = useState<Word[]>([]);
-  const [allWords, setAllWords] = useState<Word[]>([]);
-
-
-const [decks, setDecks] = useState<Deck[]>([
-  {
-    name: "中国語",
-    language: "zh-CN",
-    words: [],
-  },
-]);
-
-
-const [currentDeck, setCurrentDeck] = useState("中国語");
-
-const [newDeckName, setNewDeckName] = useState("");
-const [newDeckLanguage, setNewDeckLanguage] = useState("zh-CN");
-
-
-  const [index, setIndex] = useState(0);
-
-  const [showAnswer, setShowAnswer] = useState(false);
-
-  const [started, setStarted] = useState(false);
-  const [finished, setFinished] = useState(false);
-
-  const [questionCount, setQuestionCount] = useState<number | "all">(10);
-  const [newWord, setNewWord] = useState("");
-const [newMeaning, setNewMeaning] = useState("");
-
-  const [totalCorrect, setTotalCorrect] = useState(0);
-  const [totalIncorrect, setTotalIncorrect] = useState(0);
-
-  const [todayCount, setTodayCount] = useState(0);
-
-
-
-
-
-
-  useEffect(() => {
-
-    console.log(db);
-
-const loadFirebaseWords = async () => {
-  const snapshot = await getDocs(collection(db, "words"));
-
-  const firebaseWords = snapshot.docs.map((doc) => ({
-    ...doc.data(),
-  })) as Word[];
-
-console.log("1個目の単語", firebaseWords[0].word);
-
-
-  console.log("Firebase単語:", firebaseWords);
-  setWords(firebaseWords);
-setAllWords(firebaseWords);
-
-
-setDecks([
-  {
-    name: "中国語",
-    language: "zh-CN",
-    words: firebaseWords,
-  },
-]);
-
-
-
-
-};
-
-loadFirebaseWords();
-
-
-  const savedDecks = localStorage.getItem("decks");
-
-  if (savedDecks) {
-
-    const data = JSON.parse(savedDecks);
-
-    setDecks(data.length > 0 ? data : [
-  {
-    name: "中国語",
-    language: "zh-CN",
-    words: [],
-  }
-]);
-
-    const current = data.find(
-      (deck: Deck) =>
-        deck.name === currentDeck
-    );
-
-    if (current && current.words.length > 0) {
-  setWords(current.words);
-  setAllWords(current.words);
-}
-  }
-
-}, []);
-
-
-
-
-
-
-
-  const loadCSV = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-const selectedDeck =
-  localStorage.getItem("currentDeck") || currentDeck;
-
-
-    alert("CSVボタン押された");
-
-    
-const files = e.currentTarget.files;
-
-alert(
-  files ? "ファイル取得OK" : "ファイル取得失敗"
-);
-
-console.log(files);
-
-if (!files || files.length === 0) {
-  alert("ファイルなし");
-  return;
-}
-
-alert("ファイルあり");
-
-if (!files) return;
-
-
-alert("ファイル取得できた");
-
-Array.from(files).forEach((file) => {
-
-  alert("forEach入った");
-
-  const reader = new FileReader();
-
-
-  alert("FileReader作成");
-  
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  
-
-
-reader.onload = async () => {
-  alert("onload開始");
-
-
-
-  const text = reader.result as string;
-
-  
-
-  const lines = text
-    .replace(/^\uFEFF/, "")
-    .trim()
-    .split(/\r?\n/);
-
-    alert(lines.length);
-
-
-  const newWords = lines
-    .map((line) => {
-
-      
-
-const parts = line.split(/,(.+)/);
-
-
-
-      
-
-
-
-
-
-
-return {
-  word: parts[0].trim(),
-  pinyin: "",
-  meaning: parts[1]?.trim() || "",
-  example: "",
-  example_jp: "",
-  language: decks.find(
-    (deck) => deck.name === selectedDeck
-  )?.language || "zh-CN",
-  correct: 0,
-  incorrect: 0,
-  lastStudied: 0,
-};
-
-
-
-
-
-    })
-    .filter((item) => item.word);
-
-
-  console.log("作成単語", newWords);
-  alert("単語数：" + newWords.length);
-
-
-
-for (const word of newWords) {
-  await addDoc(
-    collection(db, "words"),
-    word
-  );
-}
-
-  
-
-  const updatedDecks = decks.map((deck) => {
-  if (deck.name === selectedDeck) {
-    return {
-      ...deck,
-      words: [...deck.words, ...newWords],
+  const [decks, setDecks] = useState<Deck[]>([
+    {
+      name: "中国語",
+      language: "zh-CN",
+      words: [],
+    },
+  ]);
+
+  const [currentDeck, setCurrentDeck] = useState("中国語");
+  const [deckOpen, setDeckOpen] = useState(false);
+
+  const [newDeckName, setNewDeckName] = useState("");
+  const [newDeckLanguage, setNewDeckLanguage] = useState("zh-CN");
+
+  const addDeck = () => {
+    if (!newDeckName.trim()) {
+      alert("デッキ名を入力してください");
+      return;
+    }
+
+    const newDeck: Deck = {
+      name: newDeckName,
+      language: newDeckLanguage,
+      words: [],
     };
-  }
-  return deck;
-});
 
+    setDecks([...decks, newDeck]);
 
+    setCurrentDeck(newDeck.name);
 
-
-
-
-
-
-
-setDecks(updatedDecks);
-
-localStorage.setItem(
-  "decks",
-  JSON.stringify(updatedDecks)
-);
-
-const current = updatedDecks.find(
-  (deck) => deck.name === selectedDeck
-);
-
-
-if (current) {
-  setWords(current.words);
-  setAllWords(current.words);
-}
-
-};
-
-
-
-
-alert("読み込み開始");
-reader.readAsText(file);
-
-});
-};
-
-
-    
-
-
-  
-
-  
-
-const startStudy = () => {
-
-  if (allWords.length === 0) {
-    alert("このデッキには単語がありません");
-    return;
-  }
-
-  const selected =
-    questionCount === "all"
-      ? shuffle(allWords)
-      : shuffle(allWords).slice(0, questionCount);
-
-  setWords(selected);
-setIndex(0);
-setStarted(true);
-
-setTimeout(() => {
-  const speech = new SpeechSynthesisUtterance(
-    selected[0].word
-  );
-
-  const voices = speechSynthesis.getVoices();
-
-const germanVoice = voices.find(
-  (voice) => voice.lang.startsWith("de")
-);
-
-if (germanVoice) {
-  speech.voice = germanVoice;
-}
-
-  speech.lang = selected[0].language;
-
-  window.speechSynthesis.speak(speech);
-
-}, 300);
-
-};
-
-const addDeck = () => {
-  alert("ボタン押された");
-
-  alert("ここ通過");
-
-  if (!newDeckName.trim()) {
-    alert("デッキ名を入力してください");
-    return;
-  }
-
-  const newDeck = {
-    name: newDeckName,
-    language: newDeckLanguage,
-    words: [],
+    setNewDeckName("");
   };
 
-  const updatedDecks = [
-    ...decks,
-    newDeck,
-  ];
-
-  setDecks(updatedDecks);
-
-
-
-  localStorage.setItem(
-    "decks",
-    JSON.stringify(updatedDecks)
-  );
-
-  
-
-setCurrentDeck(newDeck.name);
-setWords([]);
-setAllWords([]);
-
-localStorage.setItem(
-  "currentDeck",
-  newDeck.name
-);
-
-
-
-alert("デッキ作成しました。CSVを選択してください");
-
-
-
-
-
-
-}; // ← この1行を追加
-
-const addWord = () => {
-
-  if (!newWord || !newMeaning) return;
-
-
-  
-
-
-  const updatedDecks = decks.map((deck) => {
-
-    if (deck.name === currentDeck) {
-
-      return {
-        ...deck,
-        words: [
-  ...deck.words,
-  {
-  word: newWord,
-  pinyin: "",
-  meaning: newMeaning,
-  example: "",
-  example_jp: "",
-  language: deck.language,
-  correct: 0,
-  incorrect: 0,
-},
-],
-      };
-
-    }
-
-    return deck;
-
-  });
-
-
-  
-
-
-
-
-
-
-  setDecks(updatedDecks);
-
-const current = updatedDecks.find(
-  (deck) => deck.name === currentDeck
-);
-
-if (current) {
-  setWords(current.words);
-  setAllWords(current.words);
-}
-
-
-  localStorage.setItem(
-  "decks",
-  JSON.stringify(updatedDecks)
-);
-
-setNewWord("");
-setNewMeaning("");
-
-};
-
-
-
-
-
-const speak = (text: string) => {
-  const speech = new SpeechSynthesisUtterance(text);
-
-  const voices = window.speechSynthesis.getVoices();
-
-console.log(voices);
-
-  if (words[index]?.language === "de-DE") {
-  speech.lang = "de-DE";
-
-
-
-
-
-
-
-
-
-const germanVoice = voices.find(
-  (voice) => voice.lang.startsWith("de")
-);
-
-if (germanVoice) {
-  speech.voice = germanVoice;
-}
-
-
-
-
-
-
-
-} else if (words[index]?.language === "es-ES") {
-  speech.lang = "es-ES";
-  const spanishVoice = voices.find(
-  (voice) => voice.lang.startsWith("es")
-);
-
-if (spanishVoice) {
-  speech.voice = spanishVoice;
-}
-
-} else if (words[index]?.language === "ja-JP") {
-  speech.lang = "ja-JP";
-  const japaneseVoice = voices.find(
-  (voice) => voice.lang.startsWith("ja")
-);
-
-if (japaneseVoice) {
-  speech.voice = japaneseVoice;
-}
-
-} else {
-  speech.lang = "zh-CN";
-  const chineseVoice = voices.find(
-  (voice) => voice.lang.startsWith("zh")
-);
-
-if (chineseVoice) {
-  speech.voice = chineseVoice;
-}
-}
-
-  window.speechSynthesis.speak(speech);
-};
-
-
-  const answer = (
-    type: "correct" | "incorrect"
-  ) => {
-
-
-
-    setTodayCount(todayCount + 1);
-
-    const updated = [...words];
-
-updated[index].lastStudied = Date.now();
-
-
-    if (type === "correct") {
-
-      updated[index].correct++;
-
-      setTotalCorrect(
-        totalCorrect + 1
-      );
-
-    } else {
-
-      updated[index].incorrect++;
-
-      setTotalIncorrect(
-        totalIncorrect + 1
-      );
-
-    }
-
-
-    setWords(updated);
-
-    localStorage.setItem(
-      "words",
-      JSON.stringify(updated)
+  const deleteDeck = (deckName: string) => {
+    const updatedDecks = decks.filter(
+      (deck) => deck.name !== deckName
     );
 
+    setDecks(updatedDecks);
 
-    setShowAnswer(false);
-
-
-    if (index + 1 >= words.length) {
-
-      setFinished(true);
-
-    } else {
-
-      
-
-
-const nextIndex = index + 1;
-
-setIndex(nextIndex);
-
-setTimeout(() => {
-  const speech = new SpeechSynthesisUtterance(
-    words[nextIndex]?.word || ""
-  );
-
-  const germanVoice = speechSynthesis
-  .getVoices()
-  .find((voice) => voice.lang === "de-DE");
-
-if (germanVoice) {
-  speech.voice = germanVoice;
-}
-
-  speech.lang =
-  words[nextIndex]?.language === "es-ES"
-  ? "es-ES"
-  : words[nextIndex]?.language === "de-DE"
-  ? "de-DE"
-  : "zh-CN";
-
-window.speechSynthesis.speak(speech);
-
-}, 300);
-
-
-
+    if (currentDeck === deckName) {
+      setCurrentDeck(
+        updatedDecks.length > 0
+          ? updatedDecks[0].name
+          : ""
+      );
     }
-
   };
 
 
-  
 
 
-  if (!started) {
-
-    return (
-<main>
-
-<h1>
-  デッキ
-</h1>
-
-{decks.map((deck) => (
-  <div key={deck.name}>
-
-
-<button
-  style={{
-  display: "block",
-  width: "300px",
-  padding: "20px",
-  margin: "10px 0",
-  fontSize: "18px",
-  cursor: "pointer",
-  background:
-    currentDeck === deck.name
-      ? "#cdb4db"
-      : "white",
-}}
-  onClick={() => {
-    setCurrentDeck(deck.name);
-
-localStorage.setItem(
-  "currentDeck",
-  deck.name
-);
-
-setWords(deck.words);
-setAllWords(deck.words);
-  }}
->
-  
-{deck.name}（{deck.words.length}語）
-
-</button>
-
-<button
-style={{
-
-
-    marginLeft: "10px",
-    padding: "4px 8px",
-    fontSize: "12px",
-  }}
-
-  onClick={(e) => {
-  e.stopPropagation();
-
-  const updatedDecks = decks.filter(
-    (d) => d.name !== deck.name
+  if (deckOpen) {
+  const deck = decks.find(
+    (deck) => deck.name === currentDeck
   );
 
-  setDecks(updatedDecks);
+  return (
+    <main
+      style={{
+        maxWidth: "600px",
+        margin: "40px auto",
+        padding: "20px",
+      }}
+    >
+      <button
+        onClick={() => setDeckOpen(false)}
+      >
+        ← デッキ一覧に戻る
 
-  localStorage.setItem(
-    "decks",
-    JSON.stringify(updatedDecks)
-  );
+      
+      </button>
 
+      <h1>{currentDeck}</h1>
 
-if (currentDeck === deck.name) {
-  setCurrentDeck("中国語");
-  setWords([]);
-  setAllWords([]);
-}
+      <p>
+        {deck?.words.length ?? 0}語
+      </p>
 
-}}
->
-  削除
-</button>
-
-
-
-
-  </div>
-))}
-
-<h3>
-新しいデッキ作成
-</h3>
-
-<hr />
-
-<h3>
-CSVインポート
-</h3>
-
-<input
-  type="file"
-  accept=".csv"
-  onChange={(e) => {
-    console.log("ファイル選択イベント発生");
-    alert("ファイル選択された");
-    loadCSV(e);
-  }}
-/>
-
-<input
-  placeholder="例：イタリア語"
-  value={newDeckName}
-  onChange={(e) =>
-    setNewDeckName(e.target.value)
-  }
-/>
-
-<p>デッキの言語</p>
-
-<select
-  value={newDeckLanguage}
-  onChange={(e) =>
-    setNewDeckLanguage(e.target.value)
-  }
->
-  <option value="zh-CN">中国語</option>
-  <option value="de-DE">ドイツ語</option>
-  <option value="es-ES">スペイン語</option>
-  <option value="ja-JP">日本語</option>
-</select>
-
-
-
-<button
-  type="button"
-  onClick={() => {
-    console.log("作成クリック");
-    alert("作成ボタン押された");
-    addDeck();
-  }}
->
-  作成
-</button>
-
-
-<h2>
-  {currentDeck}
-</h2>
-
-        <p>
-          今日の学習数
-        </p>
-
-        <p>
-  今日やった単語数：{todayCount}単語
-</p>
-
-
-        <button onClick={() => setQuestionCount(10)}>
-          10枚
-        </button>
-
-        <button onClick={() => setQuestionCount(50)}>
-          50枚
-        </button>
-
-        <button onClick={() => setQuestionCount(100)}>
-          100枚
-        </button>
-
-        <button onClick={() => setQuestionCount(300)}>
-  300枚
-</button>
-
-<button onClick={() => setQuestionCount(500)}>
-  500枚
-</button>
-
-<button onClick={() => setQuestionCount("all")}>
-  全範囲
-</button>
-
-
-        <p>
-          {questionCount}枚
-        </p>
-
-
-        <button
-  onClick={startStudy}
+      <button
   style={{
+    display: "block",
+    width: "100%",
+    padding: "15px",
+    marginTop: "20px",
     background: "#cdb4db",
     color: "white",
-    padding: "12px 30px",
-    borderRadius: "20px",
     border: "none",
+    borderRadius: "20px",
     fontSize: "18px",
-    cursor: "pointer",
-    marginTop: "15px",
   }}
 >
   学習開始
 </button>
-<hr />
-
-<h3>
-単語を追加
-</h3>
-
-
-<input
-  placeholder="単語"
-  value={newWord}
-  onChange={(e) =>
-    setNewWord(e.target.value)
-  }
-/>
-
-
-<input
-  placeholder="意味"
-  value={newMeaning}
-  onChange={(e) =>
-    setNewMeaning(e.target.value)
-  }
-/>
-
-
-<button onClick={addWord}>
-  追加
-</button>
-
-      </main>
-
-    );
-
-  }
-
-
-  if (finished) {
-
-    return (
-
-      <main>
-
-        <h1>
-          終了！
-        </h1>
-
-
-        <p>
-          正解：{totalCorrect}
-        </p>
-
-
-        <p>
-          不正解：{totalIncorrect}
-        </p>
-
-
-        <button
-          onClick={() => {
-            setStarted(false);
-            setFinished(false);
-            setIndex(0);
-            setTotalCorrect(0);
-            setTotalIncorrect(0);
-          }}
-        >
-          戻る
-        </button>
-
-
-      </main>
-
-    );
-
-  }
-
-
-  const progress =
-    Math.round(
-      ((index + 1) / words.length) * 100
-    );
-
-
-  return (
-
-    <main>
-
-
-      <p>
-        {index + 1} / {words.length}枚
-      </p>
-
-
-      <p>
-        進捗：{progress}%
-      </p>
-
-
-      <div
-        style={{
-          width:"100%",
-          height:"10px",
-          background:"#ddd"
-        }}
-      >
-
-        <div
-          style={{
-            width:`${progress}%`,
-            height:"10px",
-            background:"#333"
-          }}
-        />
-
-      </div>
-
-
-      
-
-      <div
-  className="card"
-  onClick={() => {
-    setShowAnswer(!showAnswer);
-    speak(words[index].word);
-  }}
-
-        style={{
-          marginTop:"30px",
-          padding:"40px",
-          border:"1px solid black",
-          textAlign:"center"
-        }}
-      >
-
-        {showAnswer ? (
-  <>
-    <p>{words[index]?.meaning}</p>
-    <p>{words[index]?.example}</p>
-    <p>{words[index]?.example_jp}</p>
-  </>
-
-
-) : (
-  <>
-    <p>{words[index]?.word}</p>
-    <p>{words[index]?.pinyin}</p>
-  </>
-)}
-
-
-
-
-      </div>
-
-
-      <button
-        onClick={() => answer("correct")}
-      >
-        正解
-      </button>
-
-
-      <button
-        onClick={() => answer("incorrect")}
-      >
-        不正解
-      </button>
-
 
 <button
-  onClick={() => {
-    localStorage.setItem(
-      "todayCount",
-      String(todayCount)
-    );
-
-    setStarted(false);
-    setFinished(false);
-    setIndex(0);
-    setTotalCorrect(0);
-    setTotalIncorrect(0);
+  style={{
+    display: "block",
+    width: "100%",
+    padding: "15px",
+    marginTop: "10px",
   }}
 >
-  終了
+  CSVインポート
 </button>
 
+<button
+  style={{
+    display: "block",
+    width: "100%",
+    padding: "15px",
+    marginTop: "10px",
+  }}
+>
+  単語追加
+</button>
 
 
     </main>
+  );
+}
 
-    );
 
 
+
+
+
+  return (
+    <main
+      style={{
+        maxWidth: "600px",
+        margin: "40px auto",
+        padding: "20px",
+      }}
+    >
+      <h1>デッキ</h1>
+
+      {/* デッキ一覧 */}
+      <div>
+        {decks.map((deck) => (
+          <div
+            key={deck.name}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              marginBottom: "10px",
+            }}
+          >
+            <button
+            onClick={() => {
+  setCurrentDeck(deck.name);
+  setDeckOpen(true);
+}}
+              style={{
+                flex: 1,
+                padding: "20px",
+                textAlign: "left",
+                fontSize: "18px",
+                background:
+                  currentDeck === deck.name
+                    ? "#cdb4db"
+                    : "white",
+                border: "1px solid #ccc",
+                borderRadius: "10px",
+                cursor: "pointer",
+              }}
+            >
+              {deck.name}
+
+              <span
+                style={{
+                  marginLeft: "10px",
+                  fontSize: "14px",
+                }}
+              >
+                {deck.words.length}語
+              </span>
+            </button>
+
+            <button
+              onClick={() => deleteDeck(deck.name)}
+              style={{
+                marginLeft: "10px",
+                padding: "8px 12px",
+              }}
+            >
+              削除
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* 新しいデッキ作成 */}
+      <h2>新しいデッキ作成</h2>
+
+      <input
+        placeholder="例：イタリア語"
+        value={newDeckName}
+        onChange={(e) =>
+          setNewDeckName(e.target.value)
+        }
+        style={{
+          padding: "10px",
+          width: "100%",
+          marginBottom: "10px",
+        }}
+      />
+
+      <select
+        value={newDeckLanguage}
+        onChange={(e) =>
+          setNewDeckLanguage(e.target.value)
+        }
+        style={{
+          padding: "10px",
+          width: "100%",
+          marginBottom: "10px",
+        }}
+      >
+        <option value="zh-CN">中国語</option>
+        <option value="de-DE">ドイツ語</option>
+        <option value="es-ES">スペイン語</option>
+        <option value="it-IT">イタリア語</option>
+        <option value="ja-JP">日本語</option>
+      </select>
+
+      <button
+        onClick={addDeck}
+        style={{
+          padding: "12px 30px",
+          background: "#cdb4db",
+          color: "white",
+          border: "none",
+          borderRadius: "20px",
+          cursor: "pointer",
+        }}
+      >
+        作成
+      </button>
+
+      
+    </main>
+  );
 }
