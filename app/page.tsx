@@ -5,7 +5,7 @@
 import { useEffect, useState } from "react";
 import { shuffle } from "./shuffle"
 import { db } from "@/lib/firebase";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, addDoc, setDoc, doc } from "firebase/firestore";
 
 type Word = {
   word: string;
@@ -69,6 +69,10 @@ const [newMeaning, setNewMeaning] = useState("");
   const [totalIncorrect, setTotalIncorrect] = useState(0);
 
   const [todayCount, setTodayCount] = useState(0);
+
+
+
+
 
 
   useEffect(() => {
@@ -142,6 +146,9 @@ loadFirebaseWords();
   const loadCSV = (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
+const selectedDeck =
+  localStorage.getItem("currentDeck") || currentDeck;
+
 
     alert("CSVボタン押された");
 
@@ -196,7 +203,7 @@ Array.from(files).forEach((file) => {
   
 
 
-reader.onload = () => {
+reader.onload = async () => {
   alert("onload開始");
 
 
@@ -236,8 +243,8 @@ return {
   example: "",
   example_jp: "",
   language: decks.find(
-    (deck) => deck.name === currentDeck
-  )?.language || "zh-CN",
+  (deck) => deck.name === selectedDeck
+)?.language || "zh-CN",
   correct: 0,
   incorrect: 0,
 };
@@ -253,8 +260,19 @@ return {
   console.log("作成単語", newWords);
   alert("単語数：" + newWords.length);
 
+
+
+for (const word of newWords) {
+  await addDoc(
+    collection(db, "words"),
+    word
+  );
+}
+
+  
+
   const updatedDecks = decks.map((deck) => {
-  if (deck.name === currentDeck) {
+  if (deck.name === selectedDeck) {
     return {
       ...deck,
       words: [...deck.words, ...newWords],
@@ -279,9 +297,8 @@ localStorage.setItem(
 );
 
 const current = updatedDecks.find(
-  (deck) => deck.name === currentDeck
+  (deck) => deck.name === selectedDeck
 );
-
 
 
 if (current) {
@@ -638,23 +655,47 @@ window.speechSynthesis.speak(speech);
 
 
 <button
+  style={{
+  display: "block",
+  width: "300px",
+  padding: "20px",
+  margin: "10px 0",
+  fontSize: "18px",
+  cursor: "pointer",
+  background:
+    currentDeck === deck.name
+      ? "#cdb4db"
+      : "white",
+}}
   onClick={() => {
     setCurrentDeck(deck.name);
-    setWords(deck.words);
-    setAllWords(deck.words);
+
+localStorage.setItem(
+  "currentDeck",
+  deck.name
+);
+
+setWords(deck.words);
+setAllWords(deck.words);
   }}
 >
-  {deck.name}（{deck.words.length}語）
+  
+{deck.name}（{deck.words.length}語）
+
 </button>
 
-    
 <button
-  style={{
+style={{
+
+
     marginLeft: "10px",
     padding: "4px 8px",
     fontSize: "12px",
   }}
-  onClick={() => {
+
+  onClick={(e) => {
+  e.stopPropagation();
+
   const updatedDecks = decks.filter(
     (d) => d.name !== deck.name
   );
@@ -740,7 +781,9 @@ CSVインポート
 </button>
 
 
-
+<h2>
+  {currentDeck}
+</h2>
 
 
         <p>

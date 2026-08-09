@@ -1,0 +1,52 @@
+[33mf74207e[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m first commit
+[33m1f3181c[m CSVインポート調査: 保存直前アラート追加
+[33mfb88411[m[33m ([m[1;31morigin/main[m[33m)[m CSV import fix
+[33m6044ef5[m CSV import fix
+[33mbdfb649[m fix csv reader
+[33ma868b58[m fix csv import
+[33mb594f75[m fix csv import
+[33mbfcedb5[m fix csv import
+[33m440ec0b[m fix word object syntax
+[33mec20cb3[m fix word type fields
+[33m12601a9[m fix csv parser
+[33m37a9502[m debug csv button
+[33m8480fcc[m fix csv fields
+[33me971c49[m fix csv import
+[33m1df80dd[m fix csv import
+[33m33f8a0f[m fix csv separator
+[33m9db4907[m fix csv import
+[33m2224274[m fix missing bracket
+[33m0d5de6f[m fix white screen
+[33m46c6df7[m fix bracket
+[33m811c303[m fix bracket error
+[33m325ec1e[m fix bracket
+[33m5a5df1a[m fix csv import
+[33m93cea5f[m support multiple CSV import
+[33m7b446bf[m fix voice error
+[33m4378636[m update app page
+[33m908813e[m Fix deck delete
+[33m1f94a78[m Allow importing multiple CSV files into a deck
+[33m1d7386b[m fix german voice
+[33m740f563[m fix german voice
+[33m2df71a4[m add deck language selection
+[33mab4351d[m add deck language selector
+[33m5b4c977[m add language selection for decks
+[33mf9c5820[m fix german voice
+[33m567fd54[m fix german voice
+[33m18624d1[m voice fix
+[33m263d92e[m fix speech language
+[33m77cf7ca[m remove answer audio button
+[33m4f45de2[m add language voice setting
+[33m93d8c64[m update app
+[33m0259290[m add deck select
+[33mca2d9cc[m fix build error
+[33m1a6d2e7[m add exit study button
+[33mf838f70[m add exit study button
+[33m5cfff10[m add exit study button
+[33m8e12326[m update deck system
+[33mb2ee09d[m Fix duplicate addWord function and start deck feature
+[33m4051b31[m add manual word input
+[33mf43dfc9[m add manual word input
+[33m5b6b33b[m add manual word input
+[33m817eae5[m update card design
+[33mb7949c3[m save app
