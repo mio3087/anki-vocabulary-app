@@ -16,6 +16,7 @@ type Word = {
   language: string;
   correct: number;
   incorrect: number;
+  lastStudied: number;
 };
 
 type Deck = {
@@ -243,10 +244,11 @@ return {
   example: "",
   example_jp: "",
   language: decks.find(
-  (deck) => deck.name === selectedDeck
-)?.language || "zh-CN",
+    (deck) => deck.name === selectedDeck
+  )?.language || "zh-CN",
   correct: 0,
   incorrect: 0,
+  lastStudied: 0,
 };
 
 
@@ -562,6 +564,8 @@ if (chineseVoice) {
 
     const updated = [...words];
 
+updated[index].lastStudied = Date.now();
+
 
     if (type === "correct") {
 
@@ -643,12 +647,11 @@ window.speechSynthesis.speak(speech);
   if (!started) {
 
     return (
+<main>
 
-      <main>
-
-
-
-<h3>デッキ</h3>
+<h1>
+  デッキ
+</h1>
 
 {decks.map((deck) => (
   <div key={deck.name}>
@@ -784,7 +787,6 @@ CSVインポート
 <h2>
   {currentDeck}
 </h2>
-
 
         <p>
           今日の学習数
