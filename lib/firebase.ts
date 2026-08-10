@@ -8,9 +8,11 @@ const firebaseConfig = {
   storageBucket: "vocab-app-c8613.firebasestorage.app",
   messagingSenderId: "833768299962",
   appId: "1:833768299962:web:590a6e49b9934d6be25183",
-  measurementId: "G-CZP3DPQX0M"
+  measurementId: "G-CZP3DPQX0M",
 };
 
-const app = initializeApp(firebaseConfig);
+const app =
+  initializeApp(firebaseConfig);
 
-export const db = getFirestore(app);
+export const db =
+  getFirestore(app);

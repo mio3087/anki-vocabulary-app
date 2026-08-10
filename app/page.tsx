@@ -1,6 +1,13 @@
 "use client";
 
 import { ChangeEvent, useEffect, useRef, useState } from "react";
+import { db } from "@/lib/firebase";
+import {
+  collection,
+  getDocs,
+  setDoc,
+  doc,
+} from "firebase/firestore";
 
 type Folder = {
   id: string;
@@ -8,6 +15,7 @@ type Folder = {
 };
 
 type Card = {
+  id: string;
   front: string;
   pinyin: string;
   japanese: string;
@@ -23,12 +31,20 @@ type Deck = {
 };
 
 export default function Home() {
+  // =========================
+  // フォルダ
+  // =========================
+
   const [folders, setFolders] = useState<Folder[]>([
     {
       id: "default",
       name: "中国語",
     },
   ]);
+
+  // =========================
+  // デッキ
+  // =========================
 
   const [decks, setDecks] = useState<Deck[]>([
     {
@@ -42,16 +58,45 @@ export default function Home() {
   const [currentDeck, setCurrentDeck] = useState("中国語");
   const [deckOpen, setDeckOpen] = useState(false);
 
+  // =========================
+  // 学習
+  // =========================
+
   const [studyMode, setStudyMode] = useState(false);
   const [studyIndex, setStudyIndex] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
+
+  // =========================
+  // デッキ作成
+  // =========================
 
   const [newDeckName, setNewDeckName] = useState("");
   const [newDeckLanguage, setNewDeckLanguage] = useState("zh-CN");
   const [newDeckFolderId, setNewDeckFolderId] =
     useState<string | null>(null);
 
+  // =========================
+  // フォルダ作成
+  // =========================
+
   const [newFolderName, setNewFolderName] = useState("");
+
+  // =========================
+  // 単語追加・編集
+  // =========================
+
+  const [showCardForm, setShowCardForm] = useState(false);
+  const [editingCardId, setEditingCardId] = useState<string | null>(null);
+
+  const [cardFront, setCardFront] = useState("");
+  const [cardPinyin, setCardPinyin] = useState("");
+  const [cardJapanese, setCardJapanese] = useState("");
+  const [cardExample, setCardExample] = useState("");
+  const [cardExampleJapanese, setCardExampleJapanese] = useState("");
+
+  // =========================
+  // CSV
+  // =========================
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -63,12 +108,15 @@ export default function Home() {
     blue: "#8ecae6",
     blueDark: "#4f9fc5",
     blueLight: "#eaf7fc",
+
     pink: "#f7a8c4",
     pinkDark: "#e783a6",
     pinkLight: "#fff0f5",
+
     white: "#ffffff",
     gray: "#777777",
     border: "#d9e8ef",
+    dark: "#444444",
   };
 
   // =========================
@@ -85,8 +133,13 @@ export default function Home() {
 
     window.speechSynthesis.cancel();
 
+    const deck = decks.find(
+      (item) => item.name === currentDeck
+    );
+
     const utterance = new SpeechSynthesisUtterance(word);
-    utterance.lang = "zh-CN";
+
+    utterance.lang = deck?.language || "zh-CN";
     utterance.rate = 0.8;
 
     window.speechSynthesis.speak(utterance);
@@ -97,17 +150,23 @@ export default function Home() {
   // =========================
 
   useEffect(() => {
-    if (!studyMode) return;
+    if (!studyMode) {
+      return;
+    }
 
     const deck = decks.find(
       (item) => item.name === currentDeck
     );
 
-    if (!deck || deck.cards.length === 0) return;
+    if (!deck || deck.cards.length === 0) {
+      return;
+    }
 
     const card = deck.cards[studyIndex];
 
-    if (!card) return;
+    if (!card) {
+      return;
+    }
 
     speakWord(card.front);
 
@@ -128,6 +187,15 @@ export default function Home() {
   const addDeck = () => {
     if (!newDeckName.trim()) {
       alert("デッキ名を入力してください");
+      return;
+    }
+
+    if (
+      decks.some(
+        (deck) => deck.name === newDeckName.trim()
+      )
+    ) {
+      alert("同じ名前のデッキがあります");
       return;
     }
 
@@ -153,6 +221,10 @@ export default function Home() {
   // =========================
 
   const deleteDeck = (deckName: string) => {
+    if (!confirm(`「${deckName}」を削除しますか？`)) {
+      return;
+    }
+
     const updatedDecks = decks.filter(
       (deck) => deck.name !== deckName
     );
@@ -198,6 +270,10 @@ export default function Home() {
   // =========================
 
   const deleteFolder = (folderId: string) => {
+    if (!confirm("このフォルダを削除しますか？")) {
+      return;
+    }
+
     setFolders((currentFolders) =>
       currentFolders.filter(
         (folder) => folder.id !== folderId
@@ -240,7 +316,9 @@ export default function Home() {
     const input = event.currentTarget;
     const file = input.files?.[0];
 
-    if (!file) return;
+    if (!file) {
+      return;
+    }
 
     input.value = "";
 
@@ -273,6 +351,10 @@ export default function Home() {
           const parts = line.split(",");
 
           const card: Card = {
+            id:
+              Date.now().toString() +
+              Math.random().toString(36).slice(2),
+
             front: (parts[0] || "").trim(),
             pinyin: (parts[1] || "").trim(),
             japanese: (parts[2] || "").trim(),
@@ -315,6 +397,7 @@ export default function Home() {
         );
       } catch (error) {
         console.error(error);
+
         alert(
           "CSVの読み込み中にエラーが発生しました"
         );
@@ -332,6 +415,179 @@ export default function Home() {
 
   const openCSVPicker = () => {
     fileInputRef.current?.click();
+  };
+
+  // =========================
+  // 単語フォームを開く
+  // =========================
+
+  const openAddCard = () => {
+    setEditingCardId(null);
+
+    setCardFront("");
+    setCardPinyin("");
+    setCardJapanese("");
+    setCardExample("");
+    setCardExampleJapanese("");
+
+    setShowCardForm(true);
+  };
+
+  // =========================
+  // 単語編集フォームを開く
+  // =========================
+
+  const openEditCard = (card: Card) => {
+    setEditingCardId(card.id);
+
+    setCardFront(card.front);
+    setCardPinyin(card.pinyin);
+    setCardJapanese(card.japanese);
+    setCardExample(card.example);
+    setCardExampleJapanese(
+      card.exampleJapanese
+    );
+
+    setShowCardForm(true);
+  };
+
+  // =========================
+  // 単語フォームを閉じる
+  // =========================
+
+  const closeCardForm = () => {
+    setShowCardForm(false);
+    setEditingCardId(null);
+
+    setCardFront("");
+    setCardPinyin("");
+    setCardJapanese("");
+    setCardExample("");
+    setCardExampleJapanese("");
+  };
+
+  // =========================
+  // 単語保存
+  // =========================
+
+  const saveCard = () => {
+    if (!cardFront.trim()) {
+      alert("単語を入力してください");
+      return;
+    }
+
+    // 編集中ではない場合だけ重複チェック
+    if (!editingCardId) {
+      const deck = decks.find(
+        (item) => item.name === currentDeck
+      );
+
+      const duplicate = deck?.cards.some(
+        (card) =>
+          card.front.trim().toLowerCase() ===
+          cardFront.trim().toLowerCase()
+      );
+
+      if (duplicate) {
+        const shouldAdd = confirm(
+          `「${cardFront.trim()}」はすでに存在します。\n\nそれでも追加しますか？`
+        );
+
+        if (!shouldAdd) {
+          return;
+        }
+      }
+    }
+
+    setDecks((currentDecks) =>
+      currentDecks.map((deck) => {
+        if (deck.name !== currentDeck) {
+          return deck;
+        }
+
+        // 編集
+        if (editingCardId) {
+          return {
+            ...deck,
+            cards: deck.cards.map((card) =>
+              card.id === editingCardId
+                ? {
+                    ...card,
+                    front: cardFront.trim(),
+                    pinyin: cardPinyin.trim(),
+                    japanese:
+                      cardJapanese.trim(),
+                    example:
+                      cardExample.trim(),
+                    exampleJapanese:
+                      cardExampleJapanese.trim(),
+                  }
+                : card
+            ),
+          };
+        }
+
+        // 新規追加
+        const newCard: Card = {
+          id:
+            Date.now().toString() +
+            Math.random().toString(36).slice(2),
+
+          front: cardFront.trim(),
+          pinyin: cardPinyin.trim(),
+          japanese: cardJapanese.trim(),
+          example: cardExample.trim(),
+          exampleJapanese:
+            cardExampleJapanese.trim(),
+        };
+
+        return {
+          ...deck,
+          cards: [...deck.cards, newCard],
+        };
+      })
+    );
+
+    closeCardForm();
+  };
+
+  // =========================
+  // 単語削除
+  // =========================
+
+  const deleteCard = (cardId: string) => {
+    const deck = decks.find(
+      (item) => item.name === currentDeck
+    );
+
+    const card = deck?.cards.find(
+      (item) => item.id === cardId
+    );
+
+    if (!card) {
+      return;
+    }
+
+    if (
+      !confirm(
+        `「${card.front}」を削除しますか？`
+      )
+    ) {
+      return;
+    }
+
+    setDecks((currentDecks) =>
+      currentDecks.map((deck) =>
+        deck.name === currentDeck
+          ? {
+              ...deck,
+              cards: deck.cards.filter(
+                (item) => item.id !== cardId
+              ),
+            }
+          : deck
+      )
+    );
   };
 
   // =========================
@@ -387,10 +643,18 @@ export default function Home() {
       (item) => item.name === currentDeck
     );
 
-    if (!deck) return;
+    if (!deck) {
+      return;
+    }
 
-    if (studyIndex < deck.cards.length - 1) {
-      setStudyIndex((index) => index + 1);
+    if (
+      studyIndex <
+      deck.cards.length - 1
+    ) {
+      setStudyIndex(
+        (index) => index + 1
+      );
+
       setShowAnswer(false);
     } else {
       alert("学習終了！");
@@ -407,7 +671,10 @@ export default function Home() {
       (item) => item.name === currentDeck
     );
 
-    if (!deck || deck.cards.length === 0) {
+    if (
+      !deck ||
+      deck.cards.length === 0
+    ) {
       return null;
     }
 
@@ -428,7 +695,8 @@ export default function Home() {
         <div
           style={{
             display: "flex",
-            justifyContent: "space-between",
+            justifyContent:
+              "space-between",
             alignItems: "center",
             marginBottom: "20px",
           }}
@@ -455,9 +723,12 @@ export default function Home() {
               fontSize: "15px",
             }}
           >
-            {studyIndex + 1} / {deck.cards.length}
+            {studyIndex + 1} /{" "}
+            {deck.cards.length}
           </p>
         </div>
+
+        {/* カード */}
 
         <div
           onClick={toggleAnswer}
@@ -521,7 +792,9 @@ export default function Home() {
                   marginBottom: "15px",
                 }}
               >
-                🔤 {card.pinyin || "ピンインなし"}
+                🔤{" "}
+                {card.pinyin ||
+                  "読み方なし"}
               </div>
 
               <div
@@ -531,7 +804,9 @@ export default function Home() {
                   marginBottom: "25px",
                 }}
               >
-                🇯🇵 {card.japanese || "日本語訳なし"}
+                🇯🇵{" "}
+                {card.japanese ||
+                  "日本語訳なし"}
               </div>
 
               {card.example && (
@@ -552,15 +827,21 @@ export default function Home() {
                     color: colors.gray,
                   }}
                 >
-                  {card.exampleJapanese}
+                  {
+                    card.exampleJapanese
+                  }
                 </div>
               )}
             </>
           )}
         </div>
 
+        {/* 発音 */}
+
         <button
-          onClick={() => speakWord(card.front)}
+          onClick={() =>
+            speakWord(card.front)
+          }
           style={{
             marginTop: "20px",
             padding: "10px 22px",
@@ -574,6 +855,8 @@ export default function Home() {
         >
           🔊 発音
         </button>
+
+        {/* 正解・不正解 */}
 
         {showAnswer && (
           <div
@@ -623,13 +906,17 @@ export default function Home() {
   }
 
   // =========================
-  // デッキ詳細
+  // デッキ詳細画面
   // =========================
 
   if (deckOpen) {
     const deck = decks.find(
       (item) => item.name === currentDeck
     );
+
+    if (!deck) {
+      return null;
+    }
 
     return (
       <main
@@ -639,8 +926,12 @@ export default function Home() {
           padding: "20px",
         }}
       >
+        {/* 戻る */}
+
         <button
-          onClick={() => setDeckOpen(false)}
+          onClick={() =>
+            setDeckOpen(false)
+          }
           style={{
             marginBottom: "20px",
             padding: "8px 15px",
@@ -649,14 +940,29 @@ export default function Home() {
             color: colors.blueDark,
             fontWeight: "bold",
             cursor: "pointer",
+            fontSize: "16px",
           }}
         >
           ← デッキ一覧
         </button>
 
-        <h1>{currentDeck}</h1>
+        <h1
+          style={{
+            color: colors.blueDark,
+          }}
+        >
+          📚 {currentDeck}
+        </h1>
 
-        <p>{deck?.cards.length || 0}語</p>
+        <p
+          style={{
+            color: colors.gray,
+          }}
+        >
+          {deck.cards.length}語
+        </p>
+
+        {/* 学習開始 */}
 
         <button
           onClick={startStudy}
@@ -676,6 +982,8 @@ export default function Home() {
         >
           ▶ 学習開始
         </button>
+
+        {/* CSV */}
 
         <input
           ref={fileInputRef}
@@ -706,7 +1014,10 @@ export default function Home() {
           📥 CSVインポート
         </button>
 
+        {/* 単語追加 */}
+
         <button
+          onClick={openAddCard}
           style={{
             display: "block",
             width: "100%",
@@ -721,14 +1032,334 @@ export default function Home() {
             cursor: "pointer",
           }}
         >
-          ✏️ 単語追加
+          ✏️ 単語を追加
         </button>
+
+        {/* 単語追加・編集フォーム */}
+
+        {showCardForm && (
+          <div
+            style={{
+              marginTop: "25px",
+              padding: "20px",
+              background: colors.pinkLight,
+              border: `2px solid ${colors.pink}`,
+              borderRadius: "20px",
+            }}
+          >
+            <h2
+              style={{
+                color: colors.pinkDark,
+                marginTop: 0,
+              }}
+            >
+              {editingCardId
+                ? "✏️ 単語を編集"
+                : "➕ 単語を追加"}
+            </h2>
+
+            <input
+              placeholder="単語 *"
+              value={cardFront}
+              onChange={(e) =>
+                setCardFront(e.target.value)
+              }
+              style={{
+                width: "100%",
+                padding: "12px",
+                boxSizing: "border-box",
+                marginBottom: "10px",
+                border: `2px solid ${colors.blue}`,
+                borderRadius: "12px",
+                fontSize: "16px",
+              }}
+            />
+
+            <input
+              placeholder="ピンイン・読み方"
+              value={cardPinyin}
+              onChange={(e) =>
+                setCardPinyin(e.target.value)
+              }
+              style={{
+                width: "100%",
+                padding: "12px",
+                boxSizing: "border-box",
+                marginBottom: "10px",
+                border: `2px solid ${colors.blue}`,
+                borderRadius: "12px",
+                fontSize: "16px",
+              }}
+            />
+
+            <input
+              placeholder="日本語訳"
+              value={cardJapanese}
+              onChange={(e) =>
+                setCardJapanese(
+                  e.target.value
+                )
+              }
+              style={{
+                width: "100%",
+                padding: "12px",
+                boxSizing: "border-box",
+                marginBottom: "10px",
+                border: `2px solid ${colors.pink}`,
+                borderRadius: "12px",
+                fontSize: "16px",
+              }}
+            />
+
+            <input
+              placeholder="例文"
+              value={cardExample}
+              onChange={(e) =>
+                setCardExample(
+                  e.target.value
+                )
+              }
+              style={{
+                width: "100%",
+                padding: "12px",
+                boxSizing: "border-box",
+                marginBottom: "10px",
+                border: `2px solid ${colors.blue}`,
+                borderRadius: "12px",
+                fontSize: "16px",
+              }}
+            />
+
+            <input
+              placeholder="例文の日本語訳"
+              value={cardExampleJapanese}
+              onChange={(e) =>
+                setCardExampleJapanese(
+                  e.target.value
+                )
+              }
+              style={{
+                width: "100%",
+                padding: "12px",
+                boxSizing: "border-box",
+                marginBottom: "15px",
+                border: `2px solid ${colors.pink}`,
+                borderRadius: "12px",
+                fontSize: "16px",
+              }}
+            />
+
+            <div
+              style={{
+                display: "flex",
+                gap: "10px",
+              }}
+            >
+              <button
+                onClick={saveCard}
+                style={{
+                  flex: 1,
+                  padding: "13px",
+                  background: colors.blue,
+                  color: colors.white,
+                  border: "none",
+                  borderRadius: "15px",
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                }}
+              >
+                💾 保存
+              </button>
+
+              <button
+                onClick={closeCardForm}
+                style={{
+                  flex: 1,
+                  padding: "13px",
+                  background: colors.white,
+                  color: colors.gray,
+                  border: `2px solid ${colors.border}`,
+                  borderRadius: "15px",
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                }}
+              >
+                キャンセル
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 単語一覧 */}
+
+        <div style={{ marginTop: "35px" }}>
+          <h2
+            style={{
+              color: colors.blueDark,
+            }}
+          >
+            📖 単語一覧
+          </h2>
+
+          {deck.cards.length === 0 ? (
+            <div
+              style={{
+                padding: "30px 15px",
+                textAlign: "center",
+                background: colors.blueLight,
+                borderRadius: "18px",
+                color: colors.gray,
+              }}
+            >
+              まだ単語がありません
+            </div>
+          ) : (
+            deck.cards.map(
+              (card, index) => (
+                <div
+                  key={card.id}
+                  style={{
+                    marginBottom: "12px",
+                    padding: "15px",
+                    background: colors.white,
+                    border: `2px solid ${
+                      index % 2 === 0
+                        ? colors.blue
+                        : colors.pink
+                    }`,
+                    borderRadius: "16px",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent:
+                        "space-between",
+                      gap: "10px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "21px",
+                          fontWeight: "bold",
+                          color: colors.dark,
+                          marginBottom: "5px",
+                        }}
+                      >
+                        {card.front}
+                      </div>
+
+                      {card.pinyin && (
+                        <div
+                          style={{
+                            color: colors.gray,
+                            marginBottom: "4px",
+                          }}
+                        >
+                          🔤 {card.pinyin}
+                        </div>
+                      )}
+
+                      {card.japanese && (
+                        <div
+                          style={{
+                            fontSize: "17px",
+                          }}
+                        >
+                          🇯🇵{" "}
+                          {card.japanese}
+                        </div>
+                      )}
+
+                      {card.example && (
+                        <div
+                          style={{
+                            marginTop: "8px",
+                            fontSize: "14px",
+                            color: colors.gray,
+                          }}
+                        >
+                          {card.example}
+                        </div>
+                      )}
+                    </div>
+
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection:
+                          "column",
+                        gap: "6px",
+                      }}
+                    >
+                      <button
+                        onClick={() =>
+                          openEditCard(
+                            card
+                          )
+                        }
+                        style={{
+                          padding:
+                            "8px 12px",
+                          background:
+                            colors.blueLight,
+                          border: `1px solid ${colors.blue}`,
+                          color:
+                            colors.blueDark,
+                          borderRadius:
+                            "10px",
+                          cursor:
+                            "pointer",
+                          fontWeight:
+                            "bold",
+                        }}
+                      >
+                        ✏️ 編集
+                      </button>
+
+                      <button
+                        onClick={() =>
+                          deleteCard(
+                            card.id
+                          )
+                        }
+                        style={{
+                          padding:
+                            "8px 12px",
+                          background:
+                            colors.pinkLight,
+                          border: `1px solid ${colors.pink}`,
+                          color:
+                            colors.pinkDark,
+                          borderRadius:
+                            "10px",
+                          cursor:
+                            "pointer",
+                          fontWeight:
+                            "bold",
+                        }}
+                      >
+                        🗑️ 削除
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )
+            )
+          )}
+        </div>
       </main>
     );
   }
 
   // =========================
-  // デッキ一覧
+  // デッキ一覧画面
   // =========================
 
   return (
@@ -739,9 +1370,15 @@ export default function Home() {
         padding: "20px",
       }}
     >
-      <h1 style={{ color: colors.blueDark }}>
+      <h1
+        style={{
+          color: colors.blueDark,
+        }}
+      >
         📚 デッキ
       </h1>
+
+      {/* フォルダ */}
 
       {folders.map((folder) => (
         <div
@@ -757,7 +1394,8 @@ export default function Home() {
           <div
             style={{
               display: "flex",
-              justifyContent: "space-between",
+              justifyContent:
+                "space-between",
               alignItems: "center",
               marginBottom: "10px",
             }}
@@ -768,12 +1406,16 @@ export default function Home() {
 
             <button
               onClick={() =>
-                deleteFolder(folder.id)
+                deleteFolder(
+                  folder.id
+                )
               }
               style={{
                 border: "none",
-                background: "transparent",
-                color: colors.pinkDark,
+                background:
+                  "transparent",
+                color:
+                  colors.pinkDark,
                 cursor: "pointer",
               }}
             >
@@ -784,81 +1426,115 @@ export default function Home() {
           {decks
             .filter(
               (deck) =>
-                deck.folderId === folder.id
+                deck.folderId ===
+                folder.id
             )
             .map((deck) => (
               <div
                 key={deck.name}
                 style={{
                   display: "flex",
-                  alignItems: "center",
+                  alignItems:
+                    "center",
                   marginBottom: "8px",
                 }}
               >
                 <button
                   onClick={() => {
-                    setCurrentDeck(deck.name);
+                    setCurrentDeck(
+                      deck.name
+                    );
                     setDeckOpen(true);
                   }}
                   style={{
                     flex: 1,
                     padding: "15px",
                     textAlign: "left",
-                    background: colors.white,
+                    background:
+                      colors.white,
                     border: `2px solid ${colors.pink}`,
-                    borderRadius: "12px",
-                    cursor: "pointer",
+                    borderRadius:
+                      "12px",
+                    cursor:
+                      "pointer",
                   }}
                 >
                   {deck.name}
 
                   <span
                     style={{
-                      marginLeft: "10px",
-                      fontSize: "14px",
-                      color: colors.gray,
+                      marginLeft:
+                        "10px",
+                      fontSize:
+                        "14px",
+                      color:
+                        colors.gray,
                     }}
                   >
-                    {deck.cards.length}語
+                    {deck.cards.length}
+                    語
                   </span>
                 </button>
 
                 <select
-                  value={deck.folderId || ""}
+                  value={
+                    deck.folderId ||
+                    ""
+                  }
                   onChange={(e) =>
                     moveDeck(
                       deck.name,
-                      e.target.value || null
+                      e.target
+                        .value ||
+                        null
                     )
                   }
                   style={{
-                    marginLeft: "8px",
+                    marginLeft:
+                      "8px",
                   }}
                 >
                   <option value="">
                     未分類
                   </option>
 
-                  {folders.map((folderItem) => (
-                    <option
-                      key={folderItem.id}
-                      value={folderItem.id}
-                    >
-                      {folderItem.name}
-                    </option>
-                  ))}
+                  {folders.map(
+                    (
+                      folderItem
+                    ) => (
+                      <option
+                        key={
+                          folderItem.id
+                        }
+                        value={
+                          folderItem.id
+                        }
+                      >
+                        {
+                          folderItem.name
+                        }
+                      </option>
+                    )
+                  )}
                 </select>
 
                 <button
                   onClick={() =>
-                    deleteDeck(deck.name)
+                    deleteDeck(
+                      deck.name
+                    )
                   }
                   style={{
-                    marginLeft: "8px",
-                    border: "none",
-                    background: "transparent",
-                    color: colors.pinkDark,
-                    cursor: "pointer",
+                    marginLeft:
+                      "8px",
+                    border:
+                      "none",
+                    background:
+                      "transparent",
+                    color:
+                      colors.pinkDark,
+                    cursor:
+                      "pointer",
                   }}
                 >
                   削除
@@ -868,8 +1544,11 @@ export default function Home() {
         </div>
       ))}
 
+      {/* 未分類 */}
+
       {decks.some(
-        (deck) => deck.folderId === null
+        (deck) =>
+          deck.folderId === null
       ) && (
         <div
           style={{
@@ -877,7 +1556,8 @@ export default function Home() {
             borderRadius: "18px",
             padding: "15px",
             marginBottom: "20px",
-            background: colors.pinkLight,
+            background:
+              colors.pinkLight,
           }}
         >
           <h2>📂 未分類</h2>
@@ -892,64 +1572,96 @@ export default function Home() {
                 key={deck.name}
                 style={{
                   display: "flex",
-                  alignItems: "center",
+                  alignItems:
+                    "center",
                   marginBottom: "8px",
                 }}
               >
                 <button
                   onClick={() => {
-                    setCurrentDeck(deck.name);
+                    setCurrentDeck(
+                      deck.name
+                    );
                     setDeckOpen(true);
                   }}
                   style={{
                     flex: 1,
                     padding: "15px",
-                    textAlign: "left",
-                    background: colors.white,
+                    textAlign:
+                      "left",
+                    background:
+                      colors.white,
                     border: `2px solid ${colors.blue}`,
-                    borderRadius: "12px",
-                    cursor: "pointer",
+                    borderRadius:
+                      "12px",
+                    cursor:
+                      "pointer",
                   }}
                 >
-                  {deck.name} {deck.cards.length}語
+                  {deck.name}{" "}
+                  {deck.cards.length}
+                  語
                 </button>
 
                 <select
-                  value={deck.folderId || ""}
+                  value={
+                    deck.folderId ||
+                    ""
+                  }
                   onChange={(e) =>
                     moveDeck(
                       deck.name,
-                      e.target.value || null
+                      e.target
+                        .value ||
+                        null
                     )
                   }
                   style={{
-                    marginLeft: "8px",
+                    marginLeft:
+                      "8px",
                   }}
                 >
                   <option value="">
                     フォルダへ移動
                   </option>
 
-                  {folders.map((folderItem) => (
-                    <option
-                      key={folderItem.id}
-                      value={folderItem.id}
-                    >
-                      {folderItem.name}
-                    </option>
-                  ))}
+                  {folders.map(
+                    (
+                      folderItem
+                    ) => (
+                      <option
+                        key={
+                          folderItem.id
+                        }
+                        value={
+                          folderItem.id
+                        }
+                      >
+                        {
+                          folderItem.name
+                        }
+                      </option>
+                    )
+                  )}
                 </select>
 
                 <button
                   onClick={() =>
-                    deleteDeck(deck.name)
+                    deleteDeck(
+                      deck.name
+                    )
                   }
                   style={{
-                    marginLeft: "8px",
-                    border: "none",
-                    background: "transparent",
-                    color: colors.pinkDark,
-                    cursor: "pointer",
+                    marginLeft:
+                      "8px",
+                    border:
+                      "none",
+                    background:
+                      "transparent",
+                    color:
+                      colors.pinkDark,
+                    cursor:
+                      "pointer",
                   }}
                 >
                   削除
@@ -959,21 +1671,28 @@ export default function Home() {
         </div>
       )}
 
+      {/* 新しいフォルダ */}
+
       <h2>新しいフォルダ</h2>
 
       <input
         placeholder="例：中国語"
         value={newFolderName}
         onChange={(e) =>
-          setNewFolderName(e.target.value)
+          setNewFolderName(
+            e.target.value
+          )
         }
         style={{
           padding: "12px",
           width: "100%",
-          boxSizing: "border-box",
-          marginBottom: "10px",
+          boxSizing:
+            "border-box",
+          marginBottom:
+            "10px",
           border: `2px solid ${colors.blue}`,
-          borderRadius: "12px",
+          borderRadius:
+            "12px",
         }}
       />
 
@@ -981,16 +1700,23 @@ export default function Home() {
         onClick={addFolder}
         style={{
           padding: "12px 30px",
-          background: colors.pink,
-          color: colors.white,
+          background:
+            colors.pink,
+          color:
+            colors.white,
           border: "none",
-          borderRadius: "20px",
-          cursor: "pointer",
-          fontWeight: "bold",
+          borderRadius:
+            "20px",
+          cursor:
+            "pointer",
+          fontWeight:
+            "bold",
         }}
       >
         ＋ フォルダ作成
       </button>
+
+      {/* 新しいデッキ */}
 
       <h2>新しいデッキ作成</h2>
 
@@ -998,75 +1724,112 @@ export default function Home() {
         placeholder="例：HSK6"
         value={newDeckName}
         onChange={(e) =>
-          setNewDeckName(e.target.value)
+          setNewDeckName(
+            e.target.value
+          )
         }
         style={{
           padding: "12px",
           width: "100%",
-          boxSizing: "border-box",
-          marginBottom: "10px",
+          boxSizing:
+            "border-box",
+          marginBottom:
+            "10px",
           border: `2px solid ${colors.pink}`,
-          borderRadius: "12px",
+          borderRadius:
+            "12px",
         }}
       />
 
       <select
         value={newDeckLanguage}
         onChange={(e) =>
-          setNewDeckLanguage(e.target.value)
-        }
-        style={{
-          padding: "12px",
-          width: "100%",
-          marginBottom: "10px",
-          border: `2px solid ${colors.blue}`,
-          borderRadius: "12px",
-        }}
-      >
-        <option value="zh-CN">中国語</option>
-        <option value="de-DE">ドイツ語</option>
-        <option value="es-ES">スペイン語</option>
-        <option value="it-IT">イタリア語</option>
-        <option value="ja-JP">日本語</option>
-      </select>
-
-      <select
-        value={newDeckFolderId || ""}
-        onChange={(e) =>
-          setNewDeckFolderId(
-            e.target.value || null
+          setNewDeckLanguage(
+            e.target.value
           )
         }
         style={{
           padding: "12px",
           width: "100%",
-          marginBottom: "10px",
+          marginBottom:
+            "10px",
           border: `2px solid ${colors.blue}`,
-          borderRadius: "12px",
+          borderRadius:
+            "12px",
         }}
       >
-        <option value="">フォルダなし</option>
+        <option value="zh-CN">
+          中国語
+        </option>
 
-        {folders.map((folder) => (
-          <option
-            key={folder.id}
-            value={folder.id}
-          >
-            {folder.name}
-          </option>
-        ))}
+        <option value="de-DE">
+          ドイツ語
+        </option>
+
+        <option value="es-ES">
+          スペイン語
+        </option>
+
+        <option value="it-IT">
+          イタリア語
+        </option>
+
+        <option value="ja-JP">
+          日本語
+        </option>
+      </select>
+
+      <select
+        value={
+          newDeckFolderId || ""
+        }
+        onChange={(e) =>
+          setNewDeckFolderId(
+            e.target.value ||
+              null
+          )
+        }
+        style={{
+          padding: "12px",
+          width: "100%",
+          marginBottom:
+            "10px",
+          border: `2px solid ${colors.blue}`,
+          borderRadius:
+            "12px",
+        }}
+      >
+        <option value="">
+          フォルダなし
+        </option>
+
+        {folders.map(
+          (folder) => (
+            <option
+              key={folder.id}
+              value={folder.id}
+            >
+              {folder.name}
+            </option>
+          )
+        )}
       </select>
 
       <button
         onClick={addDeck}
         style={{
           padding: "12px 30px",
-          background: colors.blue,
-          color: colors.white,
+          background:
+            colors.blue,
+          color:
+            colors.white,
           border: "none",
-          borderRadius: "20px",
-          cursor: "pointer",
-          fontWeight: "bold",
+          borderRadius:
+            "20px",
+          cursor:
+            "pointer",
+          fontWeight:
+            "bold",
         }}
       >
         ＋ 作成
