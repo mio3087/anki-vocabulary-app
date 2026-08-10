@@ -648,8 +648,11 @@ const importCSV = (
         );
 
         alert(
-          "CSVの読み込み中にエラーが発生しました"
-        );
+  "CSVエラー: " +
+    (error instanceof Error
+      ? error.message
+      : String(error))
+);
       }
     };
 
