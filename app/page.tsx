@@ -505,12 +505,9 @@ export default function Home() {
   // CSVインポート
   // =========================
 
-  
-const importCSV = (
-  event: ChangeEvent<HTMLInputElement>
-) => {
-
-
+  const importCSV = (
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
     const input = event.currentTarget;
     const file = input.files?.[0];
 
@@ -648,11 +645,11 @@ const importCSV = (
         );
 
         alert(
-  "CSVエラー: " +
-    (error instanceof Error
-      ? error.message
-      : String(error))
-);
+          "CSVエラー: " +
+            (error instanceof Error
+              ? error.message
+              : String(error))
+        );
       }
     };
 
@@ -978,7 +975,15 @@ const importCSV = (
   // 正解・不正解
   // =========================
 
-  const answerCard = () => {
+  const answerCard = (correct: boolean) => {
+    // 今は正解・不正解の値を受け取るだけ
+    // 後からここに学習履歴保存などを追加できます。
+    console.log(
+      correct
+        ? "正解"
+        : "不正解"
+    );
+
     const deck = decks.find(
       (item) =>
         item.name === currentDeck
@@ -1215,8 +1220,11 @@ const importCSV = (
               marginTop: "25px",
             }}
           >
+            {/* 不正解 */}
             <button
-              onClick={answerCard}
+              onClick={() =>
+                answerCard(false)
+              }
               style={{
                 flex: 1,
                 padding: "18px 10px",
@@ -1234,8 +1242,11 @@ const importCSV = (
               ❌ 不正解
             </button>
 
+            {/* 正解 */}
             <button
-              onClick={answerCard}
+              onClick={() =>
+                answerCard(true)
+              }
               style={{
                 flex: 1,
                 padding: "18px 10px",
