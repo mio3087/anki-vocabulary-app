@@ -41,6 +41,8 @@ type Deck = {
 type StudyRecord = {
   id: string;
   date: string;
+  time?: string;
+  startedAt?: number;
   deckName: string;
   answered: number;
   correct: number;
@@ -67,10 +69,6 @@ const colors = {
   greenLight: "#effaf2",
 };
 
-/* =========================================================
-   カードをランダムに並べ替える
-========================================================= */
-
 const shuffleCards = (cards: Card[]): Card[] => {
   const shuffled = [...cards];
 
@@ -84,6 +82,12 @@ const shuffleCards = (cards: Card[]): Card[] => {
   }
 
   return shuffled;
+};
+
+const createId = () => {
+  return `${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2)}`;
 };
 
 export default function Home() {
@@ -112,7 +116,6 @@ export default function Home() {
   ]);
 
   const [currentDeck, setCurrentDeck] = useState("中国語");
-
   const [deckOpen, setDeckOpen] = useState(false);
 
   // =========================================================
@@ -120,20 +123,20 @@ export default function Home() {
   // =========================================================
 
   const [studyMode, setStudyMode] = useState(false);
-
   const [studyCards, setStudyCards] = useState<Card[]>([]);
-
   const [studyIndex, setStudyIndex] = useState(0);
-
   const [showAnswer, setShowAnswer] = useState(false);
 
   const [studyCorrect, setStudyCorrect] = useState(0);
-
   const [studyIncorrect, setStudyIncorrect] =
     useState(0);
 
   const [studyStartTime, setStudyStartTime] =
     useState<number | null>(null);
+
+  // 1回の学習ごとに固有IDを持たせる
+  const [studySessionId, setStudySessionId] =
+    useState<string | null>(null);
 
   // =========================================================
   // 学習記録
@@ -176,16 +179,11 @@ export default function Home() {
     useState<string | null>(null);
 
   const [cardFront, setCardFront] = useState("");
-
-  const [cardPinyin, setCardPinyin] =
-    useState("");
-
+  const [cardPinyin, setCardPinyin] = useState("");
   const [cardJapanese, setCardJapanese] =
     useState("");
-
   const [cardExample, setCardExample] =
     useState("");
-
   const [cardExampleJapanese, setCardExampleJapanese] =
     useState("");
 
@@ -250,11 +248,13 @@ export default function Home() {
                   ? data.cards.map((card: Card) => ({
                       id:
                         card.id ||
-                        `${Date.now()}-${Math.random()}`,
+                        createId(),
 
-                      front: card.front || "",
+                      front:
+                        card.front || "",
 
-                      pinyin: card.pinyin || "",
+                      pinyin:
+                        card.pinyin || "",
 
                       japanese:
                         card.japanese || "",
@@ -263,15 +263,18 @@ export default function Home() {
                         card.example || "",
 
                       exampleJapanese:
-                        card.exampleJapanese || "",
+                        card.exampleJapanese ||
+                        "",
                     }))
                   : [];
 
               return {
-                name: data.name || item.id,
+                name:
+                  data.name || item.id,
 
                 language:
-                  data.language || "zh-CN",
+                  data.language ||
+                  "zh-CN",
 
                 cards: loadedCards,
 
@@ -305,34 +308,61 @@ export default function Home() {
               return {
                 id: item.id,
 
-                date: data.date || "",
+                date:
+                  data.date || "",
+
+                time:
+                  data.time || "",
+
+                startedAt:
+                  Number(
+                    data.startedAt || 0
+                  ),
 
                 deckName:
                   data.deckName || "",
 
-                answered: Number(
-                  data.answered || 0
-                ),
+                answered:
+                  Number(
+                    data.answered || 0
+                  ),
 
-                correct: Number(
-                  data.correct || 0
-                ),
+                correct:
+                  Number(
+                    data.correct || 0
+                  ),
 
-                incorrect: Number(
-                  data.incorrect || 0
-                ),
+                incorrect:
+                  Number(
+                    data.incorrect || 0
+                  ),
 
-                duration: Number(
-                  data.duration || 0
-                ),
+                duration:
+                  Number(
+                    data.duration || 0
+                  ),
               };
             });
 
-          loadedRecords.sort((a, b) =>
-            b.date.localeCompare(a.date)
-          );
+          loadedRecords.sort((a, b) => {
+            const aTime =
+              a.startedAt || 0;
 
-          setStudyRecords(loadedRecords);
+            const bTime =
+              b.startedAt || 0;
+
+            if (aTime && bTime) {
+              return bTime - aTime;
+            }
+
+            return b.date.localeCompare(
+              a.date
+            );
+          });
+
+          setStudyRecords(
+            loadedRecords
+          );
         }
 
         console.log(
@@ -371,7 +401,8 @@ export default function Home() {
     window.speechSynthesis.cancel();
 
     const deck = decks.find(
-      (item) => item.name === currentDeck
+      (item) =>
+        item.name === currentDeck
     );
 
     const utterance =
@@ -396,7 +427,8 @@ export default function Home() {
       return;
     }
 
-    const card = studyCards[studyIndex];
+    const card =
+      studyCards[studyIndex];
 
     if (!card) {
       return;
@@ -423,30 +455,35 @@ export default function Home() {
   // =========================================================
 
   const addDeck = async () => {
-    const name = newDeckName.trim();
+    const name =
+      newDeckName.trim();
 
     if (!name) {
-      alert("デッキ名を入力してください");
+      alert(
+        "デッキ名を入力してください"
+      );
       return;
     }
 
     if (
       decks.some(
-        (deck) => deck.name === name
+        (deck) =>
+          deck.name === name
       )
     ) {
-      alert("同じ名前のデッキがあります");
+      alert(
+        "同じ名前のデッキがあります"
+      );
       return;
     }
 
     const newDeck: Deck = {
       name,
-
-      language: newDeckLanguage,
-
+      language:
+        newDeckLanguage,
       cards: [],
-
-      folderId: newDeckFolderId,
+      folderId:
+        newDeckFolderId,
     };
 
     try {
@@ -455,18 +492,20 @@ export default function Home() {
         newDeck
       );
 
-      setDecks((currentDecks) => [
-        ...currentDecks,
-        newDeck,
-      ]);
+      setDecks(
+        (currentDecks) => [
+          ...currentDecks,
+          newDeck,
+        ]
+      );
 
       setCurrentDeck(name);
-
       setNewDeckName("");
-
       setNewDeckFolderId(null);
 
-      alert("デッキを作成しました");
+      alert(
+        "デッキを作成しました"
+      );
     } catch (error) {
       console.error(error);
 
@@ -496,13 +535,17 @@ export default function Home() {
         doc(db, "decks", deckName)
       );
 
-      const updatedDecks = decks.filter(
-        (deck) => deck.name !== deckName
-      );
+      const updatedDecks =
+        decks.filter(
+          (deck) =>
+            deck.name !== deckName
+        );
 
       setDecks(updatedDecks);
 
-      if (currentDeck === deckName) {
+      if (
+        currentDeck === deckName
+      ) {
         setCurrentDeck(
           updatedDecks.length > 0
             ? updatedDecks[0].name
@@ -525,7 +568,8 @@ export default function Home() {
   // =========================================================
 
   const addFolder = async () => {
-    const name = newFolderName.trim();
+    const name =
+      newFolderName.trim();
 
     if (!name) {
       alert(
@@ -535,24 +579,32 @@ export default function Home() {
     }
 
     const newFolder: Folder = {
-      id: Date.now().toString(),
+      id: createId(),
       name,
     };
 
     try {
       await setDoc(
-        doc(db, "folders", newFolder.id),
+        doc(
+          db,
+          "folders",
+          newFolder.id
+        ),
         newFolder
       );
 
-      setFolders((currentFolders) => [
-        ...currentFolders,
-        newFolder,
-      ]);
+      setFolders(
+        (currentFolders) => [
+          ...currentFolders,
+          newFolder,
+        ]
+      );
 
       setNewFolderName("");
 
-      alert("フォルダを作成しました");
+      alert(
+        "フォルダを作成しました"
+      );
     } catch (error) {
       console.error(error);
 
@@ -579,7 +631,11 @@ export default function Home() {
 
     try {
       await deleteDoc(
-        doc(db, "folders", folderId)
+        doc(
+          db,
+          "folders",
+          folderId
+        )
       );
 
       const updatedFolders =
@@ -588,23 +644,32 @@ export default function Home() {
             folder.id !== folderId
         );
 
-      setFolders(updatedFolders);
+      setFolders(
+        updatedFolders
+      );
 
-      const updatedDecks = decks.map(
-        (deck) =>
-          deck.folderId === folderId
+      const updatedDecks =
+        decks.map((deck) =>
+          deck.folderId ===
+          folderId
             ? {
                 ...deck,
                 folderId: null,
               }
             : deck
-      );
+        );
 
-      setDecks(updatedDecks);
+      setDecks(
+        updatedDecks
+      );
 
       for (const deck of updatedDecks) {
         await setDoc(
-          doc(db, "decks", deck.name),
+          doc(
+            db,
+            "decks",
+            deck.name
+          ),
           deck
         );
       }
@@ -626,7 +691,8 @@ export default function Home() {
     folderId: string | null
   ) => {
     const deck = decks.find(
-      (item) => item.name === deckName
+      (item) =>
+        item.name === deckName
     );
 
     if (!deck) {
@@ -640,16 +706,22 @@ export default function Home() {
 
     try {
       await setDoc(
-        doc(db, "decks", deckName),
+        doc(
+          db,
+          "decks",
+          deckName
+        ),
         updatedDeck
       );
 
-      setDecks((currentDecks) =>
-        currentDecks.map((item) =>
-          item.name === deckName
-            ? updatedDeck
-            : item
-        )
+      setDecks(
+        (currentDecks) =>
+          currentDecks.map(
+            (item) =>
+              item.name === deckName
+                ? updatedDeck
+                : item
+          )
       );
     } catch (error) {
       console.error(error);
@@ -667,9 +739,11 @@ export default function Home() {
   const importCSV = (
     event: ChangeEvent<HTMLInputElement>
   ) => {
-    const input = event.currentTarget;
+    const input =
+      event.currentTarget;
 
-    const file = input.files?.[0];
+    const file =
+      input.files?.[0];
 
     if (!file) {
       return;
@@ -677,60 +751,75 @@ export default function Home() {
 
     input.value = "";
 
-    const reader = new FileReader();
+    const reader =
+      new FileReader();
 
     reader.onload = async () => {
       try {
-        const result = reader.result;
+        const result =
+          reader.result;
 
-        if (typeof result !== "string") {
+        if (
+          typeof result !==
+          "string"
+        ) {
           alert(
             "CSVを読み込めませんでした"
           );
           return;
         }
 
-        const text = result.replace(
-          /^\uFEFF/,
-          ""
-        );
-
-        const lines = text
-          .split(/\r?\n/)
-          .map((line) => line.trim())
-          .filter(
-            (line) => line.length > 0
+        const text =
+          result.replace(
+            /^\uFEFF/,
+            ""
           );
 
-        if (lines.length === 0) {
+        const lines =
+          text
+            .split(/\r?\n/)
+            .map((line) =>
+              line.trim()
+            )
+            .filter(
+              (line) =>
+                line.length > 0
+            );
+
+        if (
+          lines.length === 0
+        ) {
           alert(
             "CSVにデータがありません"
           );
           return;
         }
 
-        const importedCards: Card[] = [];
+        const importedCards: Card[] =
+          [];
 
         for (const line of lines) {
-          const parts = line.split(",");
+          const parts =
+            line.split(",");
 
           const card: Card = {
-            id:
-              `${Date.now()}-${Math.random()
-                .toString(36)
-                .slice(2)}`,
+            id: createId(),
 
             front:
-              (parts[0] || "").trim(),
+              (parts[0] || "")
+                .trim(),
 
             pinyin:
-              (parts[1] || "").trim(),
+              (parts[1] || "")
+                .trim(),
 
             japanese:
-              (parts[2] || "").trim(),
+              (parts[2] || "")
+                .trim(),
 
             example:
-              (parts[3] || "").trim(),
+              (parts[3] || "")
+                .trim(),
 
             exampleJapanese:
               parts
@@ -740,24 +829,33 @@ export default function Home() {
           };
 
           if (card.front) {
-            importedCards.push(card);
+            importedCards.push(
+              card
+            );
           }
         }
 
-        if (importedCards.length === 0) {
+        if (
+          importedCards.length ===
+          0
+        ) {
           alert(
             "単語を読み込めませんでした"
           );
           return;
         }
 
-        const deck = decks.find(
-          (item) =>
-            item.name === currentDeck
-        );
+        const deck =
+          decks.find(
+            (item) =>
+              item.name ===
+              currentDeck
+          );
 
         if (!deck) {
-          alert("デッキが見つかりません");
+          alert(
+            "デッキが見つかりません"
+          );
           return;
         }
 
@@ -771,16 +869,23 @@ export default function Home() {
         };
 
         await setDoc(
-          doc(db, "decks", deck.name),
+          doc(
+            db,
+            "decks",
+            deck.name
+          ),
           updatedDeck
         );
 
-        setDecks((currentDecks) =>
-          currentDecks.map((item) =>
-            item.name === deck.name
-              ? updatedDeck
-              : item
-          )
+        setDecks(
+          (currentDecks) =>
+            currentDecks.map(
+              (item) =>
+                item.name ===
+                deck.name
+                  ? updatedDeck
+                  : item
+            )
         );
 
         alert(
@@ -842,13 +947,21 @@ export default function Home() {
   ) => {
     setEditingCardId(card.id);
 
-    setCardFront(card.front);
+    setCardFront(
+      card.front
+    );
 
-    setCardPinyin(card.pinyin);
+    setCardPinyin(
+      card.pinyin
+    );
 
-    setCardJapanese(card.japanese);
+    setCardJapanese(
+      card.japanese
+    );
 
-    setCardExample(card.example);
+    setCardExample(
+      card.example
+    );
 
     setCardExampleJapanese(
       card.exampleJapanese
@@ -863,7 +976,6 @@ export default function Home() {
 
   const closeCardForm = () => {
     setShowCardForm(false);
-
     setEditingCardId(null);
 
     setCardFront("");
@@ -878,7 +990,8 @@ export default function Home() {
   // =========================================================
 
   const saveCard = async () => {
-    const front = cardFront.trim();
+    const front =
+      cardFront.trim();
 
     if (!front) {
       alert(
@@ -887,10 +1000,12 @@ export default function Home() {
       return;
     }
 
-    const deck = decks.find(
-      (item) =>
-        item.name === currentDeck
-    );
+    const deck =
+      decks.find(
+        (item) =>
+          item.name ===
+          currentDeck
+      );
 
     if (!deck) {
       alert(
@@ -902,28 +1017,30 @@ export default function Home() {
     let updatedCards: Card[];
 
     if (editingCardId) {
-      updatedCards = deck.cards.map(
-        (card) =>
-          card.id === editingCardId
-            ? {
-                ...card,
+      updatedCards =
+        deck.cards.map(
+          (card) =>
+            card.id ===
+            editingCardId
+              ? {
+                  ...card,
 
-                front,
+                  front,
 
-                pinyin:
-                  cardPinyin.trim(),
+                  pinyin:
+                    cardPinyin.trim(),
 
-                japanese:
-                  cardJapanese.trim(),
+                  japanese:
+                    cardJapanese.trim(),
 
-                example:
-                  cardExample.trim(),
+                  example:
+                    cardExample.trim(),
 
-                exampleJapanese:
-                  cardExampleJapanese.trim(),
-              }
-            : card
-      );
+                  exampleJapanese:
+                    cardExampleJapanese.trim(),
+                }
+              : card
+        );
     } else {
       const duplicate =
         deck.cards.some(
@@ -935,9 +1052,10 @@ export default function Home() {
         );
 
       if (duplicate) {
-        const shouldAdd = confirm(
-          `「${front}」はすでに存在します。\n\nそれでも追加しますか？`
-        );
+        const shouldAdd =
+          confirm(
+            `「${front}」はすでに存在します。\n\nそれでも追加しますか？`
+          );
 
         if (!shouldAdd) {
           return;
@@ -945,10 +1063,7 @@ export default function Home() {
       }
 
       const newCard: Card = {
-        id:
-          `${Date.now()}-${Math.random()
-            .toString(36)
-            .slice(2)}`,
+        id: createId(),
 
         front,
 
@@ -978,16 +1093,23 @@ export default function Home() {
 
     try {
       await setDoc(
-        doc(db, "decks", deck.name),
+        doc(
+          db,
+          "decks",
+          deck.name
+        ),
         updatedDeck
       );
 
-      setDecks((currentDecks) =>
-        currentDecks.map((item) =>
-          item.name === deck.name
-            ? updatedDeck
-            : item
-        )
+      setDecks(
+        (currentDecks) =>
+          currentDecks.map(
+            (item) =>
+              item.name ===
+              deck.name
+                ? updatedDeck
+                : item
+          )
       );
 
       closeCardForm();
@@ -1013,18 +1135,22 @@ export default function Home() {
   const deleteCard = async (
     cardId: string
   ) => {
-    const deck = decks.find(
-      (item) =>
-        item.name === currentDeck
-    );
+    const deck =
+      decks.find(
+        (item) =>
+          item.name ===
+          currentDeck
+      );
 
     if (!deck) {
       return;
     }
 
-    const card = deck.cards.find(
-      (item) => item.id === cardId
-    );
+    const card =
+      deck.cards.find(
+        (item) =>
+          item.id === cardId
+      );
 
     if (!card) {
       return;
@@ -1041,24 +1167,32 @@ export default function Home() {
     const updatedDeck: Deck = {
       ...deck,
 
-      cards: deck.cards.filter(
-        (item) =>
-          item.id !== cardId
-      ),
+      cards:
+        deck.cards.filter(
+          (item) =>
+            item.id !== cardId
+        ),
     };
 
     try {
       await setDoc(
-        doc(db, "decks", deck.name),
+        doc(
+          db,
+          "decks",
+          deck.name
+        ),
         updatedDeck
       );
 
-      setDecks((currentDecks) =>
-        currentDecks.map((item) =>
-          item.name === deck.name
-            ? updatedDeck
-            : item
-        )
+      setDecks(
+        (currentDecks) =>
+          currentDecks.map(
+            (item) =>
+              item.name ===
+              deck.name
+                ? updatedDeck
+                : item
+          )
       );
     } catch (error) {
       console.error(error);
@@ -1074,89 +1208,137 @@ export default function Home() {
   // =========================================================
 
   const startStudy = () => {
-    const deck = decks.find(
-      (item) =>
-        item.name === currentDeck
-    );
+    const deck =
+      decks.find(
+        (item) =>
+          item.name ===
+          currentDeck
+      );
 
     if (
       !deck ||
       deck.cards.length === 0
     ) {
-      alert("単語がありません");
+      alert(
+        "単語がありません"
+      );
       return;
     }
 
     const randomizedCards =
-      shuffleCards(deck.cards);
+      shuffleCards(
+        deck.cards
+      );
 
-    setStudyCards(randomizedCards);
+    const sessionId =
+      createId();
+
+    setStudyCards(
+      randomizedCards
+    );
 
     setStudyIndex(0);
-
     setShowAnswer(false);
 
     setStudyCorrect(0);
-
     setStudyIncorrect(0);
 
-    setStudyStartTime(Date.now());
+    setStudyStartTime(
+      Date.now()
+    );
+
+    setStudySessionId(
+      sessionId
+    );
 
     setStudyMode(true);
   };
 
   // =========================================================
-  // 学習記録保存
+  // 学習記録を1回分保存
+  //
+  // 重要：
+  // 以前は「日付＋デッキ名」をIDにしていたため、
+  // 同じ日に同じデッキをやると上書きされていた。
+  //
+  // 今回は studySessionId を使って、
+  // 「1回の学習＝1つの記録」にする。
   // =========================================================
 
   const saveStudyRecord = async (
-    force = false
+    correctCount: number,
+    incorrectCount: number
   ) => {
     if (
       studyStartTime === null ||
-      (!force &&
-        studyCorrect === 0 &&
-        studyIncorrect === 0)
+      studySessionId === null
     ) {
       return;
     }
 
     const answered =
-      studyCorrect +
-      studyIncorrect;
+      correctCount +
+      incorrectCount;
 
     if (answered === 0) {
       return;
     }
 
-    const duration = Math.max(
-      0,
-      Math.floor(
-        (Date.now() -
-          studyStartTime) /
-          1000
-      )
-    );
+    const now = Date.now();
 
-    const today = new Date()
-      .toISOString()
-      .slice(0, 10);
+    const duration =
+      Math.max(
+        0,
+        Math.floor(
+          (now -
+            studyStartTime) /
+            1000
+        )
+      );
 
+    const dateObject =
+      new Date(now);
+
+    const date =
+      dateObject
+        .toISOString()
+        .slice(0, 10);
+
+    const time =
+      dateObject.toLocaleTimeString(
+        "ja-JP",
+        {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        }
+      );
+
+    // ★ここが今回の重要部分
+    // 毎回違うIDなので上書きされない
     const recordId =
-      `${today}_${currentDeck}`;
+      studySessionId;
 
     const newRecord: StudyRecord = {
       id: recordId,
 
-      date: today,
+      date,
 
-      deckName: currentDeck,
+      time,
+
+      startedAt:
+        studyStartTime,
+
+      deckName:
+        currentDeck,
 
       answered,
 
-      correct: studyCorrect,
+      correct:
+        correctCount,
 
-      incorrect: studyIncorrect,
+      incorrect:
+        incorrectCount,
 
       duration,
     };
@@ -1173,21 +1355,37 @@ export default function Home() {
 
       setStudyRecords(
         (currentRecords) => {
-          const withoutCurrent =
-            currentRecords.filter(
+          const updated = [
+            newRecord,
+            ...currentRecords.filter(
               (record) =>
                 record.id !==
                 recordId
-            );
+            ),
+          ];
 
-          return [
-            newRecord,
-            ...withoutCurrent,
-          ].sort(
-            (a, b) =>
-              b.date.localeCompare(
+          return updated.sort(
+            (a, b) => {
+              const aTime =
+                a.startedAt || 0;
+
+              const bTime =
+                b.startedAt || 0;
+
+              if (
+                aTime &&
+                bTime
+              ) {
+                return (
+                  bTime -
+                  aTime
+                );
+              }
+
+              return b.date.localeCompare(
                 a.date
-              )
+              );
+            }
           );
         }
       );
@@ -1195,6 +1393,10 @@ export default function Home() {
       console.error(
         "学習記録保存エラー:",
         error
+      );
+
+      alert(
+        "学習記録の保存に失敗しました"
       );
     }
   };
@@ -1205,27 +1407,30 @@ export default function Home() {
 
   const finishStudy = async () => {
     if (
-      typeof window !== "undefined" &&
-      "speechSynthesis" in window
+      typeof window !==
+        "undefined" &&
+      "speechSynthesis" in
+        window
     ) {
       window.speechSynthesis.cancel();
     }
 
-    await saveStudyRecord(true);
+    await saveStudyRecord(
+      studyCorrect,
+      studyIncorrect
+    );
 
     setStudyMode(false);
-
     setShowAnswer(false);
 
     setStudyCards([]);
-
     setStudyIndex(0);
 
     setStudyCorrect(0);
-
     setStudyIncorrect(0);
 
     setStudyStartTime(null);
+    setStudySessionId(null);
   };
 
   // =========================================================
@@ -1261,12 +1466,14 @@ export default function Home() {
       nextIncorrect
     );
 
+    // まだカードが残っている
     if (
       studyIndex <
       studyCards.length - 1
     ) {
       setStudyIndex(
-        (index) => index + 1
+        (index) =>
+          index + 1
       );
 
       setShowAnswer(false);
@@ -1274,86 +1481,24 @@ export default function Home() {
       return;
     }
 
+    // -------------------------------------------------------
+    // 最後のカード
+    // -------------------------------------------------------
+
     const answered =
       nextCorrect +
       nextIncorrect;
 
-    const duration =
-      studyStartTime
-        ? Math.max(
-            0,
-            Math.floor(
-              (Date.now() -
-                studyStartTime) /
-                1000
-            )
-          )
-        : 0;
-
-    const today = new Date()
-      .toISOString()
-      .slice(0, 10);
-
-    const recordId =
-      `${today}_${currentDeck}`;
-
-    const newRecord: StudyRecord = {
-      id: recordId,
-
-      date: today,
-
-      deckName: currentDeck,
-
-      answered,
-
-      correct: nextCorrect,
-
-      incorrect: nextIncorrect,
-
-      duration,
-    };
-
-    try {
-      await setDoc(
-        doc(
-          db,
-          "studyRecords",
-          recordId
-        ),
-        newRecord
-      );
-
-      setStudyRecords(
-        (currentRecords) => {
-          const withoutCurrent =
-            currentRecords.filter(
-              (record) =>
-                record.id !==
-                recordId
-            );
-
-          return [
-            newRecord,
-            ...withoutCurrent,
-          ].sort(
-            (a, b) =>
-              b.date.localeCompare(
-                a.date
-              )
-          );
-        }
-      );
-    } catch (error) {
-      console.error(
-        "学習記録保存エラー:",
-        error
-      );
-    }
+    await saveStudyRecord(
+      nextCorrect,
+      nextIncorrect
+    );
 
     alert(
       "学習終了！\n\n" +
         `正解：${nextCorrect}問\n` +
         `不正解：${nextIncorrect}問\n` +
+        `回答：${answered}問\n` +
         `正答率：${
           answered > 0
             ? Math.round(
@@ -1366,25 +1511,25 @@ export default function Home() {
     );
 
     if (
-      typeof window !== "undefined" &&
-      "speechSynthesis" in window
+      typeof window !==
+        "undefined" &&
+      "speechSynthesis" in
+        window
     ) {
       window.speechSynthesis.cancel();
     }
 
     setStudyMode(false);
-
     setShowAnswer(false);
 
     setStudyCards([]);
-
     setStudyIndex(0);
 
     setStudyCorrect(0);
-
     setStudyIncorrect(0);
 
     setStudyStartTime(null);
+    setStudySessionId(null);
   };
 
   // =========================================================
@@ -1436,9 +1581,10 @@ export default function Home() {
   const formatDuration = (
     seconds: number
   ) => {
-    const minutes = Math.floor(
-      seconds / 60
-    );
+    const minutes =
+      Math.floor(
+        seconds / 60
+      );
 
     const remaining =
       seconds % 60;
@@ -1506,14 +1652,18 @@ export default function Home() {
       >
         <button
           onClick={() =>
-            setShowStudyRecords(false)
+            setShowStudyRecords(
+              false
+            )
           }
           style={{
             marginBottom: "20px",
             padding: "8px 15px",
             border: "none",
-            background: "transparent",
-            color: colors.blueDark,
+            background:
+              "transparent",
+            color:
+              colors.blueDark,
             fontWeight: "bold",
             cursor: "pointer",
             fontSize: "16px",
@@ -1524,17 +1674,21 @@ export default function Home() {
 
         <h1
           style={{
-            color: colors.blueDark,
+            color:
+              colors.blueDark,
           }}
         >
           学習記録
         </h1>
 
+        {/* 累計 */}
+
         <div
           style={{
             marginTop: "20px",
             padding: "20px",
-            background: colors.blueLight,
+            background:
+              colors.blueLight,
             border:
               `2px solid ${colors.blue}`,
             borderRadius: "20px",
@@ -1543,7 +1697,8 @@ export default function Home() {
           <h2
             style={{
               marginTop: 0,
-              color: colors.blueDark,
+              color:
+                colors.blueDark,
             }}
           >
             累計
@@ -1591,7 +1746,8 @@ export default function Home() {
 
             <div
               style={{
-                gridColumn: "1 / -1",
+                gridColumn:
+                  "1 / -1",
               }}
             >
               学習時間
@@ -1605,6 +1761,8 @@ export default function Home() {
           </div>
         </div>
 
+        {/* 学習履歴 */}
+
         <div
           style={{
             marginTop: "30px",
@@ -1612,21 +1770,26 @@ export default function Home() {
         >
           <h2
             style={{
-              color: colors.blueDark,
+              color:
+                colors.blueDark,
             }}
           >
             学習履歴
           </h2>
 
-          {studyRecords.length === 0 ? (
+          {studyRecords.length ===
+          0 ? (
             <div
               style={{
                 padding: "30px",
-                textAlign: "center",
+                textAlign:
+                  "center",
                 background:
                   colors.blueLight,
-                borderRadius: "18px",
-                color: colors.gray,
+                borderRadius:
+                  "18px",
+                color:
+                  colors.gray,
               }}
             >
               まだ学習記録がありません。
@@ -1638,7 +1801,8 @@ export default function Home() {
             studyRecords.map(
               (record) => {
                 const rate =
-                  record.answered > 0
+                  record.answered >
+                  0
                     ? Math.round(
                         (record.correct /
                           record.answered) *
@@ -1648,10 +1812,14 @@ export default function Home() {
 
                 return (
                   <div
-                    key={record.id}
+                    key={
+                      record.id
+                    }
                     style={{
-                      marginBottom: "15px",
-                      padding: "18px",
+                      marginBottom:
+                        "15px",
+                      padding:
+                        "18px",
                       background:
                         colors.white,
                       border:
@@ -1660,28 +1828,49 @@ export default function Home() {
                             ? colors.blue
                             : colors.pink
                         }`,
-                      borderRadius: "18px",
+                      borderRadius:
+                        "18px",
                       boxShadow:
                         "0 3px 10px rgba(100,150,180,0.08)",
                     }}
                   >
                     <div
                       style={{
-                        display: "flex",
+                        display:
+                          "flex",
                         justifyContent:
                           "space-between",
                         alignItems:
                           "center",
-                        marginBottom: "10px",
+                        marginBottom:
+                          "10px",
                       }}
                     >
-                      <strong
-                        style={{
-                          fontSize: "18px",
-                        }}
-                      >
-                        {record.date}
-                      </strong>
+                      <div>
+                        <strong
+                          style={{
+                            fontSize:
+                              "18px",
+                          }}
+                        >
+                          {record.date}
+                        </strong>
+
+                        {record.time && (
+                          <span
+                            style={{
+                              marginLeft:
+                                "8px",
+                              color:
+                                colors.gray,
+                              fontSize:
+                                "14px",
+                            }}
+                          >
+                            {record.time}
+                          </span>
+                        )}
+                      </div>
 
                       <button
                         onClick={() =>
@@ -1690,7 +1879,8 @@ export default function Home() {
                           )
                         }
                         style={{
-                          border: "none",
+                          border:
+                            "none",
                           background:
                             "transparent",
                           color:
@@ -1705,18 +1895,23 @@ export default function Home() {
 
                     <div
                       style={{
-                        fontSize: "17px",
-                        fontWeight: "bold",
+                        fontSize:
+                          "17px",
+                        fontWeight:
+                          "bold",
                         marginBottom:
                           "10px",
                       }}
                     >
-                      {record.deckName}
+                      {
+                        record.deckName
+                      }
                     </div>
 
                     <div
                       style={{
-                        display: "grid",
+                        display:
+                          "grid",
                         gridTemplateColumns:
                           "1fr 1fr",
                         gap: "8px",
@@ -1726,7 +1921,10 @@ export default function Home() {
                     >
                       <div>
                         回答：
-                        {record.answered}問
+                        {
+                          record.answered
+                        }
+                        問
                       </div>
 
                       <div>
@@ -1736,12 +1934,18 @@ export default function Home() {
 
                       <div>
                         正解：
-                        {record.correct}問
+                        {
+                          record.correct
+                        }
+                        問
                       </div>
 
                       <div>
                         不正解：
-                        {record.incorrect}問
+                        {
+                          record.incorrect
+                        }
+                        問
                       </div>
 
                       <div
@@ -1772,7 +1976,9 @@ export default function Home() {
 
   if (studyMode) {
     const card =
-      studyCards[studyIndex];
+      studyCards[
+        studyIndex
+      ];
 
     if (!card) {
       return null;
@@ -1787,35 +1993,49 @@ export default function Home() {
         style={{
           maxWidth: "600px",
           margin: "0 auto",
-          padding: "30px 20px",
-          textAlign: "center",
+          padding:
+            "30px 20px",
+          textAlign:
+            "center",
           background:
             colors.blueLight,
-          minHeight: "100vh",
-          boxSizing: "border-box",
+          minHeight:
+            "100vh",
+          boxSizing:
+            "border-box",
         }}
       >
         <div
           style={{
-            display: "flex",
+            display:
+              "flex",
             justifyContent:
               "space-between",
-            alignItems: "center",
-            marginBottom: "20px",
+            alignItems:
+              "center",
+            marginBottom:
+              "20px",
           }}
         >
           <button
-            onClick={finishStudy}
+            onClick={
+              finishStudy
+            }
             style={{
-              padding: "8px 15px",
-              border: "none",
+              padding:
+                "8px 15px",
+              border:
+                "none",
               background:
                 "transparent",
-              fontSize: "16px",
-              cursor: "pointer",
+              fontSize:
+                "16px",
+              cursor:
+                "pointer",
               color:
                 colors.blueDark,
-              fontWeight: "bold",
+              fontWeight:
+                "bold",
             }}
           >
             ← 戻る
@@ -1824,34 +2044,48 @@ export default function Home() {
           <p
             style={{
               margin: 0,
-              color: colors.gray,
-              fontSize: "15px",
+              color:
+                colors.gray,
+              fontSize:
+                "15px",
             }}
           >
             {studyIndex + 1} /{" "}
-            {studyCards.length}
+            {
+              studyCards.length
+            }
           </p>
         </div>
 
         <div
           style={{
-            marginBottom: "15px",
-            fontSize: "14px",
-            color: colors.gray,
+            marginBottom:
+              "15px",
+            fontSize:
+              "14px",
+            color:
+              colors.gray,
           }}
         >
-          正解：{studyCorrect}
+          正解：
+          {studyCorrect}
           {"　"}
-          不正解：{studyIncorrect}
+          不正解：
+          {studyIncorrect}
           {"　"}
-          回答：{currentAnswered}
+          回答：
+          {currentAnswered}
         </div>
 
         <div
-          onClick={toggleAnswer}
+          onClick={
+            toggleAnswer
+          }
           style={{
-            minHeight: "380px",
-            padding: "40px 25px",
+            minHeight:
+              "380px",
+            padding:
+              "40px 25px",
             background:
               showAnswer
                 ? colors.pinkLight
@@ -1862,34 +2096,45 @@ export default function Home() {
                   ? colors.pink
                   : colors.blue
               }`,
-            borderRadius: "25px",
+            borderRadius:
+              "25px",
             boxShadow:
               "0 5px 18px rgba(100,150,180,0.15)",
-            cursor: "pointer",
-            display: "flex",
+            cursor:
+              "pointer",
+            display:
+              "flex",
             flexDirection:
               "column",
             justifyContent:
               "center",
-            boxSizing: "border-box",
+            boxSizing:
+              "border-box",
           }}
         >
           {!showAnswer ? (
             <>
               <div
                 style={{
-                  fontSize: "42px",
-                  fontWeight: "bold",
-                  marginBottom: "30px",
+                  fontSize:
+                    "42px",
+                  fontWeight:
+                    "bold",
+                  marginBottom:
+                    "30px",
                 }}
               >
-                {card.front}
+                {
+                  card.front
+                }
               </div>
 
               <div
                 style={{
-                  fontSize: "15px",
-                  color: colors.gray,
+                  fontSize:
+                    "15px",
+                  color:
+                    colors.gray,
                 }}
               >
                 タップして答えを見る
@@ -1899,18 +2144,25 @@ export default function Home() {
             <>
               <div
                 style={{
-                  fontSize: "36px",
-                  fontWeight: "bold",
-                  marginBottom: "20px",
+                  fontSize:
+                    "36px",
+                  fontWeight:
+                    "bold",
+                  marginBottom:
+                    "20px",
                 }}
               >
-                {card.front}
+                {
+                  card.front
+                }
               </div>
 
               <div
                 style={{
-                  fontSize: "24px",
-                  marginBottom: "15px",
+                  fontSize:
+                    "24px",
+                  marginBottom:
+                    "15px",
                 }}
               >
                 {card.pinyin ||
@@ -1919,9 +2171,12 @@ export default function Home() {
 
               <div
                 style={{
-                  fontSize: "28px",
-                  fontWeight: "bold",
-                  marginBottom: "25px",
+                  fontSize:
+                    "28px",
+                  fontWeight:
+                    "bold",
+                  marginBottom:
+                    "25px",
                 }}
               >
                 {card.japanese ||
@@ -1931,19 +2186,25 @@ export default function Home() {
               {card.example && (
                 <div
                   style={{
-                    fontSize: "20px",
-                    marginBottom: "12px",
+                    fontSize:
+                      "20px",
+                    marginBottom:
+                      "12px",
                   }}
                 >
-                  {card.example}
+                  {
+                    card.example
+                  }
                 </div>
               )}
 
               {card.exampleJapanese && (
                 <div
                   style={{
-                    fontSize: "18px",
-                    color: colors.gray,
+                    fontSize:
+                      "18px",
+                    color:
+                      colors.gray,
                   }}
                 >
                   {
@@ -1957,20 +2218,27 @@ export default function Home() {
 
         <button
           onClick={() =>
-            speakWord(card.front)
+            speakWord(
+              card.front
+            )
           }
           style={{
-            marginTop: "20px",
-            padding: "10px 22px",
-            borderRadius: "20px",
+            marginTop:
+              "20px",
+            padding:
+              "10px 22px",
+            borderRadius:
+              "20px",
             border:
               `2px solid ${colors.blue}`,
             background:
               colors.white,
             color:
               colors.blueDark,
-            fontSize: "16px",
-            cursor: "pointer",
+            fontSize:
+              "16px",
+            cursor:
+              "pointer",
           }}
         >
           発音
@@ -1979,14 +2247,18 @@ export default function Home() {
         {showAnswer && (
           <div
             style={{
-              display: "flex",
+              display:
+                "flex",
               gap: "12px",
-              marginTop: "25px",
+              marginTop:
+                "25px",
             }}
           >
             <button
               onClick={() =>
-                answerCard(false)
+                answerCard(
+                  false
+                )
               }
               style={{
                 flex: 1,
@@ -1996,13 +2268,16 @@ export default function Home() {
                   colors.pink,
                 color:
                   colors.white,
-                border: "none",
+                border:
+                  "none",
                 borderRadius:
                   "18px",
-                fontSize: "18px",
+                fontSize:
+                  "18px",
                 fontWeight:
                   "bold",
-                cursor: "pointer",
+                cursor:
+                  "pointer",
               }}
             >
               不正解
@@ -2010,7 +2285,9 @@ export default function Home() {
 
             <button
               onClick={() =>
-                answerCard(true)
+                answerCard(
+                  true
+                )
               }
               style={{
                 flex: 1,
@@ -2020,13 +2297,16 @@ export default function Home() {
                   colors.blue,
                 color:
                   colors.white,
-                border: "none",
+                border:
+                  "none",
                 borderRadius:
                   "18px",
-                fontSize: "18px",
+                fontSize:
+                  "18px",
                 fontWeight:
                   "bold",
-                cursor: "pointer",
+                cursor:
+                  "pointer",
               }}
             >
               正解
@@ -2042,18 +2322,20 @@ export default function Home() {
   // =========================================================
 
   if (deckOpen) {
-    const deck = decks.find(
-      (item) =>
-        item.name === currentDeck
-    );
+    const deck =
+      decks.find(
+        (item) =>
+          item.name ===
+          currentDeck
+      );
 
     if (!deck) {
       return null;
     }
 
-    // =======================================================
+    // -------------------------------------------------------
     // 検索
-    // =======================================================
+    // -------------------------------------------------------
 
     const normalizedSearch =
       cardSearch
@@ -2065,15 +2347,16 @@ export default function Home() {
         ? deck.cards
         : deck.cards.filter(
             (card) => {
-              const searchableText = [
-                card.front,
-                card.pinyin,
-                card.japanese,
-                card.example,
-                card.exampleJapanese,
-              ]
-                .join(" ")
-                .toLowerCase();
+              const searchableText =
+                [
+                  card.front,
+                  card.pinyin,
+                  card.japanese,
+                  card.example,
+                  card.exampleJapanese,
+                ]
+                  .join(" ")
+                  .toLowerCase();
 
               return searchableText.includes(
                 normalizedSearch
@@ -2084,28 +2367,39 @@ export default function Home() {
     return (
       <main
         style={{
-          maxWidth: "600px",
-          margin: "40px auto",
-          padding: "20px",
+          maxWidth:
+            "600px",
+          margin:
+            "40px auto",
+          padding:
+            "20px",
         }}
       >
         <button
           onClick={() => {
-            setDeckOpen(false);
+            setDeckOpen(
+              false
+            );
+
             setCardSearch("");
           }}
           style={{
-            marginBottom: "20px",
-            padding: "8px 15px",
-            border: "none",
+            marginBottom:
+              "20px",
+            padding:
+              "8px 15px",
+            border:
+              "none",
             background:
               "transparent",
             color:
               colors.blueDark,
-            fontWeight: "bold",
+            fontWeight:
+              "bold",
             cursor:
               "pointer",
-            fontSize: "16px",
+            fontSize:
+              "16px",
           }}
         >
           ← デッキ一覧
@@ -2113,7 +2407,8 @@ export default function Home() {
 
         <h1
           style={{
-            color: colors.blueDark,
+            color:
+              colors.blueDark,
           }}
         >
           {currentDeck}
@@ -2121,51 +2416,73 @@ export default function Home() {
 
         <p
           style={{
-            color: colors.gray,
+            color:
+              colors.gray,
           }}
         >
           {deck.cards.length}語
         </p>
 
         <button
-          onClick={startStudy}
+          onClick={
+            startStudy
+          }
           style={{
-            display: "block",
-            width: "100%",
-            padding: "15px",
-            marginTop: "20px",
+            display:
+              "block",
+            width:
+              "100%",
+            padding:
+              "15px",
+            marginTop:
+              "20px",
             background:
               colors.blue,
             color:
               colors.white,
-            border: "none",
+            border:
+              "none",
             borderRadius:
               "20px",
-            fontSize: "18px",
-            fontWeight: "bold",
-            cursor: "pointer",
+            fontSize:
+              "18px",
+            fontWeight:
+              "bold",
+            cursor:
+              "pointer",
           }}
         >
           学習開始
         </button>
 
         <input
-          ref={fileInputRef}
+          ref={
+            fileInputRef
+          }
           type="file"
           accept=".csv,text/csv"
-          onChange={importCSV}
+          onChange={
+            importCSV
+          }
           style={{
-            display: "none",
+            display:
+              "none",
           }}
         />
 
         <button
-          onClick={openCSVPicker}
+          onClick={
+            openCSVPicker
+          }
           style={{
-            display: "block",
-            width: "100%",
-            padding: "15px",
-            marginTop: "10px",
+            display:
+              "block",
+            width:
+              "100%",
+            padding:
+              "15px",
+            marginTop:
+              "10px",
             background:
               colors.pinkLight,
             border:
@@ -2174,8 +2491,10 @@ export default function Home() {
               colors.pinkDark,
             borderRadius:
               "20px",
-            fontSize: "17px",
-            fontWeight: "bold",
+            fontSize:
+              "17px",
+            fontWeight:
+              "bold",
             cursor:
               "pointer",
           }}
@@ -2184,12 +2503,18 @@ export default function Home() {
         </button>
 
         <button
-          onClick={openAddCard}
+          onClick={
+            openAddCard
+          }
           style={{
-            display: "block",
-            width: "100%",
-            padding: "15px",
-            marginTop: "10px",
+            display:
+              "block",
+            width:
+              "100%",
+            padding:
+              "15px",
+            marginTop:
+              "10px",
             background:
               colors.blueLight,
             border:
@@ -2198,8 +2523,10 @@ export default function Home() {
               colors.blueDark,
             borderRadius:
               "20px",
-            fontSize: "17px",
-            fontWeight: "bold",
+            fontSize:
+              "17px",
+            fontWeight:
+              "bold",
             cursor:
               "pointer",
           }}
@@ -2207,15 +2534,15 @@ export default function Home() {
           単語を追加
         </button>
 
-        {/* ===================================================
-            単語フォーム
-        =================================================== */}
+        {/* 単語フォーム */}
 
         {showCardForm && (
           <div
             style={{
-              marginTop: "25px",
-              padding: "20px",
+              marginTop:
+                "25px",
+              padding:
+                "20px",
               background:
                 colors.pinkLight,
               border:
@@ -2228,7 +2555,8 @@ export default function Home() {
               style={{
                 color:
                   colors.pinkDark,
-                marginTop: 0,
+                marginTop:
+                  0,
               }}
             >
               {editingCardId
@@ -2238,15 +2566,19 @@ export default function Home() {
 
             <input
               placeholder="単語 *"
-              value={cardFront}
+              value={
+                cardFront
+              }
               onChange={(e) =>
                 setCardFront(
                   e.target.value
                 )
               }
               style={{
-                width: "100%",
-                padding: "12px",
+                width:
+                  "100%",
+                padding:
+                  "12px",
                 boxSizing:
                   "border-box",
                 marginBottom:
@@ -2255,21 +2587,26 @@ export default function Home() {
                   `2px solid ${colors.blue}`,
                 borderRadius:
                   "12px",
-                fontSize: "16px",
+                fontSize:
+                  "16px",
               }}
             />
 
             <input
               placeholder="ピンイン・読み方"
-              value={cardPinyin}
+              value={
+                cardPinyin
+              }
               onChange={(e) =>
                 setCardPinyin(
                   e.target.value
                 )
               }
               style={{
-                width: "100%",
-                padding: "12px",
+                width:
+                  "100%",
+                padding:
+                  "12px",
                 boxSizing:
                   "border-box",
                 marginBottom:
@@ -2278,21 +2615,26 @@ export default function Home() {
                   `2px solid ${colors.blue}`,
                 borderRadius:
                   "12px",
-                fontSize: "16px",
+                fontSize:
+                  "16px",
               }}
             />
 
             <input
               placeholder="日本語訳"
-              value={cardJapanese}
+              value={
+                cardJapanese
+              }
               onChange={(e) =>
                 setCardJapanese(
                   e.target.value
                 )
               }
               style={{
-                width: "100%",
-                padding: "12px",
+                width:
+                  "100%",
+                padding:
+                  "12px",
                 boxSizing:
                   "border-box",
                 marginBottom:
@@ -2301,21 +2643,26 @@ export default function Home() {
                   `2px solid ${colors.pink}`,
                 borderRadius:
                   "12px",
-                fontSize: "16px",
+                fontSize:
+                  "16px",
               }}
             />
 
             <input
               placeholder="例文"
-              value={cardExample}
+              value={
+                cardExample
+              }
               onChange={(e) =>
                 setCardExample(
                   e.target.value
                 )
               }
               style={{
-                width: "100%",
-                padding: "12px",
+                width:
+                  "100%",
+                padding:
+                  "12px",
                 boxSizing:
                   "border-box",
                 marginBottom:
@@ -2324,7 +2671,8 @@ export default function Home() {
                   `2px solid ${colors.blue}`,
                 borderRadius:
                   "12px",
-                fontSize: "16px",
+                fontSize:
+                  "16px",
               }}
             />
 
@@ -2339,8 +2687,10 @@ export default function Home() {
                 )
               }
               style={{
-                width: "100%",
-                padding: "12px",
+                width:
+                  "100%",
+                padding:
+                  "12px",
                 boxSizing:
                   "border-box",
                 marginBottom:
@@ -2349,26 +2699,34 @@ export default function Home() {
                   `2px solid ${colors.pink}`,
                 borderRadius:
                   "12px",
-                fontSize: "16px",
+                fontSize:
+                  "16px",
               }}
             />
 
             <div
               style={{
-                display: "flex",
-                gap: "10px",
+                display:
+                  "flex",
+                gap:
+                  "10px",
               }}
             >
               <button
-                onClick={saveCard}
+                onClick={
+                  saveCard
+                }
                 style={{
-                  flex: 1,
-                  padding: "13px",
+                  flex:
+                    1,
+                  padding:
+                    "13px",
                   background:
                     colors.blue,
                   color:
                     colors.white,
-                  border: "none",
+                  border:
+                    "none",
                   borderRadius:
                     "15px",
                   fontWeight:
@@ -2381,10 +2739,14 @@ export default function Home() {
               </button>
 
               <button
-                onClick={closeCardForm}
+                onClick={
+                  closeCardForm
+                }
                 style={{
-                  flex: 1,
-                  padding: "13px",
+                  flex:
+                    1,
+                  padding:
+                    "13px",
                   background:
                     colors.white,
                   color:
@@ -2405,13 +2767,12 @@ export default function Home() {
           </div>
         )}
 
-        {/* ===================================================
-            単語一覧
-        =================================================== */}
+        {/* 単語一覧 */}
 
         <div
           style={{
-            marginTop: "35px",
+            marginTop:
+              "35px",
           }}
         >
           <h2
@@ -2425,9 +2786,10 @@ export default function Home() {
             単語一覧
           </h2>
 
-          {/* 検索ボックス */}
+          {/* 検索 */}
 
-          {deck.cards.length > 0 && (
+          {deck.cards.length >
+            0 && (
             <div
               style={{
                 marginBottom:
@@ -2437,23 +2799,29 @@ export default function Home() {
               <input
                 type="text"
                 placeholder="単語を検索"
-                value={cardSearch}
+                value={
+                  cardSearch
+                }
                 onChange={(e) =>
                   setCardSearch(
                     e.target.value
                   )
                 }
                 style={{
-                  width: "100%",
-                  padding: "14px 16px",
+                  width:
+                    "100%",
+                  padding:
+                    "14px 16px",
                   boxSizing:
                     "border-box",
                   border:
                     `2px solid ${colors.blue}`,
                   borderRadius:
                     "14px",
-                  fontSize: "17px",
-                  outline: "none",
+                  fontSize:
+                    "17px",
+                  outline:
+                    "none",
                   background:
                     colors.white,
                 }}
@@ -2470,18 +2838,23 @@ export default function Home() {
                       colors.gray,
                   }}
                 >
-                  {filteredCards.length}
+                  {
+                    filteredCards.length
+                  }
                   語が見つかりました
                 </div>
               )}
             </div>
           )}
 
-          {deck.cards.length === 0 ? (
+          {deck.cards.length ===
+          0 ? (
             <div
               style={{
-                padding: "30px 15px",
-                textAlign: "center",
+                padding:
+                  "30px 15px",
+                textAlign:
+                  "center",
                 background:
                   colors.blueLight,
                 borderRadius:
@@ -2492,11 +2865,14 @@ export default function Home() {
             >
               まだ単語がありません
             </div>
-          ) : filteredCards.length === 0 ? (
+          ) : filteredCards.length ===
+            0 ? (
             <div
               style={{
-                padding: "30px 15px",
-                textAlign: "center",
+                padding:
+                  "30px 15px",
+                textAlign:
+                  "center",
                 background:
                   colors.pinkLight,
                 borderRadius:
@@ -2505,12 +2881,17 @@ export default function Home() {
                   colors.gray,
               }}
             >
-              「{cardSearch}」に一致する
+              「
+              {cardSearch}
+              」に一致する
               単語がありません。
               <br />
+
               <button
                 onClick={() =>
-                  setCardSearch("")
+                  setCardSearch(
+                    ""
+                  )
                 }
                 style={{
                   marginTop:
@@ -2536,16 +2917,20 @@ export default function Home() {
             filteredCards.map(
               (card, index) => (
                 <div
-                  key={card.id}
+                  key={
+                    card.id
+                  }
                   style={{
                     marginBottom:
                       "12px",
-                    padding: "15px",
+                    padding:
+                      "15px",
                     background:
                       colors.white,
                     border:
                       `2px solid ${
-                        index % 2 === 0
+                        index % 2 ===
+                        0
                           ? colors.blue
                           : colors.pink
                       }`,
@@ -2555,16 +2940,20 @@ export default function Home() {
                 >
                   <div
                     style={{
-                      display: "flex",
+                      display:
+                        "flex",
                       justifyContent:
                         "space-between",
-                      gap: "10px",
+                      gap:
+                        "10px",
                     }}
                   >
                     <div
                       style={{
-                        flex: 1,
-                        minWidth: 0,
+                        flex:
+                          1,
+                        minWidth:
+                          0,
                       }}
                     >
                       <div
@@ -2579,7 +2968,9 @@ export default function Home() {
                             "5px",
                         }}
                       >
-                        {card.front}
+                        {
+                          card.front
+                        }
                       </div>
 
                       {card.pinyin && (
@@ -2591,7 +2982,9 @@ export default function Home() {
                               "4px",
                           }}
                         >
-                          {card.pinyin}
+                          {
+                            card.pinyin
+                          }
                         </div>
                       )}
 
@@ -2602,7 +2995,9 @@ export default function Home() {
                               "17px",
                           }}
                         >
-                          {card.japanese}
+                          {
+                            card.japanese
+                          }
                         </div>
                       )}
 
@@ -2617,7 +3012,9 @@ export default function Home() {
                               colors.gray,
                           }}
                         >
-                          {card.example}
+                          {
+                            card.example
+                          }
                         </div>
                       )}
                     </div>
@@ -2628,7 +3025,8 @@ export default function Home() {
                           "flex",
                         flexDirection:
                           "column",
-                        gap: "6px",
+                        gap:
+                          "6px",
                       }}
                     >
                       <button
@@ -2700,14 +3098,18 @@ export default function Home() {
   return (
     <main
       style={{
-        maxWidth: "600px",
-        margin: "40px auto",
-        padding: "20px",
+        maxWidth:
+          "600px",
+        margin:
+          "40px auto",
+        padding:
+          "20px",
       }}
     >
       <h1
         style={{
-          color: colors.blueDark,
+          color:
+            colors.blueDark,
         }}
       >
         デッキ
@@ -2717,22 +3119,33 @@ export default function Home() {
 
       <button
         onClick={() =>
-          setShowStudyRecords(true)
+          setShowStudyRecords(
+            true
+          )
         }
         style={{
-          display: "block",
-          width: "100%",
-          padding: "15px",
-          marginBottom: "25px",
+          display:
+            "block",
+          width:
+            "100%",
+          padding:
+            "15px",
+          marginBottom:
+            "25px",
           background:
             colors.greenLight,
           border:
             `2px solid ${colors.green}`,
-          color: "#4b9b63",
-          borderRadius: "20px",
-          fontSize: "18px",
-          fontWeight: "bold",
-          cursor: "pointer",
+          color:
+            "#4b9b63",
+          borderRadius:
+            "20px",
+          fontSize:
+            "18px",
+          fontWeight:
+            "bold",
+          cursor:
+            "pointer",
         }}
       >
         学習記録を見る
@@ -2740,186 +3153,218 @@ export default function Home() {
 
       {/* フォルダ */}
 
-      {folders.map((folder) => (
-        <div
-          key={folder.id}
-          style={{
-            border:
-              `2px solid ${colors.blue}`,
-            borderRadius: "18px",
-            padding: "15px",
-            marginBottom: "15px",
-            background:
-              colors.blueLight,
-          }}
-        >
+      {folders.map(
+        (folder) => (
           <div
+            key={
+              folder.id
+            }
             style={{
-              display: "flex",
-              justifyContent:
-                "space-between",
-              alignItems:
-                "center",
+              border:
+                `2px solid ${colors.blue}`,
+              borderRadius:
+                "18px",
+              padding:
+                "15px",
               marginBottom:
-                "10px",
+                "15px",
+              background:
+                colors.blueLight,
             }}
           >
-            <h2
+            <div
               style={{
-                margin: 0,
+                display:
+                  "flex",
+                justifyContent:
+                  "space-between",
+                alignItems:
+                  "center",
+                marginBottom:
+                  "10px",
               }}
             >
-              {folder.name}
-            </h2>
-
-            <button
-              onClick={() =>
-                deleteFolder(
-                  folder.id
-                )
-              }
-              style={{
-                border: "none",
-                background:
-                  "transparent",
-                color:
-                  colors.pinkDark,
-                cursor:
-                  "pointer",
-              }}
-            >
-              削除
-            </button>
-          </div>
-
-          {decks
-            .filter(
-              (deck) =>
-                deck.folderId ===
-                folder.id
-            )
-            .map((deck) => (
-              <div
-                key={deck.name}
+              <h2
                 style={{
-                  display: "flex",
-                  alignItems:
-                    "center",
-                  marginBottom:
-                    "8px",
+                  margin:
+                    0,
                 }}
               >
-                <button
-                  onClick={() => {
-                    setCurrentDeck(
+                {
+                  folder.name
+                }
+              </h2>
+
+              <button
+                onClick={() =>
+                  deleteFolder(
+                    folder.id
+                  )
+                }
+                style={{
+                  border:
+                    "none",
+                  background:
+                    "transparent",
+                  color:
+                    colors.pinkDark,
+                  cursor:
+                    "pointer",
+                }}
+              >
+                削除
+              </button>
+            </div>
+
+            {decks
+              .filter(
+                (deck) =>
+                  deck.folderId ===
+                  folder.id
+              )
+              .map(
+                (deck) => (
+                  <div
+                    key={
                       deck.name
-                    );
-
-                    setDeckOpen(
-                      true
-                    );
-                  }}
-                  style={{
-                    flex: 1,
-                    padding: "15px",
-                    textAlign:
-                      "left",
-                    background:
-                      colors.white,
-                    border:
-                      `2px solid ${colors.pink}`,
-                    borderRadius:
-                      "12px",
-                    cursor:
-                      "pointer",
-                  }}
-                >
-                  {deck.name}
-
-                  <span
+                    }
                     style={{
-                      marginLeft:
-                        "10px",
-                      fontSize:
-                        "14px",
-                      color:
-                        colors.gray,
+                      display:
+                        "flex",
+                      alignItems:
+                        "center",
+                      marginBottom:
+                        "8px",
                     }}
                   >
-                    {deck.cards.length}
-                    語
-                  </span>
-                </button>
+                    <button
+                      onClick={() => {
+                        setCurrentDeck(
+                          deck.name
+                        );
 
-                <select
-                  value={
-                    deck.folderId ||
-                    ""
-                  }
-                  onChange={(e) =>
-                    moveDeck(
-                      deck.name,
-                      e.target.value ||
-                        null
-                    )
-                  }
-                  style={{
-                    marginLeft:
-                      "8px",
-                  }}
-                >
-                  <option value="">
-                    未分類
-                  </option>
+                        setDeckOpen(
+                          true
+                        );
+                      }}
+                      style={{
+                        flex:
+                          1,
+                        padding:
+                          "15px",
+                        textAlign:
+                          "left",
+                        background:
+                          colors.white,
+                        border:
+                          `2px solid ${colors.pink}`,
+                        borderRadius:
+                          "12px",
+                        cursor:
+                          "pointer",
+                      }}
+                    >
+                      {
+                        deck.name
+                      }
 
-                  {folders.map(
-                    (folderItem) => (
-                      <option
-                        key={
-                          folderItem.id
-                        }
-                        value={
-                          folderItem.id
-                        }
+                      <span
+                        style={{
+                          marginLeft:
+                            "10px",
+                          fontSize:
+                            "14px",
+                          color:
+                            colors.gray,
+                        }}
                       >
                         {
-                          folderItem.name
+                          deck
+                            .cards
+                            .length
                         }
-                      </option>
-                    )
-                  )}
-                </select>
+                        語
+                      </span>
+                    </button>
 
-                <button
-                  onClick={() =>
-                    deleteDeck(
-                      deck.name
-                    )
-                  }
-                  style={{
-                    marginLeft:
-                      "8px",
-                    border: "none",
-                    background:
-                      "transparent",
-                    color:
-                      colors.pinkDark,
-                    cursor:
-                      "pointer",
-                  }}
-                >
-                  削除
-                </button>
-              </div>
-            ))}
-        </div>
-      ))}
+                    <select
+                      value={
+                        deck.folderId ||
+                        ""
+                      }
+                      onChange={(
+                        e
+                      ) =>
+                        moveDeck(
+                          deck.name,
+                          e.target
+                            .value ||
+                            null
+                        )
+                      }
+                      style={{
+                        marginLeft:
+                          "8px",
+                      }}
+                    >
+                      <option value="">
+                        未分類
+                      </option>
+
+                      {folders.map(
+                        (
+                          folderItem
+                        ) => (
+                          <option
+                            key={
+                              folderItem.id
+                            }
+                            value={
+                              folderItem.id
+                            }
+                          >
+                            {
+                              folderItem.name
+                            }
+                          </option>
+                        )
+                      )}
+                    </select>
+
+                    <button
+                      onClick={() =>
+                        deleteDeck(
+                          deck.name
+                        )
+                      }
+                      style={{
+                        marginLeft:
+                          "8px",
+                        border:
+                          "none",
+                        background:
+                          "transparent",
+                        color:
+                          colors.pinkDark,
+                        cursor:
+                          "pointer",
+                      }}
+                    >
+                      削除
+                    </button>
+                  </div>
+                )
+              )}
+          </div>
+        )
+      )}
 
       {/* 未分類 */}
 
       {decks.some(
         (deck) =>
-          deck.folderId === null
+          deck.folderId ===
+          null
       ) && (
         <div
           style={{
@@ -2927,121 +3372,145 @@ export default function Home() {
               `2px solid ${colors.pink}`,
             borderRadius:
               "18px",
-            padding: "15px",
+            padding:
+              "15px",
             marginBottom:
               "20px",
             background:
               colors.pinkLight,
           }}
         >
-          <h2>未分類</h2>
+          <h2>
+            未分類
+          </h2>
 
           {decks
             .filter(
               (deck) =>
-                deck.folderId === null
+                deck.folderId ===
+                null
             )
-            .map((deck) => (
-              <div
-                key={deck.name}
-                style={{
-                  display: "flex",
-                  alignItems:
-                    "center",
-                  marginBottom:
-                    "8px",
-                }}
-              >
-                <button
-                  onClick={() => {
-                    setCurrentDeck(
-                      deck.name
-                    );
-
-                    setDeckOpen(
-                      true
-                    );
-                  }}
-                  style={{
-                    flex: 1,
-                    padding: "15px",
-                    textAlign:
-                      "left",
-                    background:
-                      colors.white,
-                    border:
-                      `2px solid ${colors.blue}`,
-                    borderRadius:
-                      "12px",
-                    cursor:
-                      "pointer",
-                  }}
-                >
-                  {deck.name}{" "}
-                  {deck.cards.length}語
-                </button>
-
-                <select
-                  value={
-                    deck.folderId ||
-                    ""
-                  }
-                  onChange={(e) =>
-                    moveDeck(
-                      deck.name,
-                      e.target.value ||
-                        null
-                    )
+            .map(
+              (deck) => (
+                <div
+                  key={
+                    deck.name
                   }
                   style={{
-                    marginLeft:
+                    display:
+                      "flex",
+                    alignItems:
+                      "center",
+                    marginBottom:
                       "8px",
                   }}
                 >
-                  <option value="">
-                    フォルダへ移動
-                  </option>
+                  <button
+                    onClick={() => {
+                      setCurrentDeck(
+                        deck.name
+                      );
 
-                  {folders.map(
-                    (folderItem) => (
-                      <option
-                        key={
-                          folderItem.id
-                        }
-                        value={
-                          folderItem.id
-                        }
-                      >
-                        {
-                          folderItem.name
-                        }
-                      </option>
-                    )
-                  )}
-                </select>
-
-                <button
-                  onClick={() =>
-                    deleteDeck(
+                      setDeckOpen(
+                        true
+                      );
+                    }}
+                    style={{
+                      flex:
+                        1,
+                      padding:
+                        "15px",
+                      textAlign:
+                        "left",
+                      background:
+                        colors.white,
+                      border:
+                        `2px solid ${colors.blue}`,
+                      borderRadius:
+                        "12px",
+                      cursor:
+                        "pointer",
+                    }}
+                  >
+                    {
                       deck.name
-                    )
-                  }
-                  style={{
-                    marginLeft:
-                      "8px",
-                    border: "none",
-                    background:
-                      "transparent",
-                    color:
-                      colors.pinkDark,
-                    cursor:
-                      "pointer",
-                  }}
-                >
-                  削除
-                </button>
-              </div>
-            ))}
+                    }{" "}
+                    {
+                      deck
+                        .cards
+                        .length
+                    }
+                    語
+                  </button>
+
+                  <select
+                    value={
+                      deck.folderId ||
+                      ""
+                    }
+                    onChange={(
+                      e
+                    ) =>
+                      moveDeck(
+                        deck.name,
+                        e.target
+                          .value ||
+                          null
+                      )
+                    }
+                    style={{
+                      marginLeft:
+                        "8px",
+                    }}
+                  >
+                    <option value="">
+                      フォルダへ移動
+                    </option>
+
+                    {folders.map(
+                      (
+                        folderItem
+                      ) => (
+                        <option
+                          key={
+                            folderItem.id
+                          }
+                          value={
+                            folderItem.id
+                          }
+                        >
+                          {
+                            folderItem.name
+                          }
+                        </option>
+                      )
+                    )}
+                  </select>
+
+                  <button
+                    onClick={() =>
+                      deleteDeck(
+                        deck.name
+                      )
+                    }
+                    style={{
+                      marginLeft:
+                        "8px",
+                      border:
+                        "none",
+                      background:
+                        "transparent",
+                      color:
+                        colors.pinkDark,
+                      cursor:
+                        "pointer",
+                    }}
+                  >
+                    削除
+                  </button>
+                </div>
+              )
+            )}
         </div>
       )}
 
@@ -3053,15 +3522,19 @@ export default function Home() {
 
       <input
         placeholder="例：中国語"
-        value={newFolderName}
+        value={
+          newFolderName
+        }
         onChange={(e) =>
           setNewFolderName(
             e.target.value
           )
         }
         style={{
-          padding: "12px",
-          width: "100%",
+          padding:
+            "12px",
+          width:
+            "100%",
           boxSizing:
             "border-box",
           marginBottom:
@@ -3074,7 +3547,9 @@ export default function Home() {
       />
 
       <button
-        onClick={addFolder}
+        onClick={
+          addFolder
+        }
         style={{
           padding:
             "12px 30px",
@@ -3082,7 +3557,8 @@ export default function Home() {
             colors.pink,
           color:
             colors.white,
-          border: "none",
+          border:
+            "none",
           borderRadius:
             "20px",
           cursor:
@@ -3102,15 +3578,19 @@ export default function Home() {
 
       <input
         placeholder="例：HSK6"
-        value={newDeckName}
+        value={
+          newDeckName
+        }
         onChange={(e) =>
           setNewDeckName(
             e.target.value
           )
         }
         style={{
-          padding: "12px",
-          width: "100%",
+          padding:
+            "12px",
+          width:
+            "100%",
           boxSizing:
             "border-box",
           marginBottom:
@@ -3123,15 +3603,19 @@ export default function Home() {
       />
 
       <select
-        value={newDeckLanguage}
+        value={
+          newDeckLanguage
+        }
         onChange={(e) =>
           setNewDeckLanguage(
             e.target.value
           )
         }
         style={{
-          padding: "12px",
-          width: "100%",
+          padding:
+            "12px",
+          width:
+            "100%",
           marginBottom:
             "10px",
           border:
@@ -3163,17 +3647,21 @@ export default function Home() {
 
       <select
         value={
-          newDeckFolderId || ""
+          newDeckFolderId ||
+          ""
         }
         onChange={(e) =>
           setNewDeckFolderId(
-            e.target.value ||
+            e.target
+              .value ||
               null
           )
         }
         style={{
-          padding: "12px",
-          width: "100%",
+          padding:
+            "12px",
+          width:
+            "100%",
           marginBottom:
             "10px",
           border:
@@ -3186,18 +3674,28 @@ export default function Home() {
           フォルダなし
         </option>
 
-        {folders.map((folder) => (
-          <option
-            key={folder.id}
-            value={folder.id}
-          >
-            {folder.name}
-          </option>
-        ))}
+        {folders.map(
+          (folder) => (
+            <option
+              key={
+                folder.id
+              }
+              value={
+                folder.id
+              }
+            >
+              {
+                folder.name
+              }
+            </option>
+          )
+        )}
       </select>
 
       <button
-        onClick={addDeck}
+        onClick={
+          addDeck
+        }
         style={{
           padding:
             "12px 30px",
@@ -3205,7 +3703,8 @@ export default function Home() {
             colors.blue,
           color:
             colors.white,
-          border: "none",
+          border:
+            "none",
           borderRadius:
             "20px",
           cursor:
