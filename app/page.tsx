@@ -69,7 +69,6 @@ const colors = {
 
 /* =========================================================
    カードをランダムに並べ替える
-   元の配列は変更しない
 ========================================================= */
 
 const shuffleCards = (cards: Card[]): Card[] => {
@@ -122,10 +121,6 @@ export default function Home() {
 
   const [studyMode, setStudyMode] = useState(false);
 
-  /*
-    実際に学習するときだけ使うカード配列。
-    デッキ本体の cards は変更しない。
-  */
   const [studyCards, setStudyCards] = useState<Card[]>([]);
 
   const [studyIndex, setStudyIndex] = useState(0);
@@ -192,6 +187,13 @@ export default function Home() {
     useState("");
 
   const [cardExampleJapanese, setCardExampleJapanese] =
+    useState("");
+
+  // =========================================================
+  // 単語検索
+  // =========================================================
+
+  const [cardSearch, setCardSearch] =
     useState("");
 
   // =========================================================
@@ -1085,10 +1087,6 @@ export default function Home() {
       return;
     }
 
-    /*
-      ここで毎回シャッフルする。
-      Firestoreのdeck.cards自体は変更しない。
-    */
     const randomizedCards =
       shuffleCards(deck.cards);
 
@@ -1275,10 +1273,6 @@ export default function Home() {
 
       return;
     }
-
-    // -------------------------------------------------------
-    // 最後のカード
-    // -------------------------------------------------------
 
     const answered =
       nextCorrect +
@@ -1536,8 +1530,6 @@ export default function Home() {
           学習記録
         </h1>
 
-        {/* 総合 */}
-
         <div
           style={{
             marginTop: "20px",
@@ -1612,8 +1604,6 @@ export default function Home() {
             </div>
           </div>
         </div>
-
-        {/* 記録 */}
 
         <div
           style={{
@@ -1843,8 +1833,6 @@ export default function Home() {
           </p>
         </div>
 
-        {/* 現在の成績 */}
-
         <div
           style={{
             marginBottom: "15px",
@@ -2063,6 +2051,36 @@ export default function Home() {
       return null;
     }
 
+    // =======================================================
+    // 検索
+    // =======================================================
+
+    const normalizedSearch =
+      cardSearch
+        .trim()
+        .toLowerCase();
+
+    const filteredCards =
+      normalizedSearch === ""
+        ? deck.cards
+        : deck.cards.filter(
+            (card) => {
+              const searchableText = [
+                card.front,
+                card.pinyin,
+                card.japanese,
+                card.example,
+                card.exampleJapanese,
+              ]
+                .join(" ")
+                .toLowerCase();
+
+              return searchableText.includes(
+                normalizedSearch
+              );
+            }
+          );
+
     return (
       <main
         style={{
@@ -2072,9 +2090,10 @@ export default function Home() {
         }}
       >
         <button
-          onClick={() =>
-            setDeckOpen(false)
-          }
+          onClick={() => {
+            setDeckOpen(false);
+            setCardSearch("");
+          }}
           style={{
             marginBottom: "20px",
             padding: "8px 15px",
@@ -2084,7 +2103,8 @@ export default function Home() {
             color:
               colors.blueDark,
             fontWeight: "bold",
-            cursor: "pointer",
+            cursor:
+              "pointer",
             fontSize: "16px",
           }}
         >
@@ -2156,7 +2176,8 @@ export default function Home() {
               "20px",
             fontSize: "17px",
             fontWeight: "bold",
-            cursor: "pointer",
+            cursor:
+              "pointer",
           }}
         >
           CSVインポート
@@ -2179,13 +2200,16 @@ export default function Home() {
               "20px",
             fontSize: "17px",
             fontWeight: "bold",
-            cursor: "pointer",
+            cursor:
+              "pointer",
           }}
         >
           単語を追加
         </button>
 
-        {/* 単語フォーム */}
+        {/* ===================================================
+            単語フォーム
+        =================================================== */}
 
         {showCardForm && (
           <div
@@ -2349,7 +2373,8 @@ export default function Home() {
                     "15px",
                   fontWeight:
                     "bold",
-                  cursor: "pointer",
+                  cursor:
+                    "pointer",
                 }}
               >
                 保存
@@ -2370,7 +2395,8 @@ export default function Home() {
                     "15px",
                   fontWeight:
                     "bold",
-                  cursor: "pointer",
+                  cursor:
+                    "pointer",
                 }}
               >
                 キャンセル
@@ -2379,7 +2405,9 @@ export default function Home() {
           </div>
         )}
 
-        {/* 単語一覧 */}
+        {/* ===================================================
+            単語一覧
+        =================================================== */}
 
         <div
           style={{
@@ -2390,10 +2418,64 @@ export default function Home() {
             style={{
               color:
                 colors.blueDark,
+              marginBottom:
+                "12px",
             }}
           >
             単語一覧
           </h2>
+
+          {/* 検索ボックス */}
+
+          {deck.cards.length > 0 && (
+            <div
+              style={{
+                marginBottom:
+                  "18px",
+              }}
+            >
+              <input
+                type="text"
+                placeholder="単語を検索"
+                value={cardSearch}
+                onChange={(e) =>
+                  setCardSearch(
+                    e.target.value
+                  )
+                }
+                style={{
+                  width: "100%",
+                  padding: "14px 16px",
+                  boxSizing:
+                    "border-box",
+                  border:
+                    `2px solid ${colors.blue}`,
+                  borderRadius:
+                    "14px",
+                  fontSize: "17px",
+                  outline: "none",
+                  background:
+                    colors.white,
+                }}
+              />
+
+              {cardSearch.trim() && (
+                <div
+                  style={{
+                    marginTop:
+                      "8px",
+                    fontSize:
+                      "14px",
+                    color:
+                      colors.gray,
+                  }}
+                >
+                  {filteredCards.length}
+                  語が見つかりました
+                </div>
+              )}
+            </div>
+          )}
 
           {deck.cards.length === 0 ? (
             <div
@@ -2410,8 +2492,48 @@ export default function Home() {
             >
               まだ単語がありません
             </div>
+          ) : filteredCards.length === 0 ? (
+            <div
+              style={{
+                padding: "30px 15px",
+                textAlign: "center",
+                background:
+                  colors.pinkLight,
+                borderRadius:
+                  "18px",
+                color:
+                  colors.gray,
+              }}
+            >
+              「{cardSearch}」に一致する
+              単語がありません。
+              <br />
+              <button
+                onClick={() =>
+                  setCardSearch("")
+                }
+                style={{
+                  marginTop:
+                    "12px",
+                  padding:
+                    "8px 16px",
+                  background:
+                    colors.white,
+                  border:
+                    `1px solid ${colors.pink}`,
+                  borderRadius:
+                    "10px",
+                  color:
+                    colors.pinkDark,
+                  cursor:
+                    "pointer",
+                }}
+              >
+                検索をクリア
+              </button>
+            </div>
           ) : (
-            deck.cards.map(
+            filteredCards.map(
               (card, index) => (
                 <div
                   key={card.id}
