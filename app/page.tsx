@@ -38,6 +38,16 @@ type Deck = {
   folderId: string | null;
 };
 
+type StudyRecord = {
+  id: string;
+  date: string;
+  deckName: string;
+  answered: number;
+  correct: number;
+  incorrect: number;
+  duration: number;
+};
+
 const colors = {
   blue: "#8ecae6",
   blueDark: "#4f9fc5",
@@ -48,15 +58,39 @@ const colors = {
   pinkLight: "#fff0f5",
 
   white: "#ffffff",
+
   gray: "#777777",
   border: "#d9e8ef",
   dark: "#444444",
+
+  green: "#8bcfa4",
+  greenLight: "#effaf2",
+};
+
+/* =========================================================
+   カードをランダムに並べ替える
+   元の配列は変更しない
+========================================================= */
+
+const shuffleCards = (cards: Card[]): Card[] => {
+  const shuffled = [...cards];
+
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+
+    [shuffled[i], shuffled[j]] = [
+      shuffled[j],
+      shuffled[i],
+    ];
+  }
+
+  return shuffled;
 };
 
 export default function Home() {
-  // =========================
+  // =========================================================
   // フォルダ
-  // =========================
+  // =========================================================
 
   const [folders, setFolders] = useState<Folder[]>([
     {
@@ -65,9 +99,9 @@ export default function Home() {
     },
   ]);
 
-  // =========================
+  // =========================================================
   // デッキ
-  // =========================
+  // =========================================================
 
   const [decks, setDecks] = useState<Deck[]>([
     {
@@ -79,37 +113,66 @@ export default function Home() {
   ]);
 
   const [currentDeck, setCurrentDeck] = useState("中国語");
+
   const [deckOpen, setDeckOpen] = useState(false);
 
-  // =========================
+  // =========================================================
   // 学習
-  // =========================
+  // =========================================================
 
   const [studyMode, setStudyMode] = useState(false);
+
+  /*
+    実際に学習するときだけ使うカード配列。
+    デッキ本体の cards は変更しない。
+  */
+  const [studyCards, setStudyCards] = useState<Card[]>([]);
+
   const [studyIndex, setStudyIndex] = useState(0);
+
   const [showAnswer, setShowAnswer] = useState(false);
 
-  // =========================
-  // デッキ作成
-  // =========================
+  const [studyCorrect, setStudyCorrect] = useState(0);
 
-  const [newDeckName, setNewDeckName] = useState("");
+  const [studyIncorrect, setStudyIncorrect] =
+    useState(0);
+
+  const [studyStartTime, setStudyStartTime] =
+    useState<number | null>(null);
+
+  // =========================================================
+  // 学習記録
+  // =========================================================
+
+  const [studyRecords, setStudyRecords] =
+    useState<StudyRecord[]>([]);
+
+  const [showStudyRecords, setShowStudyRecords] =
+    useState(false);
+
+  // =========================================================
+  // デッキ作成
+  // =========================================================
+
+  const [newDeckName, setNewDeckName] =
+    useState("");
+
   const [newDeckLanguage, setNewDeckLanguage] =
     useState("zh-CN");
 
   const [newDeckFolderId, setNewDeckFolderId] =
     useState<string | null>(null);
 
-  // =========================
+  // =========================================================
   // フォルダ作成
-  // =========================
+  // =========================================================
 
   const [newFolderName, setNewFolderName] =
     useState("");
 
-  // =========================
-  // 単語追加・編集
-  // =========================
+  // =========================================================
+  // 単語フォーム
+  // =========================================================
 
   const [showCardForm, setShowCardForm] =
     useState(false);
@@ -118,39 +181,58 @@ export default function Home() {
     useState<string | null>(null);
 
   const [cardFront, setCardFront] = useState("");
-  const [cardPinyin, setCardPinyin] = useState("");
-  const [cardJapanese, setCardJapanese] = useState("");
-  const [cardExample, setCardExample] = useState("");
+
+  const [cardPinyin, setCardPinyin] =
+    useState("");
+
+  const [cardJapanese, setCardJapanese] =
+    useState("");
+
+  const [cardExample, setCardExample] =
+    useState("");
+
   const [cardExampleJapanese, setCardExampleJapanese] =
     useState("");
 
-  // =========================
+  // =========================================================
   // CSV
-  // =========================
+  // =========================================================
 
   const fileInputRef =
     useRef<HTMLInputElement | null>(null);
 
-  // =========================
+  // =========================================================
   // Firestore読み込み
-  // =========================
+  // =========================================================
 
   useEffect(() => {
     const loadData = async () => {
       try {
+        // -----------------------------------------------------
+        // フォルダ
+        // -----------------------------------------------------
+
         const folderSnapshot = await getDocs(
           collection(db, "folders")
         );
 
         if (!folderSnapshot.empty) {
           const loadedFolders: Folder[] =
-            folderSnapshot.docs.map((item) => ({
-              id: item.id,
-              name: item.data().name || "",
-            }));
+            folderSnapshot.docs.map((item) => {
+              const data = item.data();
+
+              return {
+                id: item.id,
+                name: data.name || item.id,
+              };
+            });
 
           setFolders(loadedFolders);
         }
+
+        // -----------------------------------------------------
+        // デッキ
+        // -----------------------------------------------------
 
         const deckSnapshot = await getDocs(
           collection(db, "decks")
@@ -161,26 +243,110 @@ export default function Home() {
             deckSnapshot.docs.map((item) => {
               const data = item.data();
 
+              const loadedCards: Card[] =
+                Array.isArray(data.cards)
+                  ? data.cards.map((card: Card) => ({
+                      id:
+                        card.id ||
+                        `${Date.now()}-${Math.random()}`,
+
+                      front: card.front || "",
+
+                      pinyin: card.pinyin || "",
+
+                      japanese:
+                        card.japanese || "",
+
+                      example:
+                        card.example || "",
+
+                      exampleJapanese:
+                        card.exampleJapanese || "",
+                    }))
+                  : [];
+
               return {
                 name: data.name || item.id,
-                language: data.language || "zh-CN",
-                cards: Array.isArray(data.cards)
-                  ? data.cards
-                  : [],
-                folderId: data.folderId ?? null,
+
+                language:
+                  data.language || "zh-CN",
+
+                cards: loadedCards,
+
+                folderId:
+                  data.folderId ?? null,
               };
             });
 
           setDecks(loadedDecks);
 
-          setCurrentDeck(
-            loadedDecks[0]?.name || ""
-          );
+          if (loadedDecks.length > 0) {
+            setCurrentDeck(
+              loadedDecks[0].name
+            );
+          }
         }
+
+        // -----------------------------------------------------
+        // 学習記録
+        // -----------------------------------------------------
+
+        const recordSnapshot = await getDocs(
+          collection(db, "studyRecords")
+        );
+
+        if (!recordSnapshot.empty) {
+          const loadedRecords: StudyRecord[] =
+            recordSnapshot.docs.map((item) => {
+              const data = item.data();
+
+              return {
+                id: item.id,
+
+                date: data.date || "",
+
+                deckName:
+                  data.deckName || "",
+
+                answered: Number(
+                  data.answered || 0
+                ),
+
+                correct: Number(
+                  data.correct || 0
+                ),
+
+                incorrect: Number(
+                  data.incorrect || 0
+                ),
+
+                duration: Number(
+                  data.duration || 0
+                ),
+              };
+            });
+
+          loadedRecords.sort((a, b) =>
+            b.date.localeCompare(a.date)
+          );
+
+          setStudyRecords(loadedRecords);
+        }
+
+        console.log(
+          "Firestoreからデータを読み込みました"
+        );
       } catch (error) {
         console.error(
           "Firestore読み込みエラー:",
           error
+        );
+
+        alert(
+          "Firestoreからデータを読み込めませんでした。\n\n" +
+            (error instanceof Error
+              ? error.message
+              : String(error))
         );
       }
     };
@@ -188,9 +354,9 @@ export default function Home() {
     loadData();
   }, []);
 
-  // =========================
+  // =========================================================
   // 音声
-  // =========================
+  // =========================================================
 
   const speakWord = (word: string) => {
     if (
@@ -214,30 +380,21 @@ export default function Home() {
 
     utterance.rate = 0.8;
 
-    window.speechSynthesis.speak(utterance);
+    window.speechSynthesis.speak(
+      utterance
+    );
   };
 
-  // =========================
+  // =========================================================
   // 学習中の自動音声
-  // =========================
+  // =========================================================
 
   useEffect(() => {
     if (!studyMode) {
       return;
     }
 
-    const deck = decks.find(
-      (item) => item.name === currentDeck
-    );
-
-    if (
-      !deck ||
-      deck.cards.length === 0
-    ) {
-      return;
-    }
-
-    const card = deck.cards[studyIndex];
+    const card = studyCards[studyIndex];
 
     if (!card) {
       return;
@@ -256,13 +413,12 @@ export default function Home() {
   }, [
     studyMode,
     studyIndex,
-    currentDeck,
-    decks,
+    studyCards,
   ]);
 
-  // =========================
+  // =========================================================
   // デッキ作成
-  // =========================
+  // =========================================================
 
   const addDeck = async () => {
     const name = newDeckName.trim();
@@ -283,8 +439,11 @@ export default function Home() {
 
     const newDeck: Deck = {
       name,
+
       language: newDeckLanguage,
+
       cards: [],
+
       folderId: newDeckFolderId,
     };
 
@@ -300,21 +459,24 @@ export default function Home() {
       ]);
 
       setCurrentDeck(name);
+
       setNewDeckName("");
+
       setNewDeckFolderId(null);
 
       alert("デッキを作成しました");
     } catch (error) {
       console.error(error);
+
       alert(
         "デッキの保存に失敗しました"
       );
     }
   };
 
-  // =========================
+  // =========================================================
   // デッキ削除
-  // =========================
+  // =========================================================
 
   const deleteDeck = async (
     deckName: string
@@ -332,11 +494,9 @@ export default function Home() {
         doc(db, "decks", deckName)
       );
 
-      const updatedDecks =
-        decks.filter(
-          (deck) =>
-            deck.name !== deckName
-        );
+      const updatedDecks = decks.filter(
+        (deck) => deck.name !== deckName
+      );
 
       setDecks(updatedDecks);
 
@@ -351,21 +511,24 @@ export default function Home() {
       }
     } catch (error) {
       console.error(error);
+
       alert(
         "デッキの削除に失敗しました"
       );
     }
   };
 
-  // =========================
+  // =========================================================
   // フォルダ作成
-  // =========================
+  // =========================================================
 
   const addFolder = async () => {
     const name = newFolderName.trim();
 
     if (!name) {
-      alert("フォルダ名を入力してください");
+      alert(
+        "フォルダ名を入力してください"
+      );
       return;
     }
 
@@ -376,35 +539,30 @@ export default function Home() {
 
     try {
       await setDoc(
-        doc(
-          db,
-          "folders",
-          newFolder.id
-        ),
+        doc(db, "folders", newFolder.id),
         newFolder
       );
 
-      setFolders(
-        (currentFolders) => [
-          ...currentFolders,
-          newFolder,
-        ]
-      );
+      setFolders((currentFolders) => [
+        ...currentFolders,
+        newFolder,
+      ]);
 
       setNewFolderName("");
 
       alert("フォルダを作成しました");
     } catch (error) {
       console.error(error);
+
       alert(
         "フォルダの保存に失敗しました"
       );
     }
   };
 
-  // =========================
+  // =========================================================
   // フォルダ削除
-  // =========================
+  // =========================================================
 
   const deleteFolder = async (
     folderId: string
@@ -422,23 +580,23 @@ export default function Home() {
         doc(db, "folders", folderId)
       );
 
-      setFolders(
-        (currentFolders) =>
-          currentFolders.filter(
-            (folder) =>
-              folder.id !== folderId
-          )
-      );
+      const updatedFolders =
+        folders.filter(
+          (folder) =>
+            folder.id !== folderId
+        );
 
-      const updatedDecks =
-        decks.map((deck) =>
+      setFolders(updatedFolders);
+
+      const updatedDecks = decks.map(
+        (deck) =>
           deck.folderId === folderId
             ? {
                 ...deck,
                 folderId: null,
               }
             : deck
-        );
+      );
 
       setDecks(updatedDecks);
 
@@ -450,23 +608,23 @@ export default function Home() {
       }
     } catch (error) {
       console.error(error);
+
       alert(
         "フォルダの削除に失敗しました"
       );
     }
   };
 
-  // =========================
+  // =========================================================
   // デッキ移動
-  // =========================
+  // =========================================================
 
   const moveDeck = async (
     deckName: string,
     folderId: string | null
   ) => {
     const deck = decks.find(
-      (item) =>
-        item.name === deckName
+      (item) => item.name === deckName
     );
 
     if (!deck) {
@@ -484,31 +642,31 @@ export default function Home() {
         updatedDeck
       );
 
-      setDecks(
-        (currentDecks) =>
-          currentDecks.map(
-            (item) =>
-              item.name === deckName
-                ? updatedDeck
-                : item
-          )
+      setDecks((currentDecks) =>
+        currentDecks.map((item) =>
+          item.name === deckName
+            ? updatedDeck
+            : item
+        )
       );
     } catch (error) {
       console.error(error);
+
       alert(
         "デッキの移動に失敗しました"
       );
     }
   };
 
-  // =========================
-  // CSVインポート
-  // =========================
+  // =========================================================
+  // CSV
+  // =========================================================
 
   const importCSV = (
     event: ChangeEvent<HTMLInputElement>
   ) => {
     const input = event.currentTarget;
+
     const file = input.files?.[0];
 
     if (!file) {
@@ -556,10 +714,9 @@ export default function Home() {
 
           const card: Card = {
             id:
-              Date.now().toString() +
-              Math.random()
+              `${Date.now()}-${Math.random()
                 .toString(36)
-                .slice(2),
+                .slice(2)}`,
 
             front:
               (parts[0] || "").trim(),
@@ -580,63 +737,52 @@ export default function Home() {
                 .trim(),
           };
 
-          if (card.front.length > 0) {
+          if (card.front) {
             importedCards.push(card);
           }
         }
 
-        if (
-          importedCards.length === 0
-        ) {
+        if (importedCards.length === 0) {
           alert(
             "単語を読み込めませんでした"
           );
           return;
         }
 
-        const currentDeckData =
-          decks.find(
-            (deck) =>
-              deck.name === currentDeck
-          );
+        const deck = decks.find(
+          (item) =>
+            item.name === currentDeck
+        );
 
-        if (!currentDeckData) {
-          alert(
-            "デッキが見つかりません"
-          );
+        if (!deck) {
+          alert("デッキが見つかりません");
           return;
         }
 
         const updatedDeck: Deck = {
-          ...currentDeckData,
+          ...deck,
+
           cards: [
-            ...currentDeckData.cards,
+            ...deck.cards,
             ...importedCards,
           ],
         };
 
         await setDoc(
-          doc(
-            db,
-            "decks",
-            currentDeckData.name
-          ),
+          doc(db, "decks", deck.name),
           updatedDeck
         );
 
-        setDecks(
-          (currentDecks) =>
-            currentDecks.map(
-              (deck) =>
-                deck.name === currentDeck
-                  ? updatedDeck
-                  : deck
-            )
+        setDecks((currentDecks) =>
+          currentDecks.map((item) =>
+            item.name === deck.name
+              ? updatedDeck
+              : item
+          )
         );
 
         alert(
-          importedCards.length +
-            "語をインポートしました"
+          `${importedCards.length}語をインポートしました`
         );
       } catch (error) {
         console.error(
@@ -669,9 +815,9 @@ export default function Home() {
     fileInputRef.current?.click();
   };
 
-  // =========================
-  // 単語追加フォーム
-  // =========================
+  // =========================================================
+  // 単語追加
+  // =========================================================
 
   const openAddCard = () => {
     setEditingCardId(null);
@@ -685,9 +831,9 @@ export default function Home() {
     setShowCardForm(true);
   };
 
-  // =========================
+  // =========================================================
   // 単語編集
-  // =========================
+  // =========================================================
 
   const openEditCard = (
     card: Card
@@ -695,9 +841,13 @@ export default function Home() {
     setEditingCardId(card.id);
 
     setCardFront(card.front);
+
     setCardPinyin(card.pinyin);
+
     setCardJapanese(card.japanese);
+
     setCardExample(card.example);
+
     setCardExampleJapanese(
       card.exampleJapanese
     );
@@ -705,12 +855,13 @@ export default function Home() {
     setShowCardForm(true);
   };
 
-  // =========================
-  // フォームを閉じる
-  // =========================
+  // =========================================================
+  // フォーム閉じる
+  // =========================================================
 
   const closeCardForm = () => {
     setShowCardForm(false);
+
     setEditingCardId(null);
 
     setCardFront("");
@@ -720,12 +871,14 @@ export default function Home() {
     setCardExampleJapanese("");
   };
 
-  // =========================
+  // =========================================================
   // 単語保存
-  // =========================
+  // =========================================================
 
   const saveCard = async () => {
-    if (!cardFront.trim()) {
+    const front = cardFront.trim();
+
+    if (!front) {
       alert(
         "単語を入力してください"
       );
@@ -738,67 +891,64 @@ export default function Home() {
     );
 
     if (!deck) {
+      alert(
+        "現在のデッキが見つかりません"
+      );
       return;
     }
 
-    if (!editingCardId) {
+    let updatedCards: Card[];
+
+    if (editingCardId) {
+      updatedCards = deck.cards.map(
+        (card) =>
+          card.id === editingCardId
+            ? {
+                ...card,
+
+                front,
+
+                pinyin:
+                  cardPinyin.trim(),
+
+                japanese:
+                  cardJapanese.trim(),
+
+                example:
+                  cardExample.trim(),
+
+                exampleJapanese:
+                  cardExampleJapanese.trim(),
+              }
+            : card
+      );
+    } else {
       const duplicate =
         deck.cards.some(
           (card) =>
             card.front
               .trim()
               .toLowerCase() ===
-            cardFront
-              .trim()
-              .toLowerCase()
+            front.toLowerCase()
         );
 
       if (duplicate) {
-        const shouldAdd =
-          confirm(
-            `「${cardFront.trim()}」はすでに存在します。\n\nそれでも追加しますか？`
-          );
+        const shouldAdd = confirm(
+          `「${front}」はすでに存在します。\n\nそれでも追加しますか？`
+        );
 
         if (!shouldAdd) {
           return;
         }
       }
-    }
 
-    let updatedDeck: Deck;
-
-    if (editingCardId) {
-      updatedDeck = {
-        ...deck,
-        cards: deck.cards.map(
-          (card) =>
-            card.id === editingCardId
-              ? {
-                  ...card,
-                  front:
-                    cardFront.trim(),
-                  pinyin:
-                    cardPinyin.trim(),
-                  japanese:
-                    cardJapanese.trim(),
-                  example:
-                    cardExample.trim(),
-                  exampleJapanese:
-                    cardExampleJapanese.trim(),
-                }
-              : card
-        ),
-      };
-    } else {
       const newCard: Card = {
         id:
-          Date.now().toString() +
-          Math.random()
+          `${Date.now()}-${Math.random()
             .toString(36)
-            .slice(2),
+            .slice(2)}`,
 
-        front:
-          cardFront.trim(),
+        front,
 
         pinyin:
           cardPinyin.trim(),
@@ -813,48 +963,50 @@ export default function Home() {
           cardExampleJapanese.trim(),
       };
 
-      updatedDeck = {
-        ...deck,
-        cards: [
-          ...deck.cards,
-          newCard,
-        ],
-      };
+      updatedCards = [
+        ...deck.cards,
+        newCard,
+      ];
     }
+
+    const updatedDeck: Deck = {
+      ...deck,
+      cards: updatedCards,
+    };
 
     try {
       await setDoc(
-        doc(
-          db,
-          "decks",
-          currentDeck
-        ),
+        doc(db, "decks", deck.name),
         updatedDeck
       );
 
-      setDecks(
-        (currentDecks) =>
-          currentDecks.map(
-            (item) =>
-              item.name === currentDeck
-                ? updatedDeck
-                : item
-          )
+      setDecks((currentDecks) =>
+        currentDecks.map((item) =>
+          item.name === deck.name
+            ? updatedDeck
+            : item
+        )
       );
 
       closeCardForm();
     } catch (error) {
-      console.error(error);
+      console.error(
+        "単語保存エラー:",
+        error
+      );
 
       alert(
-        "単語の保存に失敗しました"
+        "単語の保存に失敗しました。\n" +
+          (error instanceof Error
+            ? error.message
+            : String(error))
       );
     }
   };
 
-  // =========================
+  // =========================================================
   // 単語削除
-  // =========================
+  // =========================================================
 
   const deleteCard = async (
     cardId: string
@@ -864,13 +1016,15 @@ export default function Home() {
         item.name === currentDeck
     );
 
-    const card =
-      deck?.cards.find(
-        (item) =>
-          item.id === cardId
-      );
+    if (!deck) {
+      return;
+    }
 
-    if (!card || !deck) {
+    const card = deck.cards.find(
+      (item) => item.id === cardId
+    );
+
+    if (!card) {
       return;
     }
 
@@ -884,31 +1038,25 @@ export default function Home() {
 
     const updatedDeck: Deck = {
       ...deck,
-      cards:
-        deck.cards.filter(
-          (item) =>
-            item.id !== cardId
-        ),
+
+      cards: deck.cards.filter(
+        (item) =>
+          item.id !== cardId
+      ),
     };
 
     try {
       await setDoc(
-        doc(
-          db,
-          "decks",
-          currentDeck
-        ),
+        doc(db, "decks", deck.name),
         updatedDeck
       );
 
-      setDecks(
-        (currentDecks) =>
-          currentDecks.map(
-            (item) =>
-              item.name === currentDeck
-                ? updatedDeck
-                : item
-          )
+      setDecks((currentDecks) =>
+        currentDecks.map((item) =>
+          item.name === deck.name
+            ? updatedDeck
+            : item
+        )
       );
     } catch (error) {
       console.error(error);
@@ -919,9 +1067,9 @@ export default function Home() {
     }
   };
 
-  // =========================
+  // =========================================================
   // 学習開始
-  // =========================
+  // =========================================================
 
   const startStudy = () => {
     const deck = decks.find(
@@ -933,22 +1081,296 @@ export default function Home() {
       !deck ||
       deck.cards.length === 0
     ) {
-      alert(
-        "単語がありません"
-      );
+      alert("単語がありません");
       return;
     }
 
+    /*
+      ここで毎回シャッフルする。
+      Firestoreのdeck.cards自体は変更しない。
+    */
+    const randomizedCards =
+      shuffleCards(deck.cards);
+
+    setStudyCards(randomizedCards);
+
     setStudyIndex(0);
+
     setShowAnswer(false);
+
+    setStudyCorrect(0);
+
+    setStudyIncorrect(0);
+
+    setStudyStartTime(Date.now());
+
     setStudyMode(true);
   };
 
-  // =========================
-  // 学習終了
-  // =========================
+  // =========================================================
+  // 学習記録保存
+  // =========================================================
 
-  const finishStudy = () => {
+  const saveStudyRecord = async (
+    force = false
+  ) => {
+    if (
+      studyStartTime === null ||
+      (!force &&
+        studyCorrect === 0 &&
+        studyIncorrect === 0)
+    ) {
+      return;
+    }
+
+    const answered =
+      studyCorrect +
+      studyIncorrect;
+
+    if (answered === 0) {
+      return;
+    }
+
+    const duration = Math.max(
+      0,
+      Math.floor(
+        (Date.now() -
+          studyStartTime) /
+          1000
+      )
+    );
+
+    const today = new Date()
+      .toISOString()
+      .slice(0, 10);
+
+    const recordId =
+      `${today}_${currentDeck}`;
+
+    const newRecord: StudyRecord = {
+      id: recordId,
+
+      date: today,
+
+      deckName: currentDeck,
+
+      answered,
+
+      correct: studyCorrect,
+
+      incorrect: studyIncorrect,
+
+      duration,
+    };
+
+    try {
+      await setDoc(
+        doc(
+          db,
+          "studyRecords",
+          recordId
+        ),
+        newRecord
+      );
+
+      setStudyRecords(
+        (currentRecords) => {
+          const withoutCurrent =
+            currentRecords.filter(
+              (record) =>
+                record.id !==
+                recordId
+            );
+
+          return [
+            newRecord,
+            ...withoutCurrent,
+          ].sort(
+            (a, b) =>
+              b.date.localeCompare(
+                a.date
+              )
+          );
+        }
+      );
+    } catch (error) {
+      console.error(
+        "学習記録保存エラー:",
+        error
+      );
+    }
+  };
+
+  // =========================================================
+  // 学習終了
+  // =========================================================
+
+  const finishStudy = async () => {
+    if (
+      typeof window !== "undefined" &&
+      "speechSynthesis" in window
+    ) {
+      window.speechSynthesis.cancel();
+    }
+
+    await saveStudyRecord(true);
+
+    setStudyMode(false);
+
+    setShowAnswer(false);
+
+    setStudyCards([]);
+
+    setStudyIndex(0);
+
+    setStudyCorrect(0);
+
+    setStudyIncorrect(0);
+
+    setStudyStartTime(null);
+  };
+
+  // =========================================================
+  // 答え表示
+  // =========================================================
+
+  const toggleAnswer = () => {
+    setShowAnswer(
+      (current) => !current
+    );
+  };
+
+  // =========================================================
+  // 正解・不正解
+  // =========================================================
+
+  const answerCard = async (
+    correct: boolean
+  ) => {
+    const nextCorrect =
+      studyCorrect +
+      (correct ? 1 : 0);
+
+    const nextIncorrect =
+      studyIncorrect +
+      (correct ? 0 : 1);
+
+    setStudyCorrect(
+      nextCorrect
+    );
+
+    setStudyIncorrect(
+      nextIncorrect
+    );
+
+    if (
+      studyIndex <
+      studyCards.length - 1
+    ) {
+      setStudyIndex(
+        (index) => index + 1
+      );
+
+      setShowAnswer(false);
+
+      return;
+    }
+
+    // -------------------------------------------------------
+    // 最後のカード
+    // -------------------------------------------------------
+
+    const answered =
+      nextCorrect +
+      nextIncorrect;
+
+    const duration =
+      studyStartTime
+        ? Math.max(
+            0,
+            Math.floor(
+              (Date.now() -
+                studyStartTime) /
+                1000
+            )
+          )
+        : 0;
+
+    const today = new Date()
+      .toISOString()
+      .slice(0, 10);
+
+    const recordId =
+      `${today}_${currentDeck}`;
+
+    const newRecord: StudyRecord = {
+      id: recordId,
+
+      date: today,
+
+      deckName: currentDeck,
+
+      answered,
+
+      correct: nextCorrect,
+
+      incorrect: nextIncorrect,
+
+      duration,
+    };
+
+    try {
+      await setDoc(
+        doc(
+          db,
+          "studyRecords",
+          recordId
+        ),
+        newRecord
+      );
+
+      setStudyRecords(
+        (currentRecords) => {
+          const withoutCurrent =
+            currentRecords.filter(
+              (record) =>
+                record.id !==
+                recordId
+            );
+
+          return [
+            newRecord,
+            ...withoutCurrent,
+          ].sort(
+            (a, b) =>
+              b.date.localeCompare(
+                a.date
+              )
+          );
+        }
+      );
+    } catch (error) {
+      console.error(
+        "学習記録保存エラー:",
+        error
+      );
+    }
+
+    alert(
+      "学習終了！\n\n" +
+        `正解：${nextCorrect}問\n` +
+        `不正解：${nextIncorrect}問\n` +
+        `正答率：${
+          answered > 0
+            ? Math.round(
+                (nextCorrect /
+                  answered) *
+                  100
+              )
+            : 0
+        }%`
+    );
+
     if (
       typeof window !== "undefined" &&
       "speechSynthesis" in window
@@ -957,79 +1379,418 @@ export default function Home() {
     }
 
     setStudyMode(false);
+
     setShowAnswer(false);
+
+    setStudyCards([]);
+
     setStudyIndex(0);
+
+    setStudyCorrect(0);
+
+    setStudyIncorrect(0);
+
+    setStudyStartTime(null);
   };
 
-  // =========================
-  // カードタップ
-  // =========================
+  // =========================================================
+  // 学習記録削除
+  // =========================================================
 
-  const toggleAnswer = () => {
-    setShowAnswer(
-      (current) => !current
+  const deleteStudyRecord =
+    async (
+      recordId: string
+    ) => {
+      if (
+        !confirm(
+          "この学習記録を削除しますか？"
+        )
+      ) {
+        return;
+      }
+
+      try {
+        await deleteDoc(
+          doc(
+            db,
+            "studyRecords",
+            recordId
+          )
+        );
+
+        setStudyRecords(
+          (records) =>
+            records.filter(
+              (record) =>
+                record.id !==
+                recordId
+            )
+        );
+      } catch (error) {
+        console.error(error);
+
+        alert(
+          "学習記録の削除に失敗しました"
+        );
+      }
+    };
+
+  // =========================================================
+  // 時間表示
+  // =========================================================
+
+  const formatDuration = (
+    seconds: number
+  ) => {
+    const minutes = Math.floor(
+      seconds / 60
     );
-  };
 
-  // =========================
-  // 正解・不正解
-  // =========================
+    const remaining =
+      seconds % 60;
 
-  const answerCard = (correct: boolean) => {
-    // 今は正解・不正解の値を受け取るだけ
-    // 後からここに学習履歴保存などを追加できます。
-    console.log(
-      correct
-        ? "正解"
-        : "不正解"
-    );
-
-    const deck = decks.find(
-      (item) =>
-        item.name === currentDeck
-    );
-
-    if (!deck) {
-      return;
+    if (minutes === 0) {
+      return `${remaining}秒`;
     }
 
-    if (
-      studyIndex <
-      deck.cards.length - 1
-    ) {
-      setStudyIndex(
-        (index) => index + 1
-      );
-
-      setShowAnswer(false);
-    } else {
-      alert(
-        "学習終了！"
-      );
-
-      finishStudy();
+    if (remaining === 0) {
+      return `${minutes}分`;
     }
+
+    return `${minutes}分${remaining}秒`;
   };
 
-  // =========================
+  // =========================================================
+  // 学習記録画面
+  // =========================================================
+
+  if (showStudyRecords) {
+    const totalAnswered =
+      studyRecords.reduce(
+        (sum, record) =>
+          sum + record.answered,
+        0
+      );
+
+    const totalCorrect =
+      studyRecords.reduce(
+        (sum, record) =>
+          sum + record.correct,
+        0
+      );
+
+    const totalIncorrect =
+      studyRecords.reduce(
+        (sum, record) =>
+          sum + record.incorrect,
+        0
+      );
+
+    const totalDuration =
+      studyRecords.reduce(
+        (sum, record) =>
+          sum + record.duration,
+        0
+      );
+
+    const overallRate =
+      totalAnswered > 0
+        ? Math.round(
+            (totalCorrect /
+              totalAnswered) *
+              100
+          )
+        : 0;
+
+    return (
+      <main
+        style={{
+          maxWidth: "600px",
+          margin: "40px auto",
+          padding: "20px",
+        }}
+      >
+        <button
+          onClick={() =>
+            setShowStudyRecords(false)
+          }
+          style={{
+            marginBottom: "20px",
+            padding: "8px 15px",
+            border: "none",
+            background: "transparent",
+            color: colors.blueDark,
+            fontWeight: "bold",
+            cursor: "pointer",
+            fontSize: "16px",
+          }}
+        >
+          ← デッキ一覧
+        </button>
+
+        <h1
+          style={{
+            color: colors.blueDark,
+          }}
+        >
+          学習記録
+        </h1>
+
+        {/* 総合 */}
+
+        <div
+          style={{
+            marginTop: "20px",
+            padding: "20px",
+            background: colors.blueLight,
+            border:
+              `2px solid ${colors.blue}`,
+            borderRadius: "20px",
+          }}
+        >
+          <h2
+            style={{
+              marginTop: 0,
+              color: colors.blueDark,
+            }}
+          >
+            累計
+          </h2>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "1fr 1fr",
+              gap: "10px",
+            }}
+          >
+            <div>
+              回答数
+              <br />
+              <strong>
+                {totalAnswered}問
+              </strong>
+            </div>
+
+            <div>
+              正解
+              <br />
+              <strong>
+                {totalCorrect}問
+              </strong>
+            </div>
+
+            <div>
+              不正解
+              <br />
+              <strong>
+                {totalIncorrect}問
+              </strong>
+            </div>
+
+            <div>
+              正答率
+              <br />
+              <strong>
+                {overallRate}%
+              </strong>
+            </div>
+
+            <div
+              style={{
+                gridColumn: "1 / -1",
+              }}
+            >
+              学習時間
+              <br />
+              <strong>
+                {formatDuration(
+                  totalDuration
+                )}
+              </strong>
+            </div>
+          </div>
+        </div>
+
+        {/* 記録 */}
+
+        <div
+          style={{
+            marginTop: "30px",
+          }}
+        >
+          <h2
+            style={{
+              color: colors.blueDark,
+            }}
+          >
+            学習履歴
+          </h2>
+
+          {studyRecords.length === 0 ? (
+            <div
+              style={{
+                padding: "30px",
+                textAlign: "center",
+                background:
+                  colors.blueLight,
+                borderRadius: "18px",
+                color: colors.gray,
+              }}
+            >
+              まだ学習記録がありません。
+              <br />
+              単語を学習すると、
+              ここに記録されます。
+            </div>
+          ) : (
+            studyRecords.map(
+              (record) => {
+                const rate =
+                  record.answered > 0
+                    ? Math.round(
+                        (record.correct /
+                          record.answered) *
+                          100
+                      )
+                    : 0;
+
+                return (
+                  <div
+                    key={record.id}
+                    style={{
+                      marginBottom: "15px",
+                      padding: "18px",
+                      background:
+                        colors.white,
+                      border:
+                        `2px solid ${
+                          rate >= 80
+                            ? colors.blue
+                            : colors.pink
+                        }`,
+                      borderRadius: "18px",
+                      boxShadow:
+                        "0 3px 10px rgba(100,150,180,0.08)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent:
+                          "space-between",
+                        alignItems:
+                          "center",
+                        marginBottom: "10px",
+                      }}
+                    >
+                      <strong
+                        style={{
+                          fontSize: "18px",
+                        }}
+                      >
+                        {record.date}
+                      </strong>
+
+                      <button
+                        onClick={() =>
+                          deleteStudyRecord(
+                            record.id
+                          )
+                        }
+                        style={{
+                          border: "none",
+                          background:
+                            "transparent",
+                          color:
+                            colors.pinkDark,
+                          cursor:
+                            "pointer",
+                        }}
+                      >
+                        削除
+                      </button>
+                    </div>
+
+                    <div
+                      style={{
+                        fontSize: "17px",
+                        fontWeight: "bold",
+                        marginBottom:
+                          "10px",
+                      }}
+                    >
+                      {record.deckName}
+                    </div>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns:
+                          "1fr 1fr",
+                        gap: "8px",
+                        color:
+                          colors.dark,
+                      }}
+                    >
+                      <div>
+                        回答：
+                        {record.answered}問
+                      </div>
+
+                      <div>
+                        正答率：
+                        {rate}%
+                      </div>
+
+                      <div>
+                        正解：
+                        {record.correct}問
+                      </div>
+
+                      <div>
+                        不正解：
+                        {record.incorrect}問
+                      </div>
+
+                      <div
+                        style={{
+                          gridColumn:
+                            "1 / -1",
+                        }}
+                      >
+                        時間：
+                        {formatDuration(
+                          record.duration
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+            )
+          )}
+        </div>
+      </main>
+    );
+  }
+
+  // =========================================================
   // 学習画面
-  // =========================
+  // =========================================================
 
   if (studyMode) {
-    const deck = decks.find(
-      (item) =>
-        item.name === currentDeck
-    );
+    const card =
+      studyCards[studyIndex];
 
-    if (
-      !deck ||
-      deck.cards.length === 0
-    ) {
+    if (!card) {
       return null;
     }
 
-    const card =
-      deck.cards[studyIndex];
+    const currentAnswered =
+      studyCorrect +
+      studyIncorrect;
 
     return (
       <main
@@ -1078,8 +1839,24 @@ export default function Home() {
             }}
           >
             {studyIndex + 1} /{" "}
-            {deck.cards.length}
+            {studyCards.length}
           </p>
+        </div>
+
+        {/* 現在の成績 */}
+
+        <div
+          style={{
+            marginBottom: "15px",
+            fontSize: "14px",
+            color: colors.gray,
+          }}
+        >
+          正解：{studyCorrect}
+          {"　"}
+          不正解：{studyIncorrect}
+          {"　"}
+          回答：{currentAnswered}
         </div>
 
         <div
@@ -1106,8 +1883,7 @@ export default function Home() {
               "column",
             justifyContent:
               "center",
-            boxSizing:
-              "border-box",
+            boxSizing: "border-box",
           }}
         >
           {!showAnswer ? (
@@ -1128,7 +1904,7 @@ export default function Home() {
                   color: colors.gray,
                 }}
               >
-                👆 タップして答えを見る
+                タップして答えを見る
               </div>
             </>
           ) : (
@@ -1149,7 +1925,6 @@ export default function Home() {
                   marginBottom: "15px",
                 }}
               >
-                🔤{" "}
                 {card.pinyin ||
                   "読み方なし"}
               </div>
@@ -1161,7 +1936,6 @@ export default function Home() {
                   marginBottom: "25px",
                 }}
               >
-                🇯🇵{" "}
                 {card.japanese ||
                   "日本語訳なし"}
               </div>
@@ -1184,7 +1958,9 @@ export default function Home() {
                     color: colors.gray,
                   }}
                 >
-                  {card.exampleJapanese}
+                  {
+                    card.exampleJapanese
+                  }
                 </div>
               )}
             </>
@@ -1209,7 +1985,7 @@ export default function Home() {
             cursor: "pointer",
           }}
         >
-          🔊 発音
+          発音
         </button>
 
         {showAnswer && (
@@ -1220,48 +1996,52 @@ export default function Home() {
               marginTop: "25px",
             }}
           >
-            {/* 不正解 */}
             <button
               onClick={() =>
                 answerCard(false)
               }
               style={{
                 flex: 1,
-                padding: "18px 10px",
+                padding:
+                  "18px 10px",
                 background:
                   colors.pink,
                 color:
                   colors.white,
                 border: "none",
-                borderRadius: "18px",
+                borderRadius:
+                  "18px",
                 fontSize: "18px",
-                fontWeight: "bold",
+                fontWeight:
+                  "bold",
                 cursor: "pointer",
               }}
             >
-              ❌ 不正解
+              不正解
             </button>
 
-            {/* 正解 */}
             <button
               onClick={() =>
                 answerCard(true)
               }
               style={{
                 flex: 1,
-                padding: "18px 10px",
+                padding:
+                  "18px 10px",
                 background:
                   colors.blue,
                 color:
                   colors.white,
                 border: "none",
-                borderRadius: "18px",
+                borderRadius:
+                  "18px",
                 fontSize: "18px",
-                fontWeight: "bold",
+                fontWeight:
+                  "bold",
                 cursor: "pointer",
               }}
             >
-              ⭕ 正解
+              正解
             </button>
           </div>
         )}
@@ -1269,9 +2049,9 @@ export default function Home() {
     );
   }
 
-  // =========================
-  // デッキ詳細画面
-  // =========================
+  // =========================================================
+  // デッキ詳細
+  // =========================================================
 
   if (deckOpen) {
     const deck = decks.find(
@@ -1313,11 +2093,10 @@ export default function Home() {
 
         <h1
           style={{
-            color:
-              colors.blueDark,
+            color: colors.blueDark,
           }}
         >
-          📚 {currentDeck}
+          {currentDeck}
         </h1>
 
         <p
@@ -1340,13 +2119,14 @@ export default function Home() {
             color:
               colors.white,
             border: "none",
-            borderRadius: "20px",
+            borderRadius:
+              "20px",
             fontSize: "18px",
             fontWeight: "bold",
             cursor: "pointer",
           }}
         >
-          ▶ 学習開始
+          学習開始
         </button>
 
         <input
@@ -1372,13 +2152,14 @@ export default function Home() {
               `2px solid ${colors.pink}`,
             color:
               colors.pinkDark,
-            borderRadius: "20px",
+            borderRadius:
+              "20px",
             fontSize: "17px",
             fontWeight: "bold",
             cursor: "pointer",
           }}
         >
-          📥 CSVインポート
+          CSVインポート
         </button>
 
         <button
@@ -1394,14 +2175,17 @@ export default function Home() {
               `2px solid ${colors.blue}`,
             color:
               colors.blueDark,
-            borderRadius: "20px",
+            borderRadius:
+              "20px",
             fontSize: "17px",
             fontWeight: "bold",
             cursor: "pointer",
           }}
         >
-          ✏️ 単語を追加
+          単語を追加
         </button>
+
+        {/* 単語フォーム */}
 
         {showCardForm && (
           <div
@@ -1412,7 +2196,8 @@ export default function Home() {
                 colors.pinkLight,
               border:
                 `2px solid ${colors.pink}`,
-              borderRadius: "20px",
+              borderRadius:
+                "20px",
             }}
           >
             <h2
@@ -1423,8 +2208,8 @@ export default function Home() {
               }}
             >
               {editingCardId
-                ? "✏️ 単語を編集"
-                : "➕ 単語を追加"}
+                ? "単語を編集"
+                : "単語を追加"}
             </h2>
 
             <input
@@ -1440,10 +2225,12 @@ export default function Home() {
                 padding: "12px",
                 boxSizing:
                   "border-box",
-                marginBottom: "10px",
+                marginBottom:
+                  "10px",
                 border:
                   `2px solid ${colors.blue}`,
-                borderRadius: "12px",
+                borderRadius:
+                  "12px",
                 fontSize: "16px",
               }}
             />
@@ -1461,10 +2248,12 @@ export default function Home() {
                 padding: "12px",
                 boxSizing:
                   "border-box",
-                marginBottom: "10px",
+                marginBottom:
+                  "10px",
                 border:
                   `2px solid ${colors.blue}`,
-                borderRadius: "12px",
+                borderRadius:
+                  "12px",
                 fontSize: "16px",
               }}
             />
@@ -1482,10 +2271,12 @@ export default function Home() {
                 padding: "12px",
                 boxSizing:
                   "border-box",
-                marginBottom: "10px",
+                marginBottom:
+                  "10px",
                 border:
                   `2px solid ${colors.pink}`,
-                borderRadius: "12px",
+                borderRadius:
+                  "12px",
                 fontSize: "16px",
               }}
             />
@@ -1503,10 +2294,12 @@ export default function Home() {
                 padding: "12px",
                 boxSizing:
                   "border-box",
-                marginBottom: "10px",
+                marginBottom:
+                  "10px",
                 border:
                   `2px solid ${colors.blue}`,
-                borderRadius: "12px",
+                borderRadius:
+                  "12px",
                 fontSize: "16px",
               }}
             />
@@ -1526,10 +2319,12 @@ export default function Home() {
                 padding: "12px",
                 boxSizing:
                   "border-box",
-                marginBottom: "15px",
+                marginBottom:
+                  "15px",
                 border:
                   `2px solid ${colors.pink}`,
-                borderRadius: "12px",
+                borderRadius:
+                  "12px",
                 fontSize: "16px",
               }}
             />
@@ -1550,12 +2345,14 @@ export default function Home() {
                   color:
                     colors.white,
                   border: "none",
-                  borderRadius: "15px",
-                  fontWeight: "bold",
+                  borderRadius:
+                    "15px",
+                  fontWeight:
+                    "bold",
                   cursor: "pointer",
                 }}
               >
-                💾 保存
+                保存
               </button>
 
               <button
@@ -1569,8 +2366,10 @@ export default function Home() {
                     colors.gray,
                   border:
                     `2px solid ${colors.border}`,
-                  borderRadius: "15px",
-                  fontWeight: "bold",
+                  borderRadius:
+                    "15px",
+                  fontWeight:
+                    "bold",
                   cursor: "pointer",
                 }}
               >
@@ -1579,6 +2378,8 @@ export default function Home() {
             </div>
           </div>
         )}
+
+        {/* 単語一覧 */}
 
         <div
           style={{
@@ -1591,7 +2392,7 @@ export default function Home() {
                 colors.blueDark,
             }}
           >
-            📖 単語一覧
+            単語一覧
           </h2>
 
           {deck.cards.length === 0 ? (
@@ -1601,7 +2402,8 @@ export default function Home() {
                 textAlign: "center",
                 background:
                   colors.blueLight,
-                borderRadius: "18px",
+                borderRadius:
+                  "18px",
                 color:
                   colors.gray,
               }}
@@ -1614,7 +2416,8 @@ export default function Home() {
                 <div
                   key={card.id}
                   style={{
-                    marginBottom: "12px",
+                    marginBottom:
+                      "12px",
                     padding: "15px",
                     background:
                       colors.white,
@@ -1624,7 +2427,8 @@ export default function Home() {
                           ? colors.blue
                           : colors.pink
                       }`,
-                    borderRadius: "16px",
+                    borderRadius:
+                      "16px",
                   }}
                 >
                   <div
@@ -1643,7 +2447,8 @@ export default function Home() {
                     >
                       <div
                         style={{
-                          fontSize: "21px",
+                          fontSize:
+                            "21px",
                           fontWeight:
                             "bold",
                           color:
@@ -1664,7 +2469,6 @@ export default function Home() {
                               "4px",
                           }}
                         >
-                          🔤{" "}
                           {card.pinyin}
                         </div>
                       )}
@@ -1672,10 +2476,10 @@ export default function Home() {
                       {card.japanese && (
                         <div
                           style={{
-                            fontSize: "17px",
+                            fontSize:
+                              "17px",
                           }}
                         >
-                          🇯🇵{" "}
                           {card.japanese}
                         </div>
                       )}
@@ -1683,8 +2487,10 @@ export default function Home() {
                       {card.example && (
                         <div
                           style={{
-                            marginTop: "8px",
-                            fontSize: "14px",
+                            marginTop:
+                              "8px",
+                            fontSize:
+                              "14px",
                             color:
                               colors.gray,
                           }}
@@ -1696,7 +2502,8 @@ export default function Home() {
 
                     <div
                       style={{
-                        display: "flex",
+                        display:
+                          "flex",
                         flexDirection:
                           "column",
                         gap: "6px",
@@ -1725,7 +2532,7 @@ export default function Home() {
                             "bold",
                         }}
                       >
-                        ✏️ 編集
+                        編集
                       </button>
 
                       <button
@@ -1751,7 +2558,7 @@ export default function Home() {
                             "bold",
                         }}
                       >
-                        🗑️ 削除
+                        削除
                       </button>
                     </div>
                   </div>
@@ -1764,9 +2571,9 @@ export default function Home() {
     );
   }
 
-  // =========================
-  // デッキ一覧画面
-  // =========================
+  // =========================================================
+  // デッキ一覧
+  // =========================================================
 
   return (
     <main
@@ -1778,12 +2585,36 @@ export default function Home() {
     >
       <h1
         style={{
-          color:
-            colors.blueDark,
+          color: colors.blueDark,
         }}
       >
-        📚 デッキ
+        デッキ
       </h1>
+
+      {/* 学習記録 */}
+
+      <button
+        onClick={() =>
+          setShowStudyRecords(true)
+        }
+        style={{
+          display: "block",
+          width: "100%",
+          padding: "15px",
+          marginBottom: "25px",
+          background:
+            colors.greenLight,
+          border:
+            `2px solid ${colors.green}`,
+          color: "#4b9b63",
+          borderRadius: "20px",
+          fontSize: "18px",
+          fontWeight: "bold",
+          cursor: "pointer",
+        }}
+      >
+        学習記録を見る
+      </button>
 
       {/* フォルダ */}
 
@@ -1805,8 +2636,10 @@ export default function Home() {
               display: "flex",
               justifyContent:
                 "space-between",
-              alignItems: "center",
-              marginBottom: "10px",
+              alignItems:
+                "center",
+              marginBottom:
+                "10px",
             }}
           >
             <h2
@@ -1814,7 +2647,7 @@ export default function Home() {
                 margin: 0,
               }}
             >
-              📁 {folder.name}
+              {folder.name}
             </h2>
 
             <button
@@ -1850,7 +2683,8 @@ export default function Home() {
                   display: "flex",
                   alignItems:
                     "center",
-                  marginBottom: "8px",
+                  marginBottom:
+                    "8px",
                 }}
               >
                 <button
@@ -1890,10 +2724,7 @@ export default function Home() {
                         colors.gray,
                     }}
                   >
-                    {
-                      deck.cards
-                        .length
-                    }
+                    {deck.cards.length}
                     語
                   </span>
                 </button>
@@ -1906,8 +2737,8 @@ export default function Home() {
                   onChange={(e) =>
                     moveDeck(
                       deck.name,
-                      e.target
-                        .value || null
+                      e.target.value ||
+                        null
                     )
                   }
                   style={{
@@ -1920,9 +2751,7 @@ export default function Home() {
                   </option>
 
                   {folders.map(
-                    (
-                      folderItem
-                    ) => (
+                    (folderItem) => (
                       <option
                         key={
                           folderItem.id
@@ -1974,16 +2803,16 @@ export default function Home() {
           style={{
             border:
               `2px solid ${colors.pink}`,
-            borderRadius: "18px",
+            borderRadius:
+              "18px",
             padding: "15px",
-            marginBottom: "20px",
+            marginBottom:
+              "20px",
             background:
               colors.pinkLight,
           }}
         >
-          <h2>
-            📂 未分類
-          </h2>
+          <h2>未分類</h2>
 
           {decks
             .filter(
@@ -1997,7 +2826,8 @@ export default function Home() {
                   display: "flex",
                   alignItems:
                     "center",
-                  marginBottom: "8px",
+                  marginBottom:
+                    "8px",
                 }}
               >
                 <button
@@ -2026,8 +2856,7 @@ export default function Home() {
                   }}
                 >
                   {deck.name}{" "}
-                  {deck.cards.length}
-                  語
+                  {deck.cards.length}語
                 </button>
 
                 <select
@@ -2038,8 +2867,8 @@ export default function Home() {
                   onChange={(e) =>
                     moveDeck(
                       deck.name,
-                      e.target
-                        .value || null
+                      e.target.value ||
+                        null
                     )
                   }
                   style={{
@@ -2052,9 +2881,7 @@ export default function Home() {
                   </option>
 
                   {folders.map(
-                    (
-                      folderItem
-                    ) => (
+                    (folderItem) => (
                       <option
                         key={
                           folderItem.id
@@ -2119,25 +2946,30 @@ export default function Home() {
             "10px",
           border:
             `2px solid ${colors.blue}`,
-          borderRadius: "12px",
+          borderRadius:
+            "12px",
         }}
       />
 
       <button
         onClick={addFolder}
         style={{
-          padding: "12px 30px",
+          padding:
+            "12px 30px",
           background:
             colors.pink,
           color:
             colors.white,
           border: "none",
-          borderRadius: "20px",
-          cursor: "pointer",
-          fontWeight: "bold",
+          borderRadius:
+            "20px",
+          cursor:
+            "pointer",
+          fontWeight:
+            "bold",
         }}
       >
-        ＋ フォルダ作成
+        フォルダ作成
       </button>
 
       {/* 新しいデッキ */}
@@ -2163,7 +2995,8 @@ export default function Home() {
             "10px",
           border:
             `2px solid ${colors.pink}`,
-          borderRadius: "12px",
+          borderRadius:
+            "12px",
         }}
       />
 
@@ -2181,7 +3014,8 @@ export default function Home() {
             "10px",
           border:
             `2px solid ${colors.blue}`,
-          borderRadius: "12px",
+          borderRadius:
+            "12px",
         }}
       >
         <option value="zh-CN">
@@ -2211,7 +3045,8 @@ export default function Home() {
         }
         onChange={(e) =>
           setNewDeckFolderId(
-            e.target.value || null
+            e.target.value ||
+              null
           )
         }
         style={{
@@ -2221,40 +3056,43 @@ export default function Home() {
             "10px",
           border:
             `2px solid ${colors.blue}`,
-          borderRadius: "12px",
+          borderRadius:
+            "12px",
         }}
       >
         <option value="">
           フォルダなし
         </option>
 
-        {folders.map(
-          (folder) => (
-            <option
-              key={folder.id}
-              value={folder.id}
-            >
-              {folder.name}
-            </option>
-          )
-        )}
+        {folders.map((folder) => (
+          <option
+            key={folder.id}
+            value={folder.id}
+          >
+            {folder.name}
+          </option>
+        ))}
       </select>
 
       <button
         onClick={addDeck}
         style={{
-          padding: "12px 30px",
+          padding:
+            "12px 30px",
           background:
             colors.blue,
           color:
             colors.white,
           border: "none",
-          borderRadius: "20px",
-          cursor: "pointer",
-          fontWeight: "bold",
+          borderRadius:
+            "20px",
+          cursor:
+            "pointer",
+          fontWeight:
+            "bold",
         }}
       >
-        ＋ 作成
+        作成
       </button>
     </main>
   );
