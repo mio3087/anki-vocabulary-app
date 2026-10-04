@@ -17,19 +17,32 @@ import {
   setDoc,
 } from "firebase/firestore";
 
+
 type Folder = {
   id: string;
   name: string;
 };
 
-type Card = {
-  id: string;
-  front: string;
-  pinyin: string;
-  japanese: string;
-  example: string;
-  exampleJapanese: string;
-};
+
+
+const loadedCards: Card[] =
+  Array.isArray(data.cards)
+    ? data.cards.map((card: Card) => ({
+        id: card.id || createId(),
+
+        front: card.front || "",
+        pinyin: card.pinyin || "",
+        japanese: card.japanese || "",
+        example: card.example || "",
+        exampleJapanese: card.exampleJapanese || "",
+
+        reviewCount: Number(card.reviewCount || 0),
+        correctCount: Number(card.correctCount || 0),
+        incorrectCount: Number(card.incorrectCount || 0),
+        lastReviewedAt: Number(card.lastReviewedAt || 0),
+        lastResult: card.lastResult || undefined,
+      }))
+    : [];
 
 type Deck = {
   name: string;
@@ -50,47 +63,437 @@ type StudyRecord = {
   duration: number;
 };
 
-const colors = {
-  blue: "#8ecae6",
-  blueDark: "#4f9fc5",
-  blueLight: "#eaf7fc",
+type ThemeColors = {
+  blue: string;
+  blueDark: string;
+  blueLight: string;
 
-  pink: "#f7a8c4",
-  pinkDark: "#e783a6",
-  pinkLight: "#fff0f5",
+  pink: string;
+  pinkDark: string;
+  pinkLight: string;
 
-  white: "#ffffff",
+  green: string;
+  greenLight: string;
 
-  gray: "#777777",
-  border: "#d9e8ef",
-  dark: "#444444",
-
-  green: "#8bcfa4",
-  greenLight: "#effaf2",
+  white: string;
+  gray: string;
+  border: string;
+  dark: string;
 };
 
-const shuffleCards = (cards: Card[]): Card[] => {
-  const shuffled = [...cards];
+const colorThemes: Record<string, ThemeColors> = {
+  sakura: {
+    blue: "#F6A6C1",
+    blueDark: "#D86F97",
+    blueLight: "#FFF0F6",
+    pink: "#F7C6D9",
+    pinkDark: "#D86F97",
+    pinkLight: "#FFF5F9",
+    green: "#9BCFA8",
+    greenLight: "#EFF9F1",
+    white: "#FFFFFF",
+    gray: "#777777",
+    border: "#F0D5E0",
+    dark: "#444444",
+  },
 
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+  sky: {
+    blue: "#8ECBE6",
+    blueDark: "#4F9FC5",
+    blueLight: "#EAF7FC",
+    pink: "#B8DDF0",
+    pinkDark: "#5D9FBE",
+    pinkLight: "#F0FAFE",
+    green: "#8BCFA4",
+    greenLight: "#EFFAF2",
+    white: "#FFFFFF",
+    gray: "#777777",
+    border: "#D9E8EF",
+    dark: "#444444",
+  },
 
-    [shuffled[i], shuffled[j]] = [
-      shuffled[j],
-      shuffled[i],
-    ];
-  }
+  lavender: {
+    blue: "#B8A9E8",
+    blueDark: "#806AC5",
+    blueLight: "#F2EEFF",
+    pink: "#D8C9F2",
+    pinkDark: "#8C72C7",
+    pinkLight: "#F7F2FF",
+    green: "#A8D5BA",
+    greenLight: "#EFF9F2",
+    white: "#FFFFFF",
+    gray: "#777777",
+    border: "#DED6F1",
+    dark: "#444444",
+  },
 
-  return shuffled;
+  mint: {
+    blue: "#8FD3C1",
+    blueDark: "#4B9F8B",
+    blueLight: "#ECFAF6",
+    pink: "#B8E2D5",
+    pinkDark: "#5C9F8C",
+    pinkLight: "#F1FBF8",
+    green: "#91CFA8",
+    greenLight: "#EFFAF3",
+    white: "#FFFFFF",
+    gray: "#777777",
+    border: "#D4EDE6",
+    dark: "#444444",
+  },
+
+  lemon: {
+    blue: "#E7D56A",
+    blueDark: "#A89932",
+    blueLight: "#FFFCE8",
+    pink: "#F2D99A",
+    pinkDark: "#B89548",
+    pinkLight: "#FFF8E8",
+    green: "#A9C98B",
+    greenLight: "#F2F8EC",
+    white: "#FFFFFF",
+    gray: "#777777",
+    border: "#ECE4B8",
+    dark: "#444444",
+  },
+
+  peach: {
+    blue: "#F3B08D",
+    blueDark: "#D47B51",
+    blueLight: "#FFF3EC",
+    pink: "#F6C1A8",
+    pinkDark: "#D47B51",
+    pinkLight: "#FFF5F0",
+    green: "#A8C99A",
+    greenLight: "#F1F8ED",
+    white: "#FFFFFF",
+    gray: "#777777",
+    border: "#F0D8CB",
+    dark: "#444444",
+  },
+
+  coral: {
+    blue: "#F28B82",
+    blueDark: "#D95F57",
+    blueLight: "#FFF0EF",
+    pink: "#F5B0AA",
+    pinkDark: "#D8665F",
+    pinkLight: "#FFF4F3",
+    green: "#9FCB9A",
+    greenLight: "#F0F8EF",
+    white: "#FFFFFF",
+    gray: "#777777",
+    border: "#F0D4D1",
+    dark: "#444444",
+  },
+
+  ocean: {
+    blue: "#62B6CB",
+    blueDark: "#287D93",
+    blueLight: "#E9F8FC",
+    pink: "#8ECFD9",
+    pinkDark: "#438F9B",
+    pinkLight: "#EFFBFD",
+    green: "#8CC9A1",
+    greenLight: "#EEF9F1",
+    white: "#FFFFFF",
+    gray: "#777777",
+    border: "#CDE8ED",
+    dark: "#444444",
+  },
+
+  grape: {
+    blue: "#9B7EBD",
+    blueDark: "#68498D",
+    blueLight: "#F3EEFA",
+    pink: "#C5A8D9",
+    pinkDark: "#8058A1",
+    pinkLight: "#F7F0FB",
+    green: "#9CC7A2",
+    greenLight: "#F0F8F1",
+    white: "#FFFFFF",
+    gray: "#777777",
+    border: "#DED2E9",
+    dark: "#444444",
+  },
+
+  rose: {
+    blue: "#D98BA5",
+    blueDark: "#A95573",
+    blueLight: "#FFF0F5",
+    pink: "#E8B2C3",
+    pinkDark: "#B96280",
+    pinkLight: "#FFF5F8",
+    green: "#A5C9A4",
+    greenLight: "#F1F8F0",
+    white: "#FFFFFF",
+    gray: "#777777",
+    border: "#ECD6DF",
+    dark: "#444444",
+  },
+
+  forest: {
+    blue: "#7FB59A",
+    blueDark: "#477E62",
+    blueLight: "#EEF8F2",
+    pink: "#A8CBB7",
+    pinkDark: "#58856C",
+    pinkLight: "#F1F9F4",
+    green: "#80B58C",
+    greenLight: "#EDF8EF",
+    white: "#FFFFFF",
+    gray: "#777777",
+    border: "#D4E8DA",
+    dark: "#444444",
+  },
+
+  mocha: {
+    blue: "#B99A7A",
+    blueDark: "#806246",
+    blueLight: "#F8F2EC",
+    pink: "#D2B9A1",
+    pinkDark: "#8F6D50",
+    pinkLight: "#FBF5EF",
+    green: "#A7B996",
+    greenLight: "#F2F7EE",
+    white: "#FFFFFF",
+    gray: "#777777",
+    border: "#E5D8CA",
+    dark: "#444444",
+  },
 };
 
-const createId = () => {
-  return `${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2)}`;
-};
+
+
 
 export default function Home() {
+
+  // =========================================================
+  // カラーテーマ
+  // =========================================================
+
+  const [themeName, setThemeName] =
+    useState("sky");
+
+  const [customColor, setCustomColor] =
+    useState("#8ECBE6");
+
+  const [useCustomColor, setUseCustomColor] =
+    useState(false);
+
+  const [showThemeSettings, setShowThemeSettings] =
+    useState(false);
+
+
+      useEffect(() => {
+    try {
+      const savedTheme =
+        localStorage.getItem(
+          "anki-theme"
+        );
+
+      const savedCustomColor =
+        localStorage.getItem(
+          "anki-custom-color"
+        );
+
+      const savedUseCustom =
+        localStorage.getItem(
+          "anki-use-custom-color"
+        );
+
+      if (
+        savedTheme &&
+        colorThemes[savedTheme]
+      ) {
+        setThemeName(savedTheme);
+      }
+
+      if (savedCustomColor) {
+        setCustomColor(
+          savedCustomColor
+        );
+      }
+
+      if (
+        savedUseCustom === "true"
+      ) {
+        setUseCustomColor(true);
+      }
+    } catch (error) {
+      console.error(
+        "テーマ設定読み込みエラー:",
+        error
+      );
+    }
+  }, []);
+  
+
+    const hexToRgb = (
+    hex: string
+  ) => {
+    const cleanHex =
+      hex.replace("#", "");
+
+    if (
+      cleanHex.length !== 6
+    ) {
+      return null;
+    }
+
+    const number =
+      parseInt(
+        cleanHex,
+        16
+      );
+
+    return {
+      r: (number >> 16) & 255,
+      g: (number >> 8) & 255,
+      b: number & 255,
+    };
+  };
+
+  const rgba = (
+    hex: string,
+    alpha: number
+  ) => {
+    const rgb =
+      hexToRgb(hex);
+
+    if (!rgb) {
+      return hex;
+    }
+
+    return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+  };
+
+  const darken = (
+    hex: string,
+    amount: number
+  ) => {
+    const rgb =
+      hexToRgb(hex);
+
+    if (!rgb) {
+      return hex;
+    }
+
+    const r = Math.max(
+      0,
+      Math.round(
+        rgb.r * (1 - amount)
+      )
+    );
+
+    const g = Math.max(
+      0,
+      Math.round(
+        rgb.g * (1 - amount)
+      )
+    );
+
+    const b = Math.max(
+      0,
+      Math.round(
+        rgb.b * (1 - amount)
+      )
+    );
+
+    return `rgb(${r}, ${g}, ${b})`;
+  };
+
+
+    const colors: ThemeColors =
+    useCustomColor
+      ? {
+          blue: customColor,
+          blueDark: darken(
+            customColor,
+            0.25
+          ),
+          blueLight: rgba(
+            customColor,
+            0.10
+          ),
+
+          pink: rgba(
+            customColor,
+            0.45
+          ),
+          pinkDark: darken(
+            customColor,
+            0.20
+          ),
+          pinkLight: rgba(
+            customColor,
+            0.07
+          ),
+
+          green: "#8BCFA4",
+          greenLight: "#EFFAF2",
+
+          white: "#FFFFFF",
+          gray: "#777777",
+          border: rgba(
+            customColor,
+            0.25
+          ),
+          dark: "#444444",
+        }
+      : colorThemes[
+          themeName
+        ];
+
+          const changeTheme = (
+    name: string
+  ) => {
+    setThemeName(name);
+    setUseCustomColor(false);
+
+    try {
+      localStorage.setItem(
+        "anki-theme",
+        name
+      );
+
+      localStorage.setItem(
+        "anki-use-custom-color",
+        "false"
+      );
+    } catch (error) {
+      console.error(
+        "テーマ保存エラー:",
+        error
+      );
+    }
+  };
+
+  const changeCustomColor = (
+    color: string
+  ) => {
+    setCustomColor(color);
+    setUseCustomColor(true);
+
+    try {
+      localStorage.setItem(
+        "anki-custom-color",
+        color
+      );
+
+      localStorage.setItem(
+        "anki-use-custom-color",
+        "true"
+      );
+    } catch (error) {
+      console.error(
+        "カスタムカラー保存エラー:",
+        error
+      );
+    }
+  };
+
+
   // =========================================================
   // フォルダ
   // =========================================================
@@ -243,30 +646,7 @@ export default function Home() {
             deckSnapshot.docs.map((item) => {
               const data = item.data();
 
-              const loadedCards: Card[] =
-                Array.isArray(data.cards)
-                  ? data.cards.map((card: Card) => ({
-                      id:
-                        card.id ||
-                        createId(),
-
-                      front:
-                        card.front || "",
-
-                      pinyin:
-                        card.pinyin || "",
-
-                      japanese:
-                        card.japanese || "",
-
-                      example:
-                        card.example || "",
-
-                      exampleJapanese:
-                        card.exampleJapanese ||
-                        "",
-                    }))
-                  : [];
+              
 
               return {
                 name:
@@ -1062,23 +1442,29 @@ export default function Home() {
         }
       }
 
-      const newCard: Card = {
-        id: createId(),
+    const newCard: Card = {
+  id: createId(),
 
-        front,
+  front,
 
-        pinyin:
-          cardPinyin.trim(),
+  pinyin:
+    cardPinyin.trim(),
 
-        japanese:
-          cardJapanese.trim(),
+  japanese:
+    cardJapanese.trim(),
 
-        example:
-          cardExample.trim(),
+  example:
+    cardExample.trim(),
 
-        exampleJapanese:
-          cardExampleJapanese.trim(),
-      };
+  exampleJapanese:
+    cardExampleJapanese.trim(),
+
+  reviewCount: 0,
+  correctCount: 0,
+  incorrectCount: 0,
+  lastReviewedAt: 0,
+  lastResult: undefined,
+};
 
       updatedCards = [
         ...deck.cards,
@@ -1225,34 +1611,39 @@ export default function Home() {
       return;
     }
 
-    const randomizedCards =
-      shuffleCards(
-        deck.cards
-      );
+    
 
     const sessionId =
       createId();
 
-    setStudyCards(
-      randomizedCards
-    );
+    const startStudy = () => {
+  const deck = decks.find(
+    (item) => item.name === currentDeck
+  );
 
-    setStudyIndex(0);
-    setShowAnswer(false);
+  if (!deck || deck.cards.length === 0) {
+    alert("単語がありません");
+    return;
+  }
 
-    setStudyCorrect(0);
-    setStudyIncorrect(0);
+  // 苦手カードを優先し、その中でランダム化
+  const randomizedCards =
+    prioritizeWeakCards(deck.cards);
 
-    setStudyStartTime(
-      Date.now()
-    );
+  const sessionId = createId();
 
-    setStudySessionId(
-      sessionId
-    );
+  setStudyCards(randomizedCards);
+  setStudyIndex(0);
+  setShowAnswer(false);
 
-    setStudyMode(true);
-  };
+  setStudyCorrect(0);
+  setStudyIncorrect(0);
+
+  setStudyStartTime(Date.now());
+  setStudySessionId(sessionId);
+
+  setStudyMode(true);
+};
 
   // =========================================================
   // 学習記録を1回分保存
@@ -1447,39 +1838,38 @@ export default function Home() {
   // 正解・不正解
   // =========================================================
 
-  const answerCard = async (
-    correct: boolean
-  ) => {
-    const nextCorrect =
-      studyCorrect +
-      (correct ? 1 : 0);
 
-    const nextIncorrect =
-      studyIncorrect +
-      (correct ? 0 : 1);
+  const currentCard =
+  studyCards[studyIndex];
 
-    setStudyCorrect(
-      nextCorrect
-    );
+if (!currentCard) {
+  return;
+}
 
-    setStudyIncorrect(
-      nextIncorrect
-    );
+const updatedCard: Card = {
+  ...currentCard,
 
-    // まだカードが残っている
-    if (
-      studyIndex <
-      studyCards.length - 1
-    ) {
-      setStudyIndex(
-        (index) =>
-          index + 1
-      );
+  reviewCount:
+    (currentCard.reviewCount || 0) + 1,
 
-      setShowAnswer(false);
+  correctCount:
+    (currentCard.correctCount || 0) +
+    (correct ? 1 : 0),
 
-      return;
-    }
+  incorrectCount:
+    (currentCard.incorrectCount || 0) +
+    (correct ? 0 : 1),
+
+  lastReviewedAt:
+    Date.now(),
+
+  lastResult:
+    correct
+      ? "correct"
+      : "incorrect",
+};
+
+
 
     // -------------------------------------------------------
     // 最後のカード
@@ -2254,68 +2644,179 @@ export default function Home() {
                 "25px",
             }}
           >
-            <button
-              onClick={() =>
-                answerCard(
-                  false
-                )
-              }
-              style={{
-                flex: 1,
-                padding:
-                  "18px 10px",
-                background:
-                  colors.pink,
-                color:
-                  colors.white,
-                border:
-                  "none",
-                borderRadius:
-                  "18px",
-                fontSize:
-                  "18px",
-                fontWeight:
-                  "bold",
-                cursor:
-                  "pointer",
-              }}
-            >
-              不正解
-            </button>
+          const answerCard = async (
+  correct: boolean
+) => {
+  const currentCard =
+    studyCards[studyIndex];
 
-            <button
-              onClick={() =>
-                answerCard(
-                  true
-                )
-              }
-              style={{
-                flex: 1,
-                padding:
-                  "18px 10px",
-                background:
-                  colors.blue,
-                color:
-                  colors.white,
-                border:
-                  "none",
-                borderRadius:
-                  "18px",
-                fontSize:
-                  "18px",
-                fontWeight:
-                  "bold",
-                cursor:
-                  "pointer",
-              }}
-            >
-              正解
-            </button>
-          </div>
-        )}
-      </main>
-    );
+  if (!currentCard) {
+    return;
   }
+
+  // -----------------------------
+  // セッション全体の成績
+  // -----------------------------
+
+  const nextCorrect =
+    studyCorrect +
+    (correct ? 1 : 0);
+
+  const nextIncorrect =
+    studyIncorrect +
+    (correct ? 0 : 1);
+
+  setStudyCorrect(nextCorrect);
+  setStudyIncorrect(nextIncorrect);
+
+
+  // -----------------------------
+  // カード個別の学習記録
+  // -----------------------------
+
+  const updatedCard: Card = {
+    ...currentCard,
+
+    reviewCount:
+      (currentCard.reviewCount || 0) + 1,
+
+    correctCount:
+      (currentCard.correctCount || 0) +
+      (correct ? 1 : 0),
+
+    incorrectCount:
+      (currentCard.incorrectCount || 0) +
+      (correct ? 0 : 1),
+
+    lastReviewedAt:
+      Date.now(),
+
+    lastResult:
+      correct
+        ? "correct"
+        : "incorrect",
+  };
+
+
+  // -----------------------------
+  // デッキに保存
+  // -----------------------------
+
+  const deck = decks.find(
+    (item) =>
+      item.name === currentDeck
+  );
+
+  if (deck) {
+    const updatedDeck: Deck = {
+      ...deck,
+
+      cards: deck.cards.map(
+        (card) =>
+          card.id === currentCard.id
+            ? updatedCard
+            : card
+      ),
+    };
+
+    try {
+      await setDoc(
+        doc(
+          db,
+          "decks",
+          deck.name
+        ),
+        updatedDeck
+      );
+
+      setDecks(
+        (currentDecks) =>
+          currentDecks.map(
+            (item) =>
+              item.name === deck.name
+                ? updatedDeck
+                : item
+          )
+      );
+    } catch (error) {
+      console.error(
+        "カード学習記録保存エラー:",
+        error
+      );
+
+      alert(
+        "カードの学習記録を保存できませんでした"
+      );
+    }
+  }
+
+
+  // -----------------------------
+  // 次のカードへ
+  // -----------------------------
+
+  if (
+    studyIndex <
+    studyCards.length - 1
+  ) {
+    setStudyIndex(
+      (index) => index + 1
+    );
+
+    setShowAnswer(false);
+
+    return;
+  }
+
+
+  // -----------------------------
+  // 最後のカード
+  // -----------------------------
+
+  const answered =
+    nextCorrect +
+    nextIncorrect;
+
+  await saveStudyRecord(
+    nextCorrect,
+    nextIncorrect
+  );
+
+  alert(
+    "学習終了！\n\n" +
+      `正解：${nextCorrect}問\n` +
+      `不正解：${nextIncorrect}問\n` +
+      `回答：${answered}問\n` +
+      `正答率：${
+        answered > 0
+          ? Math.round(
+              (nextCorrect /
+                answered) *
+                100
+            )
+          : 0
+      }%`
+  );
+
+  if (
+    typeof window !== "undefined" &&
+    "speechSynthesis" in window
+  ) {
+    window.speechSynthesis.cancel();
+  }
+
+  setStudyMode(false);
+  setShowAnswer(false);
+
+  setStudyCards([]);
+  setStudyIndex(0);
+
+  setStudyCorrect(0);
+  setStudyIncorrect(0);
+
+  setStudyStartTime(null);
+  setStudySessionId(null);
+};
 
   // =========================================================
   // デッキ詳細
@@ -3114,6 +3615,224 @@ export default function Home() {
       >
         デッキ
       </h1>
+
+            {/* =====================================================
+          カラーテーマ
+      ====================================================== */}
+
+      <button
+        onClick={() =>
+          setShowThemeSettings(
+            (current) => !current
+          )
+        }
+        style={{
+          display: "block",
+          width: "100%",
+          padding: "14px",
+          marginBottom: "20px",
+          background:
+            colors.blueLight,
+          border:
+            `2px solid ${colors.blue}`,
+          color:
+            colors.blueDark,
+          borderRadius: "18px",
+          fontSize: "17px",
+          fontWeight: "bold",
+          cursor: "pointer",
+        }}
+      >
+        🎨 アプリの色を変更
+      </button>
+
+      {showThemeSettings && (
+        <div
+          style={{
+            marginBottom: "25px",
+            padding: "20px",
+            background:
+              colors.white,
+            border:
+              `2px solid ${colors.blue}`,
+            borderRadius: "20px",
+          }}
+        >
+          <h2
+            style={{
+              marginTop: 0,
+              color:
+                colors.blueDark,
+            }}
+          >
+            🎨 カラーテーマ
+          </h2>
+
+          <p
+            style={{
+              color: colors.gray,
+              fontSize: "14px",
+            }}
+          >
+            好きな色を選んでください。
+            <br />
+            カラーコードを入力すれば、
+            自分だけのテーマも作れます。
+          </p>
+
+          {/* 12色 */}
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "repeat(4, 1fr)",
+              gap: "10px",
+              marginTop: "15px",
+            }}
+          >
+            {Object.entries(
+              colorThemes
+            ).map(
+              ([name, theme]) => (
+                <button
+                  key={name}
+                  onClick={() =>
+                    changeTheme(
+                      name
+                    )
+                  }
+                  style={{
+                    height: "55px",
+                    borderRadius:
+                      "15px",
+                    border:
+                      themeName ===
+                        name &&
+                      !useCustomColor
+                        ? `4px solid ${theme.blueDark}`
+                        : "2px solid transparent",
+                    background:
+                      theme.blue,
+                    cursor:
+                      "pointer",
+                    boxShadow:
+                      "0 2px 8px rgba(0,0,0,0.08)",
+                  }}
+                  title={name}
+                />
+              )
+            )}
+          </div>
+
+          {/* カスタムカラー */}
+
+          <div
+            style={{
+              marginTop: "25px",
+              paddingTop: "20px",
+              borderTop:
+                `1px solid ${colors.border}`,
+            }}
+          >
+            <h3
+              style={{
+                marginTop: 0,
+                color:
+                  colors.dark,
+              }}
+            >
+              ✨ 好きな色を作る
+            </h3>
+
+            <div
+              style={{
+                display: "flex",
+                gap: "10px",
+                alignItems:
+                  "center",
+              }}
+            >
+              <input
+                type="color"
+                value={
+                  /^#[0-9A-Fa-f]{6}$/.test(
+                    customColor
+                  )
+                    ? customColor
+                    : "#8ECBE6"
+                }
+                onChange={(e) =>
+                  changeCustomColor(
+                    e.target.value
+                  )
+                }
+                style={{
+                  width: "55px",
+                  height: "45px",
+                  padding: 0,
+                  border: "none",
+                  cursor:
+                    "pointer",
+                  background:
+                    "transparent",
+                }}
+              />
+
+              <input
+                type="text"
+                value={
+                  customColor
+                }
+                onChange={(e) => {
+                  const value =
+                    e.target.value;
+
+                  setCustomColor(
+                    value
+                  );
+
+                  if (
+                    /^#[0-9A-Fa-f]{6}$/.test(
+                      value
+                    )
+                  ) {
+                    changeCustomColor(
+                      value
+                    );
+                  }
+                }}
+                placeholder="#8ECBE6"
+                style={{
+                  flex: 1,
+                  padding:
+                    "12px",
+                  border:
+                    `2px solid ${colors.border}`,
+                  borderRadius:
+                    "12px",
+                  fontSize:
+                    "16px",
+                }}
+              />
+            </div>
+
+            <p
+              style={{
+                marginBottom: 0,
+                color:
+                  colors.gray,
+                fontSize:
+                  "13px",
+              }}
+            >
+              例：#FF69B4、
+              #9370DB、
+              #32CD32
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* 学習記録 */}
 
