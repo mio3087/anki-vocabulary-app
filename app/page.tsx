@@ -1763,36 +1763,7 @@ export default function Home() {
   if (showThemeSettings) {
     return (
     <main className="min-h-screen bg-[#f5f7fc] text-[#26365d] md:flex">
-      <aside className="hidden w-60 shrink-0 border-r border-[#e5eaf5] bg-white p-6 md:flex md:flex-col">
-        <div className="mb-10 flex items-center gap-3 text-xl font-bold">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100 text-2xl">
-            🎨
-          </span>
-          Anki App
-        </div>
-
-        <nav className="space-y-3 text-sm font-semibold">
-          {[
-            ["⌂", "ホーム"],
-            ["▣", "デッキ"],
-            ["▱", "フォルダ"],
-            ["◷", "学習記録"],
-            ["⚙", "設定"],
-          ].map(([icon, label]) => (
-            <div
-              key={label}
-              className={`rounded-xl px-4 py-3 ${
-                label === "設定"
-                  ? "bg-purple-100 text-purple-700"
-                  : "text-slate-500"
-              }`}
-            >
-              <span className="mr-3">{icon}</span>
-              {label}
-            </div>
-          ))}
-        </nav>
-      </aside>
+      
 
       <section className="mx-auto w-full max-w-6xl p-5 md:p-10">
         <header className="mb-7">
