@@ -17,32 +17,24 @@ import {
   setDoc,
 } from "firebase/firestore";
 
-
 type Folder = {
   id: string;
   name: string;
 };
 
-
-
-const loadedCards: Card[] =
-  Array.isArray(data.cards)
-    ? data.cards.map((card: Card) => ({
-        id: card.id || createId(),
-
-        front: card.front || "",
-        pinyin: card.pinyin || "",
-        japanese: card.japanese || "",
-        example: card.example || "",
-        exampleJapanese: card.exampleJapanese || "",
-
-        reviewCount: Number(card.reviewCount || 0),
-        correctCount: Number(card.correctCount || 0),
-        incorrectCount: Number(card.incorrectCount || 0),
-        lastReviewedAt: Number(card.lastReviewedAt || 0),
-        lastResult: card.lastResult || undefined,
-      }))
-    : [];
+type Card = {
+  id: string;
+  front: string;
+  pinyin: string;
+  japanese: string;
+  example: string;
+  exampleJapanese: string;
+  reviewCount?: number;
+  correctCount?: number;
+  incorrectCount?: number;
+  lastReviewedAt?: number;
+  lastResult?: "correct" | "incorrect";
+};
 
 type Deck = {
   name: string;
@@ -67,432 +59,140 @@ type ThemeColors = {
   blue: string;
   blueDark: string;
   blueLight: string;
-
   pink: string;
   pinkDark: string;
   pinkLight: string;
-
   green: string;
   greenLight: string;
-
   white: string;
   gray: string;
   border: string;
   dark: string;
 };
 
-const colorThemes: Record<string, ThemeColors> = {
-  sakura: {
-    blue: "#F6A6C1",
-    blueDark: "#D86F97",
-    blueLight: "#FFF0F6",
-    pink: "#F7C6D9",
-    pinkDark: "#D86F97",
-    pinkLight: "#FFF5F9",
-    green: "#9BCFA8",
-    greenLight: "#EFF9F1",
+const presets = [
+  { name: "さくら", color: "#FF5A9E" },
+  { name: "スカイ", color: "#78C5FF" },
+  { name: "ラベンダー", color: "#B69AFB" },
+  { name: "ミント", color: "#70D6B5" },
+  { name: "レモン", color: "#FFE16A" },
+  { name: "ピーチ", color: "#FFB477" },
+  { name: "コーラル", color: "#FF7185" },
+  { name: "オーシャン", color: "#36B6C8" },
+  { name: "グレープ", color: "#8A70C8" },
+  { name: "ローズ", color: "#E887B0" },
+  { name: "フォレスト", color: "#59A982" },
+  { name: "ダーク", color: "#46546B" },
+];
+
+function normalizeHex(value: string) {
+  const hex = value.startsWith("#") ? value : `#${value}`;
+  return /^#[0-9a-fA-F]{6}$/.test(hex) ? hex.toUpperCase() : null;
+}
+
+function getRgb(hex: string) {
+  const value = hex.replace("#", "");
+  return {
+    r: parseInt(value.slice(0, 2), 16),
+    g: parseInt(value.slice(2, 4), 16),
+    b: parseInt(value.slice(4, 6), 16),
+  };
+}
+
+function createId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function prioritizeWeakCards(cards: Card[]) {
+  const shuffled = [...cards].sort(() => Math.random() - 0.5);
+  return shuffled.sort((a, b) => {
+    const aRate = (a.reviewCount || 0) > 0
+      ? (a.correctCount || 0) / (a.reviewCount || 1)
+      : 0;
+    const bRate = (b.reviewCount || 0) > 0
+      ? (b.correctCount || 0) / (b.reviewCount || 1)
+      : 0;
+    const aPriority = (a.reviewCount || 0) === 0 ? -1 : aRate;
+    const bPriority = (b.reviewCount || 0) === 0 ? -1 : bRate;
+    return aPriority - bPriority;
+  });
+}
+
+function makeThemeColors(primary: string): ThemeColors {
+  const rgb = getRgb(primary);
+  const mix = (amount: number) =>
+    "#" + [rgb.r, rgb.g, rgb.b]
+      .map((v) => Math.round(v + (255 - v) * amount).toString(16).padStart(2, "0"))
+      .join("");
+  const darken = (amount: number) =>
+    "#" + [rgb.r, rgb.g, rgb.b]
+      .map((v) => Math.round(v * (1 - amount)).toString(16).padStart(2, "0"))
+      .join("");
+  return {
+    blue: primary,
+    blueDark: darken(0.38),
+    blueLight: mix(0.88),
+    pink: "#F28CB8",
+    pinkDark: "#B74378",
+    pinkLight: "#FFF0F6",
+    green: "#63B995",
+    greenLight: "#E8F8F0",
     white: "#FFFFFF",
-    gray: "#777777",
-    border: "#F0D5E0",
-    dark: "#444444",
-  },
-
-  sky: {
-    blue: "#8ECBE6",
-    blueDark: "#4F9FC5",
-    blueLight: "#EAF7FC",
-    pink: "#B8DDF0",
-    pinkDark: "#5D9FBE",
-    pinkLight: "#F0FAFE",
-    green: "#8BCFA4",
-    greenLight: "#EFFAF2",
-    white: "#FFFFFF",
-    gray: "#777777",
-    border: "#D9E8EF",
-    dark: "#444444",
-  },
-
-  lavender: {
-    blue: "#B8A9E8",
-    blueDark: "#806AC5",
-    blueLight: "#F2EEFF",
-    pink: "#D8C9F2",
-    pinkDark: "#8C72C7",
-    pinkLight: "#F7F2FF",
-    green: "#A8D5BA",
-    greenLight: "#EFF9F2",
-    white: "#FFFFFF",
-    gray: "#777777",
-    border: "#DED6F1",
-    dark: "#444444",
-  },
-
-  mint: {
-    blue: "#8FD3C1",
-    blueDark: "#4B9F8B",
-    blueLight: "#ECFAF6",
-    pink: "#B8E2D5",
-    pinkDark: "#5C9F8C",
-    pinkLight: "#F1FBF8",
-    green: "#91CFA8",
-    greenLight: "#EFFAF3",
-    white: "#FFFFFF",
-    gray: "#777777",
-    border: "#D4EDE6",
-    dark: "#444444",
-  },
-
-  lemon: {
-    blue: "#E7D56A",
-    blueDark: "#A89932",
-    blueLight: "#FFFCE8",
-    pink: "#F2D99A",
-    pinkDark: "#B89548",
-    pinkLight: "#FFF8E8",
-    green: "#A9C98B",
-    greenLight: "#F2F8EC",
-    white: "#FFFFFF",
-    gray: "#777777",
-    border: "#ECE4B8",
-    dark: "#444444",
-  },
-
-  peach: {
-    blue: "#F3B08D",
-    blueDark: "#D47B51",
-    blueLight: "#FFF3EC",
-    pink: "#F6C1A8",
-    pinkDark: "#D47B51",
-    pinkLight: "#FFF5F0",
-    green: "#A8C99A",
-    greenLight: "#F1F8ED",
-    white: "#FFFFFF",
-    gray: "#777777",
-    border: "#F0D8CB",
-    dark: "#444444",
-  },
-
-  coral: {
-    blue: "#F28B82",
-    blueDark: "#D95F57",
-    blueLight: "#FFF0EF",
-    pink: "#F5B0AA",
-    pinkDark: "#D8665F",
-    pinkLight: "#FFF4F3",
-    green: "#9FCB9A",
-    greenLight: "#F0F8EF",
-    white: "#FFFFFF",
-    gray: "#777777",
-    border: "#F0D4D1",
-    dark: "#444444",
-  },
-
-  ocean: {
-    blue: "#62B6CB",
-    blueDark: "#287D93",
-    blueLight: "#E9F8FC",
-    pink: "#8ECFD9",
-    pinkDark: "#438F9B",
-    pinkLight: "#EFFBFD",
-    green: "#8CC9A1",
-    greenLight: "#EEF9F1",
-    white: "#FFFFFF",
-    gray: "#777777",
-    border: "#CDE8ED",
-    dark: "#444444",
-  },
-
-  grape: {
-    blue: "#9B7EBD",
-    blueDark: "#68498D",
-    blueLight: "#F3EEFA",
-    pink: "#C5A8D9",
-    pinkDark: "#8058A1",
-    pinkLight: "#F7F0FB",
-    green: "#9CC7A2",
-    greenLight: "#F0F8F1",
-    white: "#FFFFFF",
-    gray: "#777777",
-    border: "#DED2E9",
-    dark: "#444444",
-  },
-
-  rose: {
-    blue: "#D98BA5",
-    blueDark: "#A95573",
-    blueLight: "#FFF0F5",
-    pink: "#E8B2C3",
-    pinkDark: "#B96280",
-    pinkLight: "#FFF5F8",
-    green: "#A5C9A4",
-    greenLight: "#F1F8F0",
-    white: "#FFFFFF",
-    gray: "#777777",
-    border: "#ECD6DF",
-    dark: "#444444",
-  },
-
-  forest: {
-    blue: "#7FB59A",
-    blueDark: "#477E62",
-    blueLight: "#EEF8F2",
-    pink: "#A8CBB7",
-    pinkDark: "#58856C",
-    pinkLight: "#F1F9F4",
-    green: "#80B58C",
-    greenLight: "#EDF8EF",
-    white: "#FFFFFF",
-    gray: "#777777",
-    border: "#D4E8DA",
-    dark: "#444444",
-  },
-
-  mocha: {
-    blue: "#B99A7A",
-    blueDark: "#806246",
-    blueLight: "#F8F2EC",
-    pink: "#D2B9A1",
-    pinkDark: "#8F6D50",
-    pinkLight: "#FBF5EF",
-    green: "#A7B996",
-    greenLight: "#F2F7EE",
-    white: "#FFFFFF",
-    gray: "#777777",
-    border: "#E5D8CA",
-    dark: "#444444",
-  },
-};
-
-
-
+    gray: "#718096",
+    border: "#E2E8F0",
+    dark: "#26365D",
+  };
+}
 
 export default function Home() {
+  const [themeColor, setThemeColor] = useState("#78C5FF");
+  const [showThemeSettings, setShowThemeSettings] = useState(false);
+  const [color, setColor] = useState("#78C5FF");
+  const [savedColor, setSavedColor] = useState("#78C5FF");
+  const [hexInput, setHexInput] = useState("#78C5FF");
+  const [hexError, setHexError] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const colors = makeThemeColors(themeColor);
+  const rgb = getRgb(color);
 
-  // =========================================================
-  // カラーテーマ
-  // =========================================================
-
-  const [themeName, setThemeName] =
-    useState("sky");
-
-  const [customColor, setCustomColor] =
-    useState("#8ECBE6");
-
-  const [useCustomColor, setUseCustomColor] =
-    useState(false);
-
-  const [showThemeSettings, setShowThemeSettings] =
-    useState(false);
-
-
-      useEffect(() => {
-    try {
-      const savedTheme =
-        localStorage.getItem(
-          "anki-theme"
-        );
-
-      const savedCustomColor =
-        localStorage.getItem(
-          "anki-custom-color"
-        );
-
-      const savedUseCustom =
-        localStorage.getItem(
-          "anki-use-custom-color"
-        );
-
-      if (
-        savedTheme &&
-        colorThemes[savedTheme]
-      ) {
-        setThemeName(savedTheme);
-      }
-
-      if (savedCustomColor) {
-        setCustomColor(
-          savedCustomColor
-        );
-      }
-
-      if (
-        savedUseCustom === "true"
-      ) {
-        setUseCustomColor(true);
-      }
-    } catch (error) {
-      console.error(
-        "テーマ設定読み込みエラー:",
-        error
-      );
+  useEffect(() => {
+    const stored = localStorage.getItem("anki-theme-color");
+    const valid = stored ? normalizeHex(stored) : null;
+    if (valid) {
+      setThemeColor(valid);
+      setColor(valid);
+      setSavedColor(valid);
+      setHexInput(valid);
     }
   }, []);
-  
 
-    const hexToRgb = (
-    hex: string
-  ) => {
-    const cleanHex =
-      hex.replace("#", "");
+  function chooseColor(value: string) {
+    const valid = normalizeHex(value);
+    if (!valid) return;
+    setColor(valid);
+    setHexInput(valid);
+    setHexError(false);
+    setSaved(false);
+  }
 
-    if (
-      cleanHex.length !== 6
-    ) {
-      return null;
-    }
+  function saveColor() {
+    localStorage.setItem("anki-theme-color", color);
+    localStorage.setItem("anki-custom-color", color);
+    document.documentElement.style.setProperty("--anki-theme-color", color);
+    setSavedColor(color);
+    setThemeColor(color);
+    setSaved(true);
+    setShowThemeSettings(false);
+  }
 
-    const number =
-      parseInt(
-        cleanHex,
-        16
-      );
-
-    return {
-      r: (number >> 16) & 255,
-      g: (number >> 8) & 255,
-      b: number & 255,
-    };
-  };
-
-  const rgba = (
-    hex: string,
-    alpha: number
-  ) => {
-    const rgb =
-      hexToRgb(hex);
-
-    if (!rgb) {
-      return hex;
-    }
-
-    return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
-  };
-
-  const darken = (
-    hex: string,
-    amount: number
-  ) => {
-    const rgb =
-      hexToRgb(hex);
-
-    if (!rgb) {
-      return hex;
-    }
-
-    const r = Math.max(
-      0,
-      Math.round(
-        rgb.r * (1 - amount)
-      )
-    );
-
-    const g = Math.max(
-      0,
-      Math.round(
-        rgb.g * (1 - amount)
-      )
-    );
-
-    const b = Math.max(
-      0,
-      Math.round(
-        rgb.b * (1 - amount)
-      )
-    );
-
-    return `rgb(${r}, ${g}, ${b})`;
-  };
-
-
-    const colors: ThemeColors =
-    useCustomColor
-      ? {
-          blue: customColor,
-          blueDark: darken(
-            customColor,
-            0.25
-          ),
-          blueLight: rgba(
-            customColor,
-            0.10
-          ),
-
-          pink: rgba(
-            customColor,
-            0.45
-          ),
-          pinkDark: darken(
-            customColor,
-            0.20
-          ),
-          pinkLight: rgba(
-            customColor,
-            0.07
-          ),
-
-          green: "#8BCFA4",
-          greenLight: "#EFFAF2",
-
-          white: "#FFFFFF",
-          gray: "#777777",
-          border: rgba(
-            customColor,
-            0.25
-          ),
-          dark: "#444444",
-        }
-      : colorThemes[
-          themeName
-        ];
-
-          const changeTheme = (
-    name: string
-  ) => {
-    setThemeName(name);
-    setUseCustomColor(false);
-
-    try {
-      localStorage.setItem(
-        "anki-theme",
-        name
-      );
-
-      localStorage.setItem(
-        "anki-use-custom-color",
-        "false"
-      );
-    } catch (error) {
-      console.error(
-        "テーマ保存エラー:",
-        error
-      );
-    }
-  };
-
-  const changeCustomColor = (
-    color: string
-  ) => {
-    setCustomColor(color);
-    setUseCustomColor(true);
-
-    try {
-      localStorage.setItem(
-        "anki-custom-color",
-        color
-      );
-
-      localStorage.setItem(
-        "anki-use-custom-color",
-        "true"
-      );
-    } catch (error) {
-      console.error(
-        "カスタムカラー保存エラー:",
-        error
-      );
-    }
-  };
-
+  function cancelColor() {
+    chooseColor(savedColor);
+    setSaved(false);
+    setShowThemeSettings(false);
+  }
 
   // =========================================================
   // フォルダ
@@ -656,7 +356,21 @@ export default function Home() {
                   data.language ||
                   "zh-CN",
 
-                cards: loadedCards,
+                cards: Array.isArray(data.cards)
+                  ? data.cards.map((card: Partial<Card>) => ({
+                      id: card.id || createId(),
+                      front: card.front || "",
+                      pinyin: card.pinyin || "",
+                      japanese: card.japanese || "",
+                      example: card.example || "",
+                      exampleJapanese: card.exampleJapanese || "",
+                      reviewCount: Number(card.reviewCount || 0),
+                      correctCount: Number(card.correctCount || 0),
+                      incorrectCount: Number(card.incorrectCount || 0),
+                      lastReviewedAt: Number(card.lastReviewedAt || 0),
+                      lastResult: card.lastResult || undefined,
+                    }))
+                  : [],
 
                 folderId:
                   data.folderId ?? null,
@@ -1594,56 +1308,21 @@ export default function Home() {
   // =========================================================
 
   const startStudy = () => {
-    const deck =
-      decks.find(
-        (item) =>
-          item.name ===
-          currentDeck
-      );
-
-    if (
-      !deck ||
-      deck.cards.length === 0
-    ) {
-      alert(
-        "単語がありません"
-      );
+    const deck = decks.find((item) => item.name === currentDeck);
+    if (!deck || deck.cards.length === 0) {
+      alert("単語がありません");
       return;
     }
 
-    
-
-    const sessionId =
-      createId();
-
-    const startStudy = () => {
-  const deck = decks.find(
-    (item) => item.name === currentDeck
-  );
-
-  if (!deck || deck.cards.length === 0) {
-    alert("単語がありません");
-    return;
-  }
-
-  // 苦手カードを優先し、その中でランダム化
-  const randomizedCards =
-    prioritizeWeakCards(deck.cards);
-
-  const sessionId = createId();
-
-  setStudyCards(randomizedCards);
-  setStudyIndex(0);
-  setShowAnswer(false);
-
-  setStudyCorrect(0);
-  setStudyIncorrect(0);
-
-  setStudyStartTime(Date.now());
-  setStudySessionId(sessionId);
-
-  setStudyMode(true);
-};
+    setStudyCards(prioritizeWeakCards(deck.cards));
+    setStudyIndex(0);
+    setShowAnswer(false);
+    setStudyCorrect(0);
+    setStudyIncorrect(0);
+    setStudyStartTime(Date.now());
+    setStudySessionId(createId());
+    setStudyMode(true);
+  };
 
   // =========================================================
   // 学習記録を1回分保存
@@ -1839,89 +1518,6 @@ export default function Home() {
   // =========================================================
 
 
-  const currentCard =
-  studyCards[studyIndex];
-
-if (!currentCard) {
-  return;
-}
-
-const updatedCard: Card = {
-  ...currentCard,
-
-  reviewCount:
-    (currentCard.reviewCount || 0) + 1,
-
-  correctCount:
-    (currentCard.correctCount || 0) +
-    (correct ? 1 : 0),
-
-  incorrectCount:
-    (currentCard.incorrectCount || 0) +
-    (correct ? 0 : 1),
-
-  lastReviewedAt:
-    Date.now(),
-
-  lastResult:
-    correct
-      ? "correct"
-      : "incorrect",
-};
-
-
-
-    // -------------------------------------------------------
-    // 最後のカード
-    // -------------------------------------------------------
-
-    const answered =
-      nextCorrect +
-      nextIncorrect;
-
-    await saveStudyRecord(
-      nextCorrect,
-      nextIncorrect
-    );
-
-    alert(
-      "学習終了！\n\n" +
-        `正解：${nextCorrect}問\n` +
-        `不正解：${nextIncorrect}問\n` +
-        `回答：${answered}問\n` +
-        `正答率：${
-          answered > 0
-            ? Math.round(
-                (nextCorrect /
-                  answered) *
-                  100
-              )
-            : 0
-        }%`
-    );
-
-    if (
-      typeof window !==
-        "undefined" &&
-      "speechSynthesis" in
-        window
-    ) {
-      window.speechSynthesis.cancel();
-    }
-
-    setStudyMode(false);
-    setShowAnswer(false);
-
-    setStudyCards([]);
-    setStudyIndex(0);
-
-    setStudyCorrect(0);
-    setStudyIncorrect(0);
-
-    setStudyStartTime(null);
-    setStudySessionId(null);
-  };
-
   // =========================================================
   // 学習記録削除
   // =========================================================
@@ -1989,6 +1585,498 @@ const updatedCard: Card = {
 
     return `${minutes}分${remaining}秒`;
   };
+
+  const answerCard = async (
+  correct: boolean
+) => {
+  const currentCard =
+    studyCards[studyIndex];
+
+  if (!currentCard) {
+    return;
+  }
+
+  // -----------------------------
+  // セッション全体の成績
+  // -----------------------------
+
+  const nextCorrect =
+    studyCorrect +
+    (correct ? 1 : 0);
+
+  const nextIncorrect =
+    studyIncorrect +
+    (correct ? 0 : 1);
+
+  setStudyCorrect(nextCorrect);
+  setStudyIncorrect(nextIncorrect);
+
+
+  // -----------------------------
+  // カード個別の学習記録
+  // -----------------------------
+
+  const updatedCard: Card = {
+    ...currentCard,
+
+    reviewCount:
+      (currentCard.reviewCount || 0) + 1,
+
+    correctCount:
+      (currentCard.correctCount || 0) +
+      (correct ? 1 : 0),
+
+    incorrectCount:
+      (currentCard.incorrectCount || 0) +
+      (correct ? 0 : 1),
+
+    lastReviewedAt:
+      Date.now(),
+
+    lastResult:
+      correct
+        ? "correct"
+        : "incorrect",
+  };
+
+
+  // -----------------------------
+  // デッキに保存
+  // -----------------------------
+
+  const deck = decks.find(
+    (item) =>
+      item.name === currentDeck
+  );
+
+  if (deck) {
+    const updatedDeck: Deck = {
+      ...deck,
+
+      cards: deck.cards.map(
+        (card) =>
+          card.id === currentCard.id
+            ? updatedCard
+            : card
+      ),
+    };
+
+    try {
+      await setDoc(
+        doc(
+          db,
+          "decks",
+          deck.name
+        ),
+        updatedDeck
+      );
+
+      setDecks(
+        (currentDecks) =>
+          currentDecks.map(
+            (item) =>
+              item.name === deck.name
+                ? updatedDeck
+                : item
+          )
+      );
+    } catch (error) {
+      console.error(
+        "カード学習記録保存エラー:",
+        error
+      );
+
+      alert(
+        "カードの学習記録を保存できませんでした"
+      );
+    }
+  }
+
+
+  // -----------------------------
+  // 次のカードへ
+  // -----------------------------
+
+  if (
+    studyIndex <
+    studyCards.length - 1
+  ) {
+    setStudyIndex(
+      (index) => index + 1
+    );
+
+    setShowAnswer(false);
+
+    return;
+  }
+
+
+  // -----------------------------
+  // 最後のカード
+  // -----------------------------
+
+  const answered =
+    nextCorrect +
+    nextIncorrect;
+
+  await saveStudyRecord(
+    nextCorrect,
+    nextIncorrect
+  );
+
+  alert(
+    "学習終了！\n\n" +
+      `正解：${nextCorrect}問\n` +
+      `不正解：${nextIncorrect}問\n` +
+      `回答：${answered}問\n` +
+      `正答率：${
+        answered > 0
+          ? Math.round(
+              (nextCorrect /
+                answered) *
+                100
+            )
+          : 0
+      }%`
+  );
+
+  if (
+    typeof window !== "undefined" &&
+    "speechSynthesis" in window
+  ) {
+    window.speechSynthesis.cancel();
+  }
+
+  setStudyMode(false);
+  setShowAnswer(false);
+
+  setStudyCards([]);
+  setStudyIndex(0);
+
+  setStudyCorrect(0);
+  setStudyIncorrect(0);
+
+  setStudyStartTime(null);
+  setStudySessionId(null);
+};
+
+  if (showThemeSettings) {
+    return (
+    <main className="min-h-screen bg-[#f5f7fc] text-[#26365d] md:flex">
+      <aside className="hidden w-60 shrink-0 border-r border-[#e5eaf5] bg-white p-6 md:flex md:flex-col">
+        <div className="mb-10 flex items-center gap-3 text-xl font-bold">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100 text-2xl">
+            🎨
+          </span>
+          Anki App
+        </div>
+
+        <nav className="space-y-3 text-sm font-semibold">
+          {[
+            ["⌂", "ホーム"],
+            ["▣", "デッキ"],
+            ["▱", "フォルダ"],
+            ["◷", "学習記録"],
+            ["⚙", "設定"],
+          ].map(([icon, label]) => (
+            <div
+              key={label}
+              className={`rounded-xl px-4 py-3 ${
+                label === "設定"
+                  ? "bg-purple-100 text-purple-700"
+                  : "text-slate-500"
+              }`}
+            >
+              <span className="mr-3">{icon}</span>
+              {label}
+            </div>
+          ))}
+        </nav>
+      </aside>
+
+      <section className="mx-auto w-full max-w-6xl p-5 md:p-10">
+        <header className="mb-7">
+          <h1 className="text-3xl font-bold tracking-tight">
+            カラー選択
+          </h1>
+
+        </header>
+
+        <section className="mb-5 rounded-2xl border border-[#e6ebf5] bg-white p-6 shadow-sm md:p-8">
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+            
+              <p className="mt-1 text-sm text-slate-500">
+              </p>
+            </div>
+            
+          </div>
+
+          <div className="grid grid-cols-3 gap-x-3 gap-y-6 sm:grid-cols-4 md:grid-cols-6">
+            {presets.map((preset) => {
+              const active = color === preset.color;
+
+              return (
+                <button
+                  key={preset.color}
+                  type="button"
+                  onClick={() => chooseColor(preset.color)}
+                  aria-label={`${preset.name}を選択`}
+                  aria-pressed={active}
+                  className="group flex flex-col items-center gap-3 rounded-xl p-2 transition hover:bg-slate-50"
+                >
+                  <span
+                    className={`flex h-16 w-16 items-center justify-center rounded-full border-4 transition sm:h-[72px] sm:w-[72px] ${
+                      active
+                        ? "border-white ring-2 ring-purple-500 ring-offset-2"
+                        : "border-white shadow-sm group-hover:scale-105"
+                    }`}
+                    style={{ backgroundColor: preset.color }}
+                  >
+                    {active && (
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-black/15 text-xl font-bold text-white">
+                        ✓
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-sm font-medium text-slate-600">
+                    {preset.name}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-[#e6ebf5] bg-white p-6 shadow-sm md:p-8">
+          <h2 className="text-lg font-bold">
+            🖌 カスタムカラーを選択
+          </h2>
+          <p className="mb-6 mt-1 text-sm text-slate-500">
+            カラーピッカーで自由に色を選択できます。
+          </p>
+
+          <div className="grid gap-7 md:grid-cols-2">
+            <div>
+              <label
+                htmlFor="color-picker"
+                className="mb-3 block text-sm font-semibold"
+              >
+                自由に色を選択
+              </label>
+
+              <div
+                className="relative flex h-48 items-center justify-center overflow-hidden rounded-xl border border-slate-200"
+                style={{
+                  background: `linear-gradient(135deg, white, ${color})`,
+                }}
+              >
+                <input
+                  id="color-picker"
+                  type="color"
+                  value={color}
+                  onChange={(e) => chooseColor(e.target.value)}
+                  aria-label="カスタムカラー"
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                />
+                <div
+                  className="pointer-events-none rounded-full border-4 border-white px-5 py-3 text-sm font-bold text-white shadow"
+                  style={{ backgroundColor: color }}
+                >
+                  色を変更する
+                </div>
+              </div>
+
+              <p className="mt-3 text-xs text-slate-400">
+                色のエリアをクリックすると、色選択ツールが開きます。
+              </p>
+
+              <div className="mt-6 rounded-xl bg-slate-50 p-4">
+                <label
+                  htmlFor="hue-slider"
+                  className="mb-3 block text-sm font-semibold"
+                >
+                  色相（色の種類）
+                </label>
+                <input
+                  id="hue-slider"
+                  type="range"
+                  min="0"
+                  max="359"
+                  value={(() => {
+                    const { r, g, b } = rgb;
+                    const rr = r / 255;
+                    const gg = g / 255;
+                    const bb = b / 255;
+                    const max = Math.max(rr, gg, bb);
+                    const min = Math.min(rr, gg, bb);
+                    const d = max - min;
+                    if (d === 0) return 0;
+                    let h = 0;
+                    if (max === rr) h = ((gg - bb) / d) % 6;
+                    else if (max === gg) h = (bb - rr) / d + 2;
+                    else h = (rr - gg) / d + 4;
+                    return Math.round((h * 60 + 360) % 360);
+                  })()}
+                  onChange={(e) => {
+                    const h = Number(e.target.value);
+                    const rgbValue = `hsl(${h}, 100%, 50%)`;
+                    const canvas = document.createElement("canvas");
+                    canvas.width = 1;
+                    canvas.height = 1;
+                    const ctx = canvas.getContext("2d");
+                    if (!ctx) return;
+                    ctx.fillStyle = rgbValue;
+                    ctx.fillRect(0, 0, 1, 1);
+                    const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+                    chooseColor(
+                      "#" +
+                        [r, g, b]
+                          .map((v) => v.toString(16).padStart(2, "0"))
+                          .join("")
+                    );
+                  }}
+                  className="h-3 w-full cursor-pointer accent-purple-600"
+                  style={{
+                    background:
+                      "linear-gradient(to right, red, yellow, lime, cyan, blue, magenta, red)",
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-5">
+              <div>
+                <label
+                  htmlFor="hex-code"
+                  className="mb-2 block text-sm font-semibold"
+                >
+                  HEX カラーコード
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    id="hex-code"
+                    value={hexInput}
+                    onChange={(e) => {
+                      setHexInput(e.target.value);
+                      const valid = normalizeHex(e.target.value);
+                      setHexError(!valid);
+                      if (valid) {
+                        setColor(valid);
+                        setSaved(false);
+                      }
+                    }}
+                    onBlur={() => {
+                      const valid = normalizeHex(hexInput);
+                      if (valid) setHexInput(valid);
+                    }}
+                    className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-3 font-mono outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+                    aria-invalid={hexError}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void navigator.clipboard?.writeText(color);
+                    }}
+                    className="rounded-xl border border-slate-200 px-4 text-sm hover:bg-slate-50"
+                    aria-label="HEXコードをコピー"
+                  >
+                    コピー
+                  </button>
+                </div>
+                {hexError && (
+                  <p className="mt-1 text-sm text-red-500">
+                    #RRGGBB形式で入力してください。
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <p className="mb-3 text-sm font-semibold">
+                  RGB カラー値
+                </p>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    ["R", rgb.r],
+                    ["G", rgb.g],
+                    ["B", rgb.b],
+                  ].map(([label, value]) => (
+                    <div key={label}>
+                      <label
+                        className="mb-1 block text-xs text-slate-500"
+                        htmlFor={`rgb-${label}`}
+                      >
+                        {label}
+                      </label>
+                      <input
+                        id={`rgb-${label}`}
+                        value={value}
+                        readOnly
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 font-mono"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="mb-3 text-sm font-semibold">
+                  選択中のカラー
+                </p>
+                <div
+                  className="h-24 rounded-xl shadow-inner"
+                  style={{ backgroundColor: color }}
+                />
+                <p className="mt-3 font-mono text-sm text-slate-600">
+                  {color}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-7 flex flex-col gap-4 rounded-xl border border-slate-100 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <span
+                className="h-12 w-12 shrink-0 rounded-full border-2 border-white shadow"
+                style={{ backgroundColor: color }}
+              />
+              <div>
+                <p className="text-sm font-semibold">
+                  {saved ? "保存済みのテーマカラー" : "現在のテーマカラー"}
+                </p>
+                <p className="mt-1 font-mono text-sm text-slate-500">
+                  {color}
+                </p>
+              </div>
+            </div>
+            <p className="text-sm text-slate-500">
+              保存するとテーマカラーとして記録されます。
+            </p>
+          </div>
+
+          <div className="mt-6 flex justify-end gap-3 border-t border-slate-100 pt-6">
+            <button
+              type="button"
+              onClick={cancelColor}
+              className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold hover:bg-slate-50"
+            >
+              キャンセル
+            </button>
+            <button
+              type="button"
+              onClick={saveColor}
+              className="rounded-xl px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:brightness-95"
+              style={{ backgroundColor: color }}
+            >
+              {saved ? "保存しました ✓" : "保存する"}
+            </button>
+          </div>
+        </section>
+      </section>
+    </main>
+  );
+  }
+
 
   // =========================================================
   // 学習記録画面
@@ -2637,186 +2725,51 @@ const updatedCard: Card = {
         {showAnswer && (
           <div
             style={{
-              display:
-                "flex",
+              display: "flex",
               gap: "12px",
-              marginTop:
-                "25px",
+              marginTop: "25px",
+              justifyContent: "center",
+              flexWrap: "wrap",
             }}
           >
-          const answerCard = async (
-  correct: boolean
-) => {
-  const currentCard =
-    studyCards[studyIndex];
-
-  if (!currentCard) {
-    return;
-  }
-
-  // -----------------------------
-  // セッション全体の成績
-  // -----------------------------
-
-  const nextCorrect =
-    studyCorrect +
-    (correct ? 1 : 0);
-
-  const nextIncorrect =
-    studyIncorrect +
-    (correct ? 0 : 1);
-
-  setStudyCorrect(nextCorrect);
-  setStudyIncorrect(nextIncorrect);
-
-
-  // -----------------------------
-  // カード個別の学習記録
-  // -----------------------------
-
-  const updatedCard: Card = {
-    ...currentCard,
-
-    reviewCount:
-      (currentCard.reviewCount || 0) + 1,
-
-    correctCount:
-      (currentCard.correctCount || 0) +
-      (correct ? 1 : 0),
-
-    incorrectCount:
-      (currentCard.incorrectCount || 0) +
-      (correct ? 0 : 1),
-
-    lastReviewedAt:
-      Date.now(),
-
-    lastResult:
-      correct
-        ? "correct"
-        : "incorrect",
-  };
-
-
-  // -----------------------------
-  // デッキに保存
-  // -----------------------------
-
-  const deck = decks.find(
-    (item) =>
-      item.name === currentDeck
-  );
-
-  if (deck) {
-    const updatedDeck: Deck = {
-      ...deck,
-
-      cards: deck.cards.map(
-        (card) =>
-          card.id === currentCard.id
-            ? updatedCard
-            : card
-      ),
-    };
-
-    try {
-      await setDoc(
-        doc(
-          db,
-          "decks",
-          deck.name
-        ),
-        updatedDeck
-      );
-
-      setDecks(
-        (currentDecks) =>
-          currentDecks.map(
-            (item) =>
-              item.name === deck.name
-                ? updatedDeck
-                : item
-          )
-      );
-    } catch (error) {
-      console.error(
-        "カード学習記録保存エラー:",
-        error
-      );
-
-      alert(
-        "カードの学習記録を保存できませんでした"
-      );
-    }
-  }
-
-
-  // -----------------------------
-  // 次のカードへ
-  // -----------------------------
-
-  if (
-    studyIndex <
-    studyCards.length - 1
-  ) {
-    setStudyIndex(
-      (index) => index + 1
+            <button
+              type="button"
+              onClick={() => void answerCard(true)}
+              style={{
+                padding: "14px 28px",
+                borderRadius: "16px",
+                border: "none",
+                background: colors.green,
+                color: colors.white,
+                fontWeight: "bold",
+                cursor: "pointer",
+                minWidth: "120px",
+              }}
+            >
+              正解
+            </button>
+            <button
+              type="button"
+              onClick={() => void answerCard(false)}
+              style={{
+                padding: "14px 28px",
+                borderRadius: "16px",
+                border: "none",
+                background: colors.pink,
+                color: colors.white,
+                fontWeight: "bold",
+                cursor: "pointer",
+                minWidth: "120px",
+              }}
+            >
+              不正解
+            </button>
+          </div>
+        )}
+      </main>
     );
-
-    setShowAnswer(false);
-
-    return;
   }
 
-
-  // -----------------------------
-  // 最後のカード
-  // -----------------------------
-
-  const answered =
-    nextCorrect +
-    nextIncorrect;
-
-  await saveStudyRecord(
-    nextCorrect,
-    nextIncorrect
-  );
-
-  alert(
-    "学習終了！\n\n" +
-      `正解：${nextCorrect}問\n` +
-      `不正解：${nextIncorrect}問\n` +
-      `回答：${answered}問\n` +
-      `正答率：${
-        answered > 0
-          ? Math.round(
-              (nextCorrect /
-                answered) *
-                100
-            )
-          : 0
-      }%`
-  );
-
-  if (
-    typeof window !== "undefined" &&
-    "speechSynthesis" in window
-  ) {
-    window.speechSynthesis.cancel();
-  }
-
-  setStudyMode(false);
-  setShowAnswer(false);
-
-  setStudyCards([]);
-  setStudyIndex(0);
-
-  setStudyCorrect(0);
-  setStudyIncorrect(0);
-
-  setStudyStartTime(null);
-  setStudySessionId(null);
-};
 
   // =========================================================
   // デッキ詳細
@@ -3616,258 +3569,48 @@ const updatedCard: Card = {
         デッキ
       </h1>
 
-            {/* =====================================================
-          カラーテーマ
-      ====================================================== */}
 
+
+
+
+      
       <button
-        onClick={() =>
-          setShowThemeSettings(
-            (current) => !current
-          )
-        }
+        type="button"
+        onClick={() => setShowStudyRecords(true)}
         style={{
-          display: "block",
-          width: "100%",
-          padding: "14px",
           marginBottom: "20px",
-          background:
-            colors.blueLight,
-          border:
-            `2px solid ${colors.blue}`,
-          color:
-            colors.blueDark,
-          borderRadius: "18px",
-          fontSize: "17px",
-          fontWeight: "bold",
+          padding: "10px 16px",
+          border: `2px solid ${colors.blue}`,
+          borderRadius: "14px",
+          background: colors.white,
+          color: colors.blueDark,
           cursor: "pointer",
-        }}
-      >
-        🎨 アプリの色を変更
-      </button>
-
-      {showThemeSettings && (
-        <div
-          style={{
-            marginBottom: "25px",
-            padding: "20px",
-            background:
-              colors.white,
-            border:
-              `2px solid ${colors.blue}`,
-            borderRadius: "20px",
-          }}
-        >
-          <h2
-            style={{
-              marginTop: 0,
-              color:
-                colors.blueDark,
-            }}
-          >
-            🎨 カラーテーマ
-          </h2>
-
-          <p
-            style={{
-              color: colors.gray,
-              fontSize: "14px",
-            }}
-          >
-            好きな色を選んでください。
-            <br />
-            カラーコードを入力すれば、
-            自分だけのテーマも作れます。
-          </p>
-
-          {/* 12色 */}
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns:
-                "repeat(4, 1fr)",
-              gap: "10px",
-              marginTop: "15px",
-            }}
-          >
-            {Object.entries(
-              colorThemes
-            ).map(
-              ([name, theme]) => (
-                <button
-                  key={name}
-                  onClick={() =>
-                    changeTheme(
-                      name
-                    )
-                  }
-                  style={{
-                    height: "55px",
-                    borderRadius:
-                      "15px",
-                    border:
-                      themeName ===
-                        name &&
-                      !useCustomColor
-                        ? `4px solid ${theme.blueDark}`
-                        : "2px solid transparent",
-                    background:
-                      theme.blue,
-                    cursor:
-                      "pointer",
-                    boxShadow:
-                      "0 2px 8px rgba(0,0,0,0.08)",
-                  }}
-                  title={name}
-                />
-              )
-            )}
-          </div>
-
-          {/* カスタムカラー */}
-
-          <div
-            style={{
-              marginTop: "25px",
-              paddingTop: "20px",
-              borderTop:
-                `1px solid ${colors.border}`,
-            }}
-          >
-            <h3
-              style={{
-                marginTop: 0,
-                color:
-                  colors.dark,
-              }}
-            >
-              ✨ 好きな色を作る
-            </h3>
-
-            <div
-              style={{
-                display: "flex",
-                gap: "10px",
-                alignItems:
-                  "center",
-              }}
-            >
-              <input
-                type="color"
-                value={
-                  /^#[0-9A-Fa-f]{6}$/.test(
-                    customColor
-                  )
-                    ? customColor
-                    : "#8ECBE6"
-                }
-                onChange={(e) =>
-                  changeCustomColor(
-                    e.target.value
-                  )
-                }
-                style={{
-                  width: "55px",
-                  height: "45px",
-                  padding: 0,
-                  border: "none",
-                  cursor:
-                    "pointer",
-                  background:
-                    "transparent",
-                }}
-              />
-
-              <input
-                type="text"
-                value={
-                  customColor
-                }
-                onChange={(e) => {
-                  const value =
-                    e.target.value;
-
-                  setCustomColor(
-                    value
-                  );
-
-                  if (
-                    /^#[0-9A-Fa-f]{6}$/.test(
-                      value
-                    )
-                  ) {
-                    changeCustomColor(
-                      value
-                    );
-                  }
-                }}
-                placeholder="#8ECBE6"
-                style={{
-                  flex: 1,
-                  padding:
-                    "12px",
-                  border:
-                    `2px solid ${colors.border}`,
-                  borderRadius:
-                    "12px",
-                  fontSize:
-                    "16px",
-                }}
-              />
-            </div>
-
-            <p
-              style={{
-                marginBottom: 0,
-                color:
-                  colors.gray,
-                fontSize:
-                  "13px",
-              }}
-            >
-              例：#FF69B4、
-              #9370DB、
-              #32CD32
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* 学習記録 */}
-
-      <button
-        onClick={() =>
-          setShowStudyRecords(
-            true
-          )
-        }
-        style={{
-          display:
-            "block",
-          width:
-            "100%",
-          padding:
-            "15px",
-          marginBottom:
-            "25px",
-          background:
-            colors.greenLight,
-          border:
-            `2px solid ${colors.green}`,
-          color:
-            "#4b9b63",
-          borderRadius:
-            "20px",
-          fontSize:
-            "18px",
-          fontWeight:
-            "bold",
-          cursor:
-            "pointer",
+          fontWeight: "bold",
         }}
       >
         学習記録を見る
+      </button>
+
+      <button
+        type="button"
+        onClick={() => {
+          setColor(themeColor);
+          setSavedColor(themeColor);
+          setHexInput(themeColor);
+          setShowThemeSettings(true);
+        }}
+        style={{
+          margin: "0 0 20px 10px",
+          padding: "10px 16px",
+          border: `2px solid ${colors.blue}`,
+          borderRadius: "14px",
+          background: colors.white,
+          color: colors.blueDark,
+          cursor: "pointer",
+          fontWeight: "bold",
+        }}
+      >
+        🎨 テーマカラー設定
       </button>
 
       {/* フォルダ */}
