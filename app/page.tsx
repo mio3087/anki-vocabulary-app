@@ -194,6 +194,11 @@ export default function Home() {
     setShowThemeSettings(false);
   }
 
+
+
+
+
+  
   // =========================================================
   // フォルダ
   // =========================================================
@@ -250,6 +255,18 @@ export default function Home() {
 
   const [showStudyRecords, setShowStudyRecords] =
     useState(false);
+
+
+
+
+
+
+
+
+
+
+
+    
 
   // =========================================================
   // デッキ作成
@@ -1015,6 +1032,10 @@ export default function Home() {
   const openCSVPicker = () => {
     fileInputRef.current?.click();
   };
+
+  
+
+
 
   // =========================================================
   // 単語追加
@@ -3540,6 +3561,36 @@ export default function Home() {
         デッキ
       </h1>
 
+
+<a
+  href="/game"
+  style={{
+    display: "flex",
+    alignItems: "center",
+    gap: "16px",
+    padding: "20px",
+    margin: "20px 0",
+    borderRadius: "16px",
+    border: "1px solid #8b6cff",
+    background: "linear-gradient(135deg, #20183f, #102a46)",
+    color: "#ffffff",
+    textDecoration: "none",
+    cursor: "pointer",
+  }}
+>
+  <span style={{ fontSize: "40px" }}>⚔️</span>
+
+  <span style={{ flex: 1 }}>
+    <strong style={{ fontSize: "20px", display: "block" }}>
+      Language Quest
+    </strong>
+    <span style={{ fontSize: "14px", color: "#c8d5f0" }}>
+      言語世界を冒険しよう！
+    </span>
+  </span>
+
+  <span style={{ fontSize: "24px" }}>➜</span>
+</a>
 
 
 
