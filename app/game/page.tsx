@@ -133,6 +133,7 @@ const cardStyle = {
 
 export default function GamePage() {
   const [language, setLanguage] = useState("ドイツ語");
+  const [selectedDeckName, setSelectedDeckName] = useState("");
   
 const [ankiDecks, setAnkiDecks] = useState<AnkiDeck[]>([]);
 const [loadingCards, setLoadingCards] = useState(true);
@@ -181,7 +182,27 @@ const [loadingCards, setLoadingCards] = useState(true);
   }, []);
 
 
-  const questions = QUESTIONS[language];
+  // デッキが選択されていれば、Ankiの実カードからゲーム問題を作る
+  const selectedDeck = ankiDecks.find((deck) => deck.name === selectedDeckName);
+  const questions: Question[] = selectedDeck
+    ? selectedDeck.cards
+        .filter((card) => typeof card.front === "string" && card.front.trim() && typeof card.japanese === "string" && card.japanese.trim())
+        .map((card) => {
+          const meaning = card.japanese.trim();
+          const otherMeanings = Array.from(
+            new Set(
+              selectedDeck.cards
+                .map((item) => item.japanese?.trim())
+                .filter((item): item is string => Boolean(item) && item !== meaning)
+            )
+          );
+          return {
+            word: card.front.trim(),
+            meaning,
+            choices: [meaning, ...otherMeanings.slice(0, 3)],
+          };
+        })
+    : (QUESTIONS[language] ?? QUESTIONS["ドイツ語"]);
   const question = questions[questionOrder[questionIndex] ?? 0];
   const expNeeded = save.level * 100;
   const accuracy = save.answered
@@ -209,7 +230,7 @@ const [loadingCards, setLoadingCards] = useState(true);
 
   useEffect(() => {
     setQuestionOrder(
-      Array.from({ length: QUESTIONS[language].length }, (_, i) => i)
+      Array.from({ length: questions.length }, (_, i) => i)
         .sort(() => Math.random() - 0.5)
     );
     setQuestionIndex(0);
@@ -221,7 +242,7 @@ const [loadingCards, setLoadingCards] = useState(true);
     setGameOver(false);
     setVictory(false);
     setMessage("正解を選んで敵を攻撃しよう！");
-  }, [language]);
+  }, [language, selectedDeckName, questions.length]);
 
   function unlock(ids: string[]) {
     setSave((old) => ({
@@ -351,7 +372,14 @@ const [loadingCards, setLoadingCards] = useState(true);
   if (!ready || !question) {
     return (
       <main style={{ padding: 40, color: "white", background: "#101629", minHeight: "100vh" }}>
-        ゲームを準備中...
+        {!ready
+          ? "ゲームを準備中..."
+          : loadingCards
+            ? "Ankiデッキを読み込み中..."
+            : selectedDeckName
+              ? "このデッキにはゲームに使えるカードがありません。カードの表面と日本語の意味を確認してください。"
+              : "出題できる問題がありません。"}
+        
       </main>
     );
   }
@@ -388,9 +416,8 @@ const [loadingCards, setLoadingCards] = useState(true);
       <div style={content}>
         <header style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 20 }}>
           <div>
-            <div style={{ color: "#a9b9ff", fontSize: 12, letterSpacing: 2 }}>
-              LEARN · BATTLE · LEVEL UP
-            </div>
+            
+
             <h1 style={{ fontSize: "clamp(26px, 5vw, 38px)", margin: "8px 0" }}>
               ⚔️ LANGUAGE QUEST
             </h1>
@@ -414,6 +441,32 @@ const [loadingCards, setLoadingCards] = useState(true);
               <option key={name} value={name}>{name}</option>
             ))}
           </select>
+        </section>
+
+        <section style={{ ...cardStyle, marginTop: 14 }}>
+          <label htmlFor="anki-deck" style={{ display: "block", marginBottom: 8, fontWeight: 700 }}>
+            📚 暗記デッキをゲームにインポート
+          </label>
+          <select
+            id="anki-deck"
+            value={selectedDeckName}
+            onChange={(e) => setSelectedDeckName(e.target.value)}
+            style={{ ...button, background: "#202e50" }}
+            disabled={loadingCards}
+          >
+            <option value="">
+              {loadingCards ? "デッキを読み込み中..." : "サンプル問題で遊ぶ"}
+            </option>
+            {ankiDecks.map((deck, index) => (
+              <option key={`${deck.name}-${index}`} value={deck.name}>
+                {deck.name}（{deck.language || "言語未設定"}・{deck.cards.length}枚）
+              </option>
+            ))}
+          </select>
+          <p style={{ color: "#c4cee8", fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>
+            デッキを選ぶと、そのカードの「表面」を問題、「日本語」を正解候補として出題します。
+            デッキを選び直せば、いつでもサンプル問題に戻れます。
+          </p>
         </section>
         
 
@@ -501,7 +554,7 @@ const [loadingCards, setLoadingCards] = useState(true);
   }}
 >
           <div style={{ fontSize: 12, color: "#a9b9ff" }}>
-            {language} · 問題 {questionIndex + 1} / {questions.length}
+            {selectedDeck ? `${selectedDeck.name} · ${selectedDeck.language || language}` : language} · 問題 {questionIndex + 1} / {questions.length}
           </div>
           <h2 style={{ fontSize: "clamp(28px, 7vw, 42px)", textAlign: "center", margin: "22px 0 8px", overflowWrap: "anywhere" }}>
             {question.word}
