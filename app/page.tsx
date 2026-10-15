@@ -916,6 +916,64 @@ export default function Home() {
           const parts =
             line.split(",");
 
+
+
+
+
+function parseCSVLine(line: string): string[] {
+  // CSVの引用符を考慮して解析
+  if (line.includes('"')) {
+    const fields: string[] = [];
+    let field = "";
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+
+      if (char === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === "," && !inQuotes) {
+        fields.push(field.trim());
+        field = "";
+      } else {
+        field += char;
+      }
+    }
+
+    fields.push(field.trim());
+    return fields;
+  }
+
+  // 引用符がない場合は、先頭の文章を優先して保持する
+const parts = parseCSVLine(line);
+
+  if (parts.length > 5) {
+    return [
+      parts.slice(0, parts.length - 4).join(",").trim(),
+      ...parts.slice(-4).map((part) => part.trim()),
+    ];
+  }
+
+  return parts.map((part) => part.trim());
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
           const card: Card = {
             id: createId(),
 
