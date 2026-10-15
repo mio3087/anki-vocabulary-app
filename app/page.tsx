@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -385,7 +386,9 @@ export default function Home() {
                       correctCount: Number(card.correctCount || 0),
                       incorrectCount: Number(card.incorrectCount || 0),
                       lastReviewedAt: Number(card.lastReviewedAt || 0),
-                      lastResult: card.lastResult || undefined,
+                      ...(card.lastResult === "correct" || card.lastResult === "incorrect"
+                        ? { lastResult: card.lastResult }
+                        : {}),
                     }))
                   : [],
 
@@ -1198,7 +1201,6 @@ export default function Home() {
   correctCount: 0,
   incorrectCount: 0,
   lastReviewedAt: 0,
-  lastResult: undefined,
 };
 
       updatedCards = [
@@ -1708,7 +1710,8 @@ export default function Home() {
       );
 
       alert(
-        "カードの学習記録を保存できませんでした"
+        "カードの学習記録を保存できませんでした。\n\n" +
+          (error instanceof Error ? error.message : String(error))
       );
     }
   }
