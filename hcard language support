@@ -1,0 +1,62 @@
+[1mdiff --git a/app/page.tsx b/app/page.tsx[m
+[1mindex b6f3606..6fedbf4 100644[m
+[1m--- a/app/page.tsx[m
+[1m+++ b/app/page.tsx[m
+[36m@@ -4169,25 +4169,42 @@[m [mconst parts = parseCSVLine(line);[m
+             "12px",[m
+         }}[m
+       >[m
+[31m-        <option value="zh-CN">[m
+[31m-          中国語[m
+[31m-        </option>[m
+[32m+[m[41m        [m
+ [m
+[31m-        <option value="de-DE">[m
+[31m-          ドイツ語[m
+[31m-        </option>[m
+ [m
+[31m-        <option value="es-ES">[m
+[31m-          スペイン語[m
+[31m-        </option>[m
+ [m
+[31m-        <option value="it-IT">[m
+[31m-          イタリア語[m
+[31m-        </option>[m
+[32m+[m[32m<option value="zh-CN">中国語（簡体字）</option>[m
+[32m+[m[32m<option value="zh-TW">中国語（台湾・繁体字）</option>[m
+[32m+[m[32m<option value="de-DE">ドイツ語</option>[m
+[32m+[m[32m<option value="es-ES">スペイン語</option>[m
+[32m+[m[32m<option value="it-IT">イタリア語</option>[m
+[32m+[m[32m<option value="ja-JP">日本語</option>[m
+[32m+[m[32m<option value="ko-KR">韓国語</option>[m
+[32m+[m[32m<option value="nl-NL">オランダ語</option>[m
+[32m+[m[32m<option value="da-DK">デンマーク語</option>[m
+[32m+[m[32m<option value="fr-FR">フランス語</option>[m
+[32m+[m[32m<option value="pt-PT">ポルトガル語（ヨーロッパ）</option>[m
+[32m+[m[32m<option value="pt-BR">ポルトガル語（ブラジル）</option>[m
+[32m+[m[32m<option value="vi-VN">ベトナム語</option>[m
+[32m+[m[32m<option value="sv-SE">スウェーデン語</option>[m
+[32m+[m[32m<option value="nb-NO">ノルウェー語（ブークモール）</option>[m
+[32m+[m[32m<option value="id-ID">インドネシア語</option>[m
+[32m+[m[32m<option value="tr-TR">トルコ語</option>[m
+[32m+[m[32m<option value="pl-PL">ポーランド語</option>[m
+[32m+[m[32m<option value="ru-RU">ロシア語</option>[m
+[32m+[m[32m<option value="el-GR">ギリシャ語</option>[m
+[32m+[m[32m<option value="th-TH">タイ語</option>[m
+[32m+[m[32m<option value="cs-CZ">チェコ語</option>[m
+[32m+[m[32m<option value="ro-RO">ルーマニア語</option>[m
+[32m+[m[32m<option value="hi-IN">ヒンディー語</option>[m
+[32m+[m[32m<option value="ar-SA">アラビア語</option>[m
+ [m
+[31m-        <option value="ja-JP">[m
+[31m-          日本語[m
+[31m-        </option>[m
+[32m+[m
+[32m+[m
+[32m+[m
+[32m+[m
+[32m+[m
+[32m+[m[41m        [m
+       </select>[m
+ [m
+       <select[m

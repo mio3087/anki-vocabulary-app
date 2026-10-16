@@ -4169,25 +4169,42 @@ const parts = parseCSVLine(line);
             "12px",
         }}
       >
-        <option value="zh-CN">
-          中国語
-        </option>
+        
 
-        <option value="de-DE">
-          ドイツ語
-        </option>
 
-        <option value="es-ES">
-          スペイン語
-        </option>
 
-        <option value="it-IT">
-          イタリア語
-        </option>
+<option value="zh-CN">中国語（簡体字）</option>
+<option value="zh-TW">中国語（台湾・繁体字）</option>
+<option value="de-DE">ドイツ語</option>
+<option value="es-ES">スペイン語</option>
+<option value="it-IT">イタリア語</option>
+<option value="ja-JP">日本語</option>
+<option value="ko-KR">韓国語</option>
+<option value="nl-NL">オランダ語</option>
+<option value="da-DK">デンマーク語</option>
+<option value="fr-FR">フランス語</option>
+<option value="pt-PT">ポルトガル語（ヨーロッパ）</option>
+<option value="pt-BR">ポルトガル語（ブラジル）</option>
+<option value="vi-VN">ベトナム語</option>
+<option value="sv-SE">スウェーデン語</option>
+<option value="nb-NO">ノルウェー語（ブークモール）</option>
+<option value="id-ID">インドネシア語</option>
+<option value="tr-TR">トルコ語</option>
+<option value="pl-PL">ポーランド語</option>
+<option value="ru-RU">ロシア語</option>
+<option value="el-GR">ギリシャ語</option>
+<option value="th-TH">タイ語</option>
+<option value="cs-CZ">チェコ語</option>
+<option value="ro-RO">ルーマニア語</option>
+<option value="hi-IN">ヒンディー語</option>
+<option value="ar-SA">アラビア語</option>
 
-        <option value="ja-JP">
-          日本語
-        </option>
+
+
+
+
+
+        
       </select>
 
       <select
