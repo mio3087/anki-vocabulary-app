@@ -3616,6 +3616,58 @@ const parts = parseCSVLine(line);
       
 
 
+
+  
+<a
+  href="/armada"
+  style={{
+    display: "flex",
+    alignItems: "center",
+    gap: "16px",
+    padding: "20px",
+    margin: "20px 0",
+    borderRadius: "16px",
+    border: "1px solid #c99b62",
+    background: "linear-gradient(135deg, #172b3d, #604832)",
+    color: "#fff7e8",
+    textDecoration: "none",
+    cursor: "pointer",
+  }}
+>
+  <span style={{ fontSize: "40px" }}>⛵</span>
+
+  <span style={{ flex: 1 }}>
+    <strong
+      style={{
+        fontSize: "20px",
+        display: "block",
+        marginBottom: "6px",
+      }}
+    >
+      無敵艦隊 ― 海に消えた航海日誌
+    </strong>
+
+    <span style={{ fontSize: "14px", color: "#f0d6ae" }}>
+      スペイン語を学びながら、1588年の大海戦を生き抜こう。
+      <br />
+      🎧 リスニング　📖 リーディング　🎙️ スピーキング　✍️ ライティング
+    </span>
+
+    <span
+      style={{
+        display: "block",
+        marginTop: "14px",
+        fontWeight: "bold",
+        color: "#e6c77c",
+      }}
+    >
+      航海を始める　➜
+    </span>
+  </span>
+</a>
+
+
+
 {/* Story 1：中国戦国時代への入口 */}
 <a
   href="/story1"
@@ -3688,6 +3740,9 @@ const parts = parseCSVLine(line);
     </div>
   </div>
 </a>
+
+
+
 
 
 <a

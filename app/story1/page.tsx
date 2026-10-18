@@ -8,6 +8,23 @@ import { chapters } from "../../lib/story1/chapters";
 type Language = "ja" | "zh-CN" | "zh-TW" | "en" | "de" | "es" | "it";
 type Screen = "title" | "intro" | "guide";
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 const translations: Record<Language, Record<string, string>> = {
   ja: {
     language: "表示言語",
@@ -348,6 +365,19 @@ export default function Story1Page() {
               style={secondaryButtonStyle}
             >
               📜 {t.guide}
+            </button>
+
+
+                        <button
+              onClick={() => {
+                window.location.href = "/stories";
+              }}
+              style={{
+                ...secondaryButtonStyle,
+                maxWidth: "360px",
+              }}
+            >
+              📚 50の物語から選ぶ ➜
             </button>
 
             <a

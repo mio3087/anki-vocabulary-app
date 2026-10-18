@@ -1,0 +1,61 @@
+
+export type StoryEpisode = {
+  id: number;
+  title: string;
+  description: string;
+  era: string;
+  language: string;
+};
+
+export const stories: StoryEpisode[] = [
+  { id: 1, title: "秦国からの密書", description: "秦から届いた密書。結盟の真意を見抜け。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 2, title: "張儀の連衡策", description: "張儀の外交策から、秦の狙いを読み解け。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 3, title: "蘇秦の合従策", description: "六国を結び、秦に対抗する同盟を築け。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 4, title: "趙国の密使", description: "趙から来た使者の証言を確かめよ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 5, title: "函谷関の謎", description: "秦の関門で起きた異変の真相を探れ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 6, title: "孟嘗君の食客", description: "食客たちの知恵で危機を乗り越えよ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 7, title: "鶏鳴狗盗の脱出劇", description: "孟嘗君を関所から脱出させよ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 8, title: "魏国の偽りの盟約", description: "盟約に隠された罠を見破れ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 9, title: "楚王への進言", description: "楚王を説得し、危険な決断を止めよ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 10, title: "屈原の警告", description: "屈原の言葉から宮廷の危機を読み取れ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 11, title: "荊軻の密命", description: "燕の宮廷で進む秘密計画を調べよ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 12, title: "太子丹の決断", description: "太子丹の計画とその代償を見極めよ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 13, title: "刺客の地図", description: "地図に隠された秘密を解き明かせ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 14, title: "韓国の最後通牒", description: "韓を救う外交交渉の道を探せ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 15, title: "秦王への謁見", description: "秦王との対面で交渉を成功させよ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 16, title: "商鞅の改革", description: "秦の改革が国と民に与えた影響を調べよ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 17, title: "法令のすり替え", description: "書き換えられた法令の犯人を探せ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 18, title: "魏の名将・呉起", description: "呉起の軍略と兵士たちの声を読み解け。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 19, title: "孫臏の反間計", description: "敵の情報戦に潜む嘘を見破れ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 20, title: "馬陵の戦い", description: "孫臏の策略から戦場の罠を見抜け。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 21, title: "長平への道", description: "趙と秦の戦況を情報から判断せよ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 22, title: "廉頗の防衛線", description: "趙の防衛を守るため最善策を選べ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 23, title: "趙括の危うい自信", description: "兵法の知識と現場の現実を比較せよ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 24, title: "平原君の説得", description: "趙を救うため援軍を求めよ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 25, title: "毛遂の自薦", description: "交渉の場で自らの力を証明せよ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 26, title: "信陵君の盗符", description: "魏を救うため危険な計画を判断せよ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 27, title: "侯嬴の助言", description: "侯嬴の助言から作戦の鍵を見つけよ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 28, title: "魏王の疑念", description: "疑われた将軍の無実を証明せよ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 29, title: "斉王の宴", description: "宴席の会話から王たちの本音を探れ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 30, title: "田忌の競馬", description: "組み合わせを工夫して勝利を目指せ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 31, title: "鄒忌の諫言", description: "褒め言葉の裏に隠れた真実を見抜け。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 32, title: "王への三つの証言", description: "食い違う証言から真相を推理せよ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 33, title: "燕国の復讐計画", description: "復讐計画が国にもたらす結果を考えよ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 34, title: "楽毅の連合軍", description: "異なる国の将軍たちをまとめよ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 35, title: "田単の火牛計", description: "包囲された城を救う逆転策を考えよ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 36, title: "楚の失われた文書", description: "王宮から消えた文書を探し出せ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 37, title: "秦の使節団", description: "使節の発言と贈り物から目的を推理せよ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 38, title: "国境の密談", description: "夜の密談に参加した人物を特定せよ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 39, title: "商人が運ぶ噂", description: "市場に広がる噂の出どころを探れ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 40, title: "失われた玉璧", description: "外交の宝物が消えた事件を解決せよ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 41, title: "和氏の璧", description: "貴重な玉璧をめぐる秦と趙の交渉に挑め。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 42, title: "完璧帰趙", description: "知恵と勇気で玉璧を趙へ持ち帰れ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 43, title: "将軍と文官の対立", description: "廉頗と藺相如の対立を解決せよ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 44, title: "刎頸の交わり", description: "信頼を築き、国を守る友情を学べ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 45, title: "秦の宮廷裁判", description: "証言と記録を整理して真相を明らかにせよ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 46, title: "七雄の和平会議", description: "七国の利益を調整し和平を実現せよ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 47, title: "秦王の天下統一計画", description: "秦の動きを読み、各国の対応を考えよ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 48, title: "最後の同盟", description: "危機に瀕した諸国を結びつけよ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 49, title: "天下を動かす一言", description: "最終交渉で乱世の未来を変えよ。", era: "中国戦国時代", language: "zh-CN" },
+  { id: 50, title: "戦国策 ― 天下への道 ―", description: "集めた情報と知略を使い、最後の謎を解け。", era: "中国戦国時代", language: "zh-CN" },
+];
