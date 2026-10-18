@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import type { StoryChapter } from "../../lib/story1/chapters";
+import type { StoryChapter } from "../../../lib/story1/chapters";
 
 type StoryGameProps = {
   chapter: StoryChapter;
