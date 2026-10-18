@@ -1,6 +1,8 @@
 
 "use client";
 
+
+
 import {
   ChangeEvent,
   useEffect,
@@ -3602,7 +3604,7 @@ const parts = parseCSVLine(line);
   // デッキ一覧
   // =========================================================
 
-  return (
+    return (
     <main
       style={{
         maxWidth:
@@ -3613,7 +3615,27 @@ const parts = parseCSVLine(line);
           "20px",
       }}
     >
-      
+      <a
+        href="/login"
+        style={{
+          display: "block",
+          width: "100%",
+          boxSizing: "border-box",
+          padding: "14px 20px",
+          marginBottom: "20px",
+          borderRadius: "14px",
+          background: "#26365D",
+          color: "#FFFFFF",
+          textAlign: "center",
+          textDecoration: "none",
+          fontWeight: "bold",
+          fontSize: "16px",
+        }}
+      >
+        ログイン・新規登録
+      </a>
+
+      {/* この下は既存のコードをそのまま残す */}
 
 
 
