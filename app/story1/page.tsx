@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { chapters } from "../../../lib/story1/chapters";
+import { chapters } from "../../lib/story1/chapters";
 
 
 type Language = "ja" | "zh-CN" | "zh-TW" | "en" | "de" | "es" | "it";
