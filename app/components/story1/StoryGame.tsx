@@ -505,10 +505,7 @@ practiceText: {
   // ほかの設定はそのまま残す
 },
 
-questionHint: {
-  color: "#F3E9D5",
-  // ほかの設定はそのまま残す
-},
+
 
 
   speakButton: {
