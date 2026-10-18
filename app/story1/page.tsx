@@ -326,7 +326,7 @@ export default function Story1Page() {
             
 <button
   onClick={() => {
-    window.location.href = "/story1/chapter1";
+    window.location.href = "/story1/1";
   }}
   style={{
     ...buttonStyle,

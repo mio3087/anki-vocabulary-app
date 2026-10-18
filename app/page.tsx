@@ -3613,14 +3613,81 @@ const parts = parseCSVLine(line);
           "20px",
       }}
     >
-      <h1
-        style={{
-          color:
-            colors.blueDark,
-        }}
-      >
-        デッキ
-      </h1>
+      
+
+
+{/* Story 1：中国戦国時代への入口 */}
+<a
+  href="/story1"
+  style={{
+    display: "flex",
+    alignItems: "center",
+    gap: "16px",
+    margin: "24px 0",
+    padding: "22px",
+    borderRadius: "18px",
+    border: "1px solid #c9a45c",
+    background:
+      "linear-gradient(135deg, #172b25 0%, #30483a 60%, #192a24 100%)",
+    color: "#f8edcf",
+    textDecoration: "none",
+    boxShadow: "0 6px 18px rgba(0,0,0,0.12)",
+  }}
+>
+  <div
+    style={{
+      fontSize: "42px",
+      flexShrink: 0,
+    }}
+  >
+    🏯
+  </div>
+
+  <div style={{ flex: 1 }}>
+    <div
+      style={{
+        fontSize: "12px",
+        letterSpacing: "2px",
+        color: "#d9bc79",
+        marginBottom: "6px",
+      }}
+    >
+      STORY 01 · 中国戦国時代
+    </div>
+
+    <div
+      style={{
+        fontSize: "22px",
+        fontWeight: "bold",
+        marginBottom: "6px",
+      }}
+    >
+      戦国策 ― 天下への道 ―
+    </div>
+
+    <div
+      style={{
+        fontSize: "14px",
+        lineHeight: 1.7,
+        color: "#e4e6d8",
+      }}
+    >
+      言葉を武器に、乱世を生き抜け。
+      <br />
+      中国語を学びながら、外交官として歴史を動かそう。
+    </div>
+
+    <div
+      style={{
+        marginTop: "14px",
+        fontWeight: "bold",
+        color: "#e6c77c",
+      }}
+    >
+      物語を始める　➜
+    </div>
+  </div>
+</a>
 
 
 <a
