@@ -411,10 +411,58 @@ const [loadingCards, setLoadingCards] = useState(true);
 
   const progressWidth = Math.min(100, (save.exp / expNeeded) * 100);
 
-  return (
+    return (
     <main style={page}>
       <div style={content}>
-        <header style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 20 }}>
+                <a
+          href="/today"
+          style={{
+            display: "inline-block",
+            padding: "12px 16px",
+            marginBottom: "16px",
+            borderRadius: "12px",
+            background: "#ffffff",
+            color: "#202e50",
+            textDecoration: "none",
+            fontWeight: 800,
+          }}
+        >
+          📅 今日のノルマ
+        </a>
+
+        <header
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 12,
+            flexWrap: "wrap",
+            alignItems: "center",
+            marginBottom: 20,
+          }}
+        >
+          <div>
+            <h1
+              style={{
+                fontSize: "clamp(26px, 5vw, 38px)",
+                margin: "8px 0",
+              }}
+            >
+              ⚔️ LANGUAGE QUEST
+            </h1>
+          </div>
+
+          <a
+            href="/"
+            style={{
+              color: "#c4cee8",
+              textDecoration: "none",
+              padding: 10,
+            }}
+          >
+            ← アプリに戻る
+          </a>
+        </header>
+
           <div>
             
 
