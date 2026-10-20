@@ -314,31 +314,6 @@ export default function ArmadaChapter1Page() {
 
 
 
-  // ゲーム開始時にセーブデータを読み込む
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("armada-save-v1");
-
-      if (saved) {
-        const data = JSON.parse(saved);
-
-
-  }, []);
-
-  // 変更を自動保存する
-  useEffect(() => {
-    if (!loaded) return;
-
-    try {
-      localStorage.setItem(
-        "armada-save-v1",
-        JSON.stringify({ chapter, lang, started, choice, diary, clues })
-      );
-    } catch {
-      console.warn("セーブデータを保存できませんでした。");
-    }
-  }, [loaded, chapter, lang, started, choice, diary, clues]);
-
   const [titleJa, titleEs] = chapters[chapter];
   const title =
     lang === "ja" ? titleJa :
