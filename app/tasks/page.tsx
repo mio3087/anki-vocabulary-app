@@ -24,7 +24,7 @@ type StudyTask = {
   type: TaskType;
   material: string;
   target: number;
-  unit: "単語" | "ページ" | "分";
+  unit: "単語" | "ページ" | "分" | "章" | "回";
   startDate: string;
   scheduledDate: string;
   dueDate: string;
@@ -467,9 +467,11 @@ export default function TasksPage() {
                   })
                 }
               >
-                <option>単語</option>
-                <option>ページ</option>
-                <option>分</option>
+                <option value="単語">単語</option>
+<option value="ページ">ページ</option>
+<option value="分">分</option>
+<option value="章">章</option>
+<option value="回">回</option>
               </select>
             </label>
 
