@@ -113,7 +113,7 @@ export default function LoginPage() {
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
-      router.push("/game");
+      router.push("/");
     } catch (err) {
       showError(err);
     } finally {
