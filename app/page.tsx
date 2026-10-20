@@ -1,5 +1,6 @@
 
 "use client";
+import Link from "next/link";
 
 
 
@@ -161,6 +162,11 @@ export default function Home() {
   const colors = makeThemeColors(themeColor);
   const rgb = getRgb(color);
 
+
+
+
+
+  
   useEffect(() => {
     const stored = localStorage.getItem("anki-theme-color");
     const valid = stored ? normalizeHex(stored) : null;
@@ -198,6 +204,8 @@ export default function Home() {
   }
 
 
+
+  
 
 
 
@@ -3634,6 +3642,28 @@ const parts = parseCSVLine(line);
       >
         ログイン・新規登録
       </a>
+
+      <Link
+        href="/today"
+        style={{
+          display: "block",
+          width: "100%",
+          boxSizing: "border-box",
+          padding: "14px 20px",
+          marginBottom: "20px",
+          borderRadius: "14px",
+          background: "#E8F8F0",
+          border: "2px solid #63B995",
+          color: "#26365D",
+          textAlign: "center",
+          textDecoration: "none",
+          fontWeight: "bold",
+          fontSize: "16px",
+        }}
+      >
+        📅 今日のノルマ
+      </Link>
+
 
       {/* この下は既存のコードをそのまま残す */}
 
