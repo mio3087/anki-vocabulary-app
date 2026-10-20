@@ -1,6 +1,6 @@
 
 "use client";
-
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import {
@@ -330,6 +330,24 @@ export default function TasksPage() {
           学習タスクをまとめて管理し、毎日の勉強を進めましょう。
         </p>
       </header>
+      
+      <nav
+        style={{
+          display: "flex",
+          gap: 12,
+          flexWrap: "wrap",
+          marginBottom: 24,
+        }}
+      >
+        <Link href="/">🏠 デッキ一覧に戻る</Link>
+
+        <Link
+          href="/plan"
+        >
+          📅 学習計画へ戻る
+        </Link>
+      </nav>
+
 
       {!authReady && <p>ログイン状態を確認しています...</p>}
 
