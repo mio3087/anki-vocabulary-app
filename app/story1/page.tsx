@@ -206,6 +206,7 @@ const languageNames: Record<Language, string> = {
 export default function Story1Page() {
   const [language, setLanguage] = useState<Language>("ja");
   const [screen, setScreen] = useState<Screen>("title");
+    const [menuOpen, setMenuOpen] = useState(false);
   const t = translations[language];
 
   const buttonStyle: React.CSSProperties = {
@@ -253,6 +254,121 @@ export default function Story1Page() {
         fontFamily: "serif",
       }}
     >
+
+            <button
+        type="button"
+        aria-label={menuOpen ? "メニューを閉じる" : "メニューを開く"}
+        aria-expanded={menuOpen}
+        onClick={() => setMenuOpen((open) => !open)}
+        style={{
+          position: "fixed",
+          top: "18px",
+          left: "18px",
+          zIndex: 1002,
+          display: "flex",
+          width: "46px",
+          height: "46px",
+          padding: 0,
+          alignItems: "center",
+          justifyContent: "center",
+          flexDirection: "column",
+          gap: "5px",
+          border: "1px solid #dce1d9",
+          borderRadius: "15px",
+          background: "rgba(255,255,255,0.94)",
+          color: "#26372d",
+          boxShadow: "0 6px 20px rgba(0,0,0,0.18)",
+          cursor: "pointer",
+          backdropFilter: "blur(14px)",
+        }}
+      >
+        <span style={{ width: "17px", height: "2px", background: "currentColor", borderRadius: "2px" }} />
+        <span style={{ width: "17px", height: "2px", background: "currentColor", borderRadius: "2px" }} />
+        <span style={{ width: "17px", height: "2px", background: "currentColor", borderRadius: "2px" }} />
+      </button>
+
+      {menuOpen && (
+        <>
+          <button
+            type="button"
+            aria-label="メニューを閉じる"
+            onClick={() => setMenuOpen(false)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 1000,
+              border: 0,
+              background: "rgba(0,0,0,0.45)",
+            }}
+          />
+
+          <nav
+            aria-label="サイトナビゲーション"
+            style={{
+              position: "fixed",
+              top: "74px",
+              left: "18px",
+              zIndex: 1001,
+              width: "min(290px, calc(100vw - 36px))",
+              padding: "16px 12px",
+              border: "1px solid #e1e6dd",
+              borderRadius: "18px",
+              background: "#fdfdfb",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.28)",
+              boxSizing: "border-box",
+              fontFamily: "sans-serif",
+            }}
+          >
+            <p style={{ margin: "4px 12px 12px", color: "#7b857b", fontSize: "11px", fontWeight: 800, letterSpacing: "2px" }}>
+              MENU
+            </p>
+
+            {[
+              { href: "/", icon: "⌂", label: "ホーム" },
+              { href: "/today", icon: "✓", label: "今日のノルマ" },
+              { href: "/plan", icon: "▦", label: "学習計画" },
+              { href: "/tasks", icon: "☷", label: "タスク管理" },
+              { href: "/materials", icon: "▤", label: "教材管理" },
+              { href: "/calendar", icon: "▦", label: "カレンダー" },
+              { href: "/stories", icon: "📖", label: "50の物語" },
+              { href: "/story1", icon: "🏯", label: "戦国策" },
+            ].map((item) => (
+              <a
+                key={item.href}
+                href={item.href}
+                onClick={() => setMenuOpen(false)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  padding: "11px 12px",
+                  margin: "3px 0",
+                  borderRadius: "12px",
+                  color: "#30382f",
+                  textDecoration: "none",
+                  fontSize: "14px",
+                  fontWeight: 600,
+                }}
+              >
+                <span
+                  style={{
+                    display: "grid",
+                    placeItems: "center",
+                    width: "30px",
+                    height: "30px",
+                    borderRadius: "9px",
+                    background: "#eef2eb",
+                    color: "#4d6651",
+                  }}
+                >
+                  {item.icon}
+                </span>
+                {item.label}
+              </a>
+            ))}
+          </nav>
+        </>
+      )}
       <div style={{ maxWidth: "720px", margin: "0 auto" }}>
         <div style={{ textAlign: "right", marginBottom: "24px" }}>
           <label

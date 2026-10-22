@@ -152,11 +152,12 @@ function makeThemeColors(primary: string): ThemeColors {
 }
 
 export default function Home() {
-  const [themeColor, setThemeColor] = useState("#78C5FF");
+  const [themeColor, setThemeColor] = useState("#718675");
   const [showThemeSettings, setShowThemeSettings] = useState(false);
-  const [color, setColor] = useState("#78C5FF");
-  const [savedColor, setSavedColor] = useState("#78C5FF");
-  const [hexInput, setHexInput] = useState("#78C5FF");
+  const [showNavigationMenu, setShowNavigationMenu] = useState(false);
+  const [color, setColor] = useState("#718675");
+  const [savedColor, setSavedColor] = useState("#718675");
+  const [hexInput, setHexInput] = useState("#718675");
   const [hexError, setHexError] = useState(false);
   const [saved, setSaved] = useState(false);
   const colors = makeThemeColors(themeColor);
@@ -176,6 +177,137 @@ export default function Home() {
       setSavedColor(valid);
       setHexInput(valid);
     }
+  }, []);
+
+
+  // ホーム画面のデザインを Apple × Notion の落ち着いた見た目に整える
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.id = "anki-home-design-v2";
+    style.textContent = `
+      .anki-home {
+        --home-bg: #F7F8F5;
+        --home-text: #252824;
+        --home-muted: #7D827B;
+        --home-border: #E5E8E1;
+        max-width: 1080px !important;
+        margin: 0 auto !important;
+        padding: 34px 30px 72px !important;
+        color: var(--home-text);
+        background: var(--home-bg);
+        min-height: 100vh;
+        box-sizing: border-box;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", sans-serif;
+        letter-spacing: -0.015em;
+      }
+      .anki-home-header {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin: 0 0 28px;
+        padding: 4px 0 24px;
+        border-bottom: 1px solid var(--home-border);
+      }
+      .anki-home-mark {
+        display: grid;
+        place-items: center;
+        width: 52px;
+        height: 52px;
+        flex: 0 0 52px;
+        border-radius: 16px;
+        background: #26372D;
+        color: #F8FAF6;
+        font-size: 25px;
+        font-weight: 750;
+        letter-spacing: -0.06em;
+        box-shadow: 0 5px 14px rgba(38,55,45,.12);
+      }
+      .anki-home-eyebrow { margin: 0 0 5px; color: #7B847A; font-size: 10px; font-weight: 700; letter-spacing: .16em; }
+      .anki-home-header h1 { margin: 0; font-size: clamp(27px, 3vw, 35px); line-height: 1.12; letter-spacing: -0.05em; font-weight: 750; }
+      .anki-home-tagline { margin: 7px 0 0; color: var(--home-muted); font-size: 13px; line-height: 1.6; }
+      .anki-home h2 { font-size: 16px; font-weight: 650; letter-spacing: -0.02em; margin: 0 0 12px; }
+      .anki-home > a[href="/login"], .anki-home > a[href="/today"] {
+        display: inline-flex !important; width: auto !important; align-items: center; justify-content: center;
+        padding: 11px 16px !important; margin: 0 8px 14px 0 !important; border-radius: 11px !important;
+        font-size: 13px !important; font-weight: 650 !important; text-decoration: none !important;
+        transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+      }
+      .anki-home > a[href="/login"] { background: #26372D !important; color: #fff !important; border: 1px solid #26372D !important; }
+      .anki-home > a[href="/today"] { background: #E9EEE8 !important; border: 1px solid #DCE4DA !important; color: #435747 !important; }
+      .anki-home .anki-settings-button {
+        display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+        padding: 10px 15px; margin: 0 0 14px; border: 1px solid #DDE2DA;
+        border-radius: 11px; background: #FFFFFF; color: #435747; cursor: pointer;
+        font-family: inherit; font-size: 13px; font-weight: 650; text-decoration: none;
+        transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+      }
+      .anki-home > a[href="/armada"], .anki-home > a[href="/story1"], .anki-home > a[href="/game"] {
+        display: flex !important; border-radius: 16px !important; padding: 18px 20px !important;
+        margin: 12px 0 15px !important; box-shadow: 0 5px 18px rgba(30,38,31,.08) !important;
+        transition: transform .18s ease, filter .18s ease, box-shadow .18s ease;
+      }
+      .anki-home > a[href="/armada"]:hover, .anki-home > a[href="/story1"]:hover, .anki-home > a[href="/game"]:hover,
+      .anki-home > a[href="/login"]:hover, .anki-home > a[href="/today"]:hover, .anki-home .anki-settings-button:hover {
+        transform: translateY(-2px); box-shadow: 0 9px 24px rgba(30,38,31,.11) !important;
+      }
+      .anki-home > button { border-radius: 10px !important; padding: 10px 14px !important; font-size: 13px !important; font-weight: 650 !important; margin: 0 8px 16px 0 !important; }
+      .anki-home > div { border-width: 1px !important; border-color: var(--home-border) !important; border-radius: 15px !important; padding: 17px !important; margin-bottom: 14px !important; background: #FFFFFF !important; }
+      .anki-home > div > div:first-child { margin-bottom: 12px !important; }
+      .anki-home > div button { font-family: inherit; }
+      .anki-home input, .anki-home select { border: 1px solid #DADDD6 !important; border-radius: 9px !important; background: #fff !important; color: #252824 !important; font: inherit; font-size: 13px !important; padding: 10px 11px !important; }
+      .anki-home input:focus, .anki-home select:focus { outline: 2px solid #C9D5C8; outline-offset: 1px; }
+      .anki-home h2 + input, .anki-home h2 + select { margin-top: 2px; }
+      .anki-home button { transition: filter .15s ease, transform .15s ease; }
+      .anki-home button:hover { filter: brightness(.98); }
+      .anki-home a:focus-visible, .anki-home button:focus-visible { outline: 3px solid #9BAE9A; outline-offset: 3px; }
+      .anki-home .anki-menu-trigger {
+        position: fixed !important; top: 18px !important; left: 18px !important; z-index: 1002 !important;
+        display: flex !important; width: 46px !important; height: 46px !important; padding: 0 !important; margin: 0 !important;
+        align-items: center !important; justify-content: center !important; flex-direction: column !important; gap: 5px !important;
+        border: 1px solid rgba(220,225,217,.95) !important; border-radius: 15px !important; background: rgba(255,255,255,.92) !important;
+        color: #26372D !important; box-shadow: 0 6px 20px rgba(35,45,35,.08) !important; cursor: pointer !important;
+        backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+      }
+      .anki-home .anki-menu-trigger span { display: block; width: 17px; height: 2px; border-radius: 2px; background: currentColor; }
+      .anki-home > .anki-menu-overlay {
+        position: fixed !important; inset: 0 !important; z-index: 1001 !important; display: block !important;
+        width: 100vw !important; height: 100dvh !important; max-width: none !important; margin: 0 !important; padding: 0 !important;
+        border: 0 !important; border-radius: 0 !important; background: rgba(25,31,26,.28) !important;
+        box-shadow: none !important; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+      }
+      .anki-home .anki-menu-backdrop { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0 !important; margin: 0 !important; border: 0 !important; border-radius: 0 !important; background: transparent !important; }
+      .anki-home .anki-menu-panel {
+        position: absolute; inset: 0 auto 0 0; width: min(340px, calc(100vw - 52px)); height: 100%; overflow-y: auto;
+        box-sizing: border-box; padding: 28px 20px 24px; margin: 0 !important; border: 1px solid #E6E9E2 !important;
+        border-left: 0 !important; border-radius: 0 24px 24px 0 !important; background: #FBFCF9 !important;
+        box-shadow: 18px 0 50px rgba(20,30,20,.14); animation: anki-menu-in .22s ease-out;
+      }
+      .anki-home .anki-menu-panel > * { box-sizing: border-box; }
+      .anki-home .anki-menu-brand { display: flex; align-items: center; gap: 12px; padding: 4px 2px 22px; margin-bottom: 18px; border-bottom: 1px solid #E8EBE5; }
+      .anki-home .anki-menu-brand-mark { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 13px; background: #26372D; color: #F8FAF6; font-weight: 750; font-size: 20px; }
+      .anki-home .anki-menu-label { margin: 20px 8px 8px; color: #8A9187; font-size: 10px; font-weight: 750; letter-spacing: .14em; }
+      .anki-home .anki-menu-link { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 13px; margin: 3px 0; border: 1px solid transparent; border-radius: 12px; background: transparent; color: #30382F; text-decoration: none; font-size: 14px; font-weight: 600; transition: background .15s ease, border-color .15s ease; }
+      .anki-home .anki-menu-link:hover { background: #F0F3ED; border-color: #E5EAE1; }
+      .anki-home .anki-menu-icon { display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 30px; border-radius: 9px; background: #EEF2EB; color: #4D6651; font-size: 15px; }
+      .anki-home .anki-menu-close { float: right; padding: 7px 10px !important; margin: 0 !important; border: 1px solid #E3E7E0 !important; border-radius: 10px !important; background: #fff !important; color: #586157 !important; font-size: 12px !important; cursor: pointer; }
+      @keyframes anki-menu-in { from { transform: translateX(-14px); opacity: .7; } to { transform: translateX(0); opacity: 1; } }
+      @media (max-width: 640px) { .anki-home .anki-menu-trigger { top: 12px !important; left: 12px !important; width: 42px !important; height: 42px !important; } .anki-home .anki-menu-panel { padding: 22px 16px; } }
+      @media (prefers-reduced-motion: reduce) { .anki-home .anki-menu-panel { animation: none; } }
+      @media (max-width: 640px) {
+        .anki-home { padding: 22px 15px 44px !important; }
+        .anki-home-header { gap: 12px; margin-bottom: 22px; padding-bottom: 19px; }
+        .anki-home-mark { width: 46px; height: 46px; flex-basis: 46px; border-radius: 14px; }
+        .anki-home > a[href="/login"], .anki-home > a[href="/today"] { margin-bottom: 9px !important; }
+        .anki-home > a[href="/armada"], .anki-home > a[href="/story1"], .anki-home > a[href="/game"] { gap: 10px !important; padding: 14px !important; }
+        .anki-home > a[href="/armada"] strong, .anki-home > a[href="/game"] strong { font-size: 17px !important; }
+        .anki-home > a[href="/story1"] > div:first-child { font-size: 32px !important; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .anki-home *, .anki-home *::before, .anki-home *::after { transition: none !important; }
+      }
+    `;
+    document.head.appendChild(style);
+    return () => style.remove();
   }, []);
 
   function chooseColor(value: string) {
@@ -532,14 +664,22 @@ export default function Home() {
     const utterance =
       new SpeechSynthesisUtterance(word);
 
-    utterance.lang =
-      deck?.language || "zh-CN";
+    let configuredLanguage = "";
+    let configuredRate = 0.8;
+    try {
+      configuredLanguage = localStorage.getItem("anki-study-language") || "";
+      const storedRate = Number(localStorage.getItem("anki-speech-rate") ?? "0.8");
+      if (Number.isFinite(storedRate) && storedRate >= 0.5 && storedRate <= 2.0) {
+        configuredRate = storedRate;
+      }
+    } catch {
+      // ブラウザーの保存機能が使えない場合は既定値を使用します。
+    }
 
-    utterance.rate = 0.8;
+    utterance.lang = configuredLanguage || deck?.language || "zh-CN";
+    utterance.rate = configuredRate;
 
-    window.speechSynthesis.speak(
-      utterance
-    );
+    window.speechSynthesis.speak(utterance);
   };
 
   // =========================================================
@@ -551,10 +691,20 @@ export default function Home() {
       return;
     }
 
-    const card =
-      studyCards[studyIndex];
+    const card = studyCards[studyIndex];
 
     if (!card) {
+      return;
+    }
+
+    let autoReadEnabled = true;
+    try {
+      autoReadEnabled = localStorage.getItem("anki-auto-read") !== "false";
+    } catch {
+      autoReadEnabled = true;
+    }
+
+    if (!autoReadEnabled) {
       return;
     }
 
@@ -3614,6 +3764,7 @@ const parts = parseCSVLine(line);
 
     return (
     <main
+      className="anki-home"
       style={{
         maxWidth:
           "600px",
@@ -3623,252 +3774,64 @@ const parts = parseCSVLine(line);
           "20px",
       }}
     >
-      <a
-        href="/login"
-        style={{
-          display: "block",
-          width: "100%",
-          boxSizing: "border-box",
-          padding: "14px 20px",
-          marginBottom: "20px",
-          borderRadius: "14px",
-          background: "#26365D",
-          color: "#FFFFFF",
-          textAlign: "center",
-          textDecoration: "none",
-          fontWeight: "bold",
-          fontSize: "16px",
-        }}
-      >
-        ログイン・新規登録
-      </a>
-
-      <Link
-        href="/today"
-        style={{
-          display: "block",
-          width: "100%",
-          boxSizing: "border-box",
-          padding: "14px 20px",
-          marginBottom: "20px",
-          borderRadius: "14px",
-          background: "#E8F8F0",
-          border: "2px solid #63B995",
-          color: "#26365D",
-          textAlign: "center",
-          textDecoration: "none",
-          fontWeight: "bold",
-          fontSize: "16px",
-        }}
-      >
-        📅 今日のノルマ
-      </Link>
-
-
-      {/* この下は既存のコードをそのまま残す */}
-
-
-
-  
-<a
-  href="/armada"
-  style={{
-    display: "flex",
-    alignItems: "center",
-    gap: "16px",
-    padding: "20px",
-    margin: "20px 0",
-    borderRadius: "16px",
-    border: "1px solid #c99b62",
-    background: "linear-gradient(135deg, #172b3d, #604832)",
-    color: "#fff7e8",
-    textDecoration: "none",
-    cursor: "pointer",
-  }}
->
-  <span style={{ fontSize: "40px" }}>⛵</span>
-
-  <span style={{ flex: 1 }}>
-    <strong
-      style={{
-        fontSize: "20px",
-        display: "block",
-        marginBottom: "6px",
-      }}
-    >
-      無敵艦隊 ― 海に消えた航海日誌
-    </strong>
-
-    <span style={{ fontSize: "14px", color: "#f0d6ae" }}>
-      スペイン語を学びながら、1588年の大海戦を生き抜こう。
-      <br />
-      🎧 リスニング　📖 リーディング　🎙️ スピーキング　✍️ ライティング
-    </span>
-
-    <span
-      style={{
-        display: "block",
-        marginTop: "14px",
-        fontWeight: "bold",
-        color: "#e6c77c",
-      }}
-    >
-      航海を始める　➜
-    </span>
-  </span>
-</a>
-
-
-
-{/* Story 1：中国戦国時代への入口 */}
-<a
-  href="/story1"
-  style={{
-    display: "flex",
-    alignItems: "center",
-    gap: "16px",
-    margin: "24px 0",
-    padding: "22px",
-    borderRadius: "18px",
-    border: "1px solid #c9a45c",
-    background:
-      "linear-gradient(135deg, #172b25 0%, #30483a 60%, #192a24 100%)",
-    color: "#f8edcf",
-    textDecoration: "none",
-    boxShadow: "0 6px 18px rgba(0,0,0,0.12)",
-  }}
->
-  <div
-    style={{
-      fontSize: "42px",
-      flexShrink: 0,
-    }}
-  >
-    🏯
-  </div>
-
-  <div style={{ flex: 1 }}>
-    <div
-      style={{
-        fontSize: "12px",
-        letterSpacing: "2px",
-        color: "#d9bc79",
-        marginBottom: "6px",
-      }}
-    >
-      STORY 01 · 中国戦国時代
-    </div>
-
-    <div
-      style={{
-        fontSize: "22px",
-        fontWeight: "bold",
-        marginBottom: "6px",
-      }}
-    >
-      戦国策 ― 天下への道 ―
-    </div>
-
-    <div
-      style={{
-        fontSize: "14px",
-        lineHeight: 1.7,
-        color: "#e4e6d8",
-      }}
-    >
-      言葉を武器に、乱世を生き抜け。
-      <br />
-      中国語を学びながら、外交官として歴史を動かそう。
-    </div>
-
-    <div
-      style={{
-        marginTop: "14px",
-        fontWeight: "bold",
-        color: "#e6c77c",
-      }}
-    >
-      物語を始める　➜
-    </div>
-  </div>
-</a>
-
-
-
-
-
-<a
-  href="/game"
-  style={{
-    display: "flex",
-    alignItems: "center",
-    gap: "16px",
-    padding: "20px",
-    margin: "20px 0",
-    borderRadius: "16px",
-    border: "1px solid #8b6cff",
-    background: "linear-gradient(135deg, #20183f, #102a46)",
-    color: "#ffffff",
-    textDecoration: "none",
-    cursor: "pointer",
-  }}
->
-  <span style={{ fontSize: "40px" }}>⚔️</span>
-
-  <span style={{ flex: 1 }}>
-    <strong style={{ fontSize: "20px", display: "block" }}>
-      Language Quest
-    </strong>
-    <span style={{ fontSize: "14px", color: "#c8d5f0" }}>
-      言語世界を冒険しよう！
-    </span>
-  </span>
-
-  <span style={{ fontSize: "24px" }}>➜</span>
-</a>
-
-
-
-
-      
       <button
         type="button"
-        onClick={() => setShowStudyRecords(true)}
-        style={{
-          marginBottom: "20px",
-          padding: "10px 16px",
-          border: `2px solid ${colors.blue}`,
-          borderRadius: "14px",
-          background: colors.white,
-          color: colors.blueDark,
-          cursor: "pointer",
-          fontWeight: "bold",
-        }}
+        className="anki-menu-trigger"
+        aria-label={showNavigationMenu ? "メニューを閉じる" : "メニューを開く"}
+        aria-expanded={showNavigationMenu}
+        aria-controls="anki-navigation-menu"
+        onClick={() => setShowNavigationMenu((open) => !open)}
       >
-        学習記録を見る
+        <span /><span /><span />
       </button>
 
-      <button
-        type="button"
-        onClick={() => {
-          setColor(themeColor);
-          setSavedColor(themeColor);
-          setHexInput(themeColor);
-          setShowThemeSettings(true);
-        }}
-        style={{
-          margin: "0 0 20px 10px",
-          padding: "10px 16px",
-          border: `2px solid ${colors.blue}`,
-          borderRadius: "14px",
-          background: colors.white,
-          color: colors.blueDark,
-          cursor: "pointer",
-          fontWeight: "bold",
-        }}
-      >
-        🎨 テーマカラー設定
-      </button>
+      {showNavigationMenu && (
+        <div className="anki-menu-overlay" onClick={() => setShowNavigationMenu(false)}>
+          <button type="button" className="anki-menu-backdrop" aria-label="メニューを閉じる" />
+          <nav
+            id="anki-navigation-menu"
+            className="anki-menu-panel"
+            aria-label="メインメニュー"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button type="button" className="anki-menu-close" onClick={() => setShowNavigationMenu(false)}>閉じる ✕</button>
+            <div className="anki-menu-brand">
+              <div className="anki-menu-brand-mark" aria-hidden="true">A</div>
+              <div>
+                <div style={{ color: "#26372D", fontSize: "17px", fontWeight: 750, letterSpacing: "-.04em" }}>Anki</div>
+                <div style={{ color: "#858C82", fontSize: "11px", marginTop: "3px" }}>Language Learning Workspace</div>
+              </div>
+            </div>
+            <div className="anki-menu-label">YOUR STUDY</div>
+            <Link className="anki-menu-link" href="/login" onClick={() => setShowNavigationMenu(false)}><span className="anki-menu-icon">↗</span>ログイン・新規登録</Link>
+            <Link className="anki-menu-link" href="/today" onClick={() => setShowNavigationMenu(false)}><span className="anki-menu-icon">◷</span>今日のノルマ</Link>
+            <button type="button" className="anki-menu-link" onClick={() => { setShowNavigationMenu(false); setShowStudyRecords(true); }}><span className="anki-menu-icon">▥</span>学習記録</button>
+            <a className="anki-menu-link" href="#deck-management" onClick={() => setShowNavigationMenu(false)}><span className="anki-menu-icon">▤</span>暗記デッキ管理画面</a>
+            <div className="anki-menu-label">GAMES & STORIES</div>
+            <Link className="anki-menu-link" href="/game" onClick={() => setShowNavigationMenu(false)}><span className="anki-menu-icon">⚔</span>ゲーム画面 · Language Quest</Link>
+            <Link className="anki-menu-link" href="/armada" onClick={() => setShowNavigationMenu(false)}><span className="anki-menu-icon">⛵</span>無敵艦隊 · スペイン語</Link>
+            <Link className="anki-menu-link" href="/story1" onClick={() => setShowNavigationMenu(false)}><span className="anki-menu-icon">城</span>戦国策 · 中国語</Link>
+            <div className="anki-menu-label">PREFERENCES</div>
+            <Link className="anki-menu-link" href="/settings" onClick={() => setShowNavigationMenu(false)}><span className="anki-menu-icon">⚙</span>設定</Link>
+            <p style={{ margin: "24px 8px 0", color: "#9AA095", fontSize: "11px", lineHeight: 1.7 }}>自分のペースで、少しずつ言葉の世界へ。</p>
+          </nav>
+        </div>
+      )}
+
+      <header className="anki-home-header">
+        <div className="anki-home-mark" aria-hidden="true">A</div>
+        <div>
+          <p className="anki-home-eyebrow">LANGUAGE LEARNING WORKSPACE</p>
+          <h1>Anki</h1>
+          <p className="anki-home-tagline">言葉を学び、世界を広げる。</p>
+        </div>
+      </header>
+
+      <div id="deck-management" style={{ scrollMarginTop: "28px", margin: "28px 0 16px", padding: "18px 18px 6px", borderTop: "1px solid #E5E9E2" }}>
+        <p style={{ margin: 0, color: "#7B847A", fontSize: "10px", fontWeight: 750, letterSpacing: ".14em" }}>YOUR LIBRARY</p>
+        <h2 style={{ margin: "7px 0 0", fontSize: "21px", letterSpacing: "-.04em", color: "#252824" }}>暗記デッキ管理</h2>
+        <p style={{ margin: "7px 0 0", color: "#858780", fontSize: "12px", lineHeight: 1.7 }}>フォルダや単語デッキを整理して、学習を始めましょう。</p>
+      </div>
 
       {/* フォルダ */}
 
@@ -4348,7 +4311,7 @@ const parts = parseCSVLine(line);
 
 
 <option value="zh-CN">中国語（簡体字）</option>
-<option value="zh-TW">中国語（台湾・繁体字）</option>
+<option value="zh-TW">中国語（繁体字）</option>
 <option value="de-DE">ドイツ語</option>
 <option value="es-ES">スペイン語</option>
 <option value="it-IT">イタリア語</option>
