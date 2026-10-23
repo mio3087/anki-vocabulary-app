@@ -2,739 +2,295 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { onAuthStateChanged, type User } from "firebase/auth";
-import {
-  collection,
-  doc,
-  onSnapshot,
-  serverTimestamp,
-  updateDoc,
-} from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
-
-type TaskType = "教材の学習" | "単語の暗記・復習";
-type TaskStatus = "未着手" | "進行中" | "完了";
-type RepeatType = "なし" | "毎日" | "毎週";
-type TaskUnit = "単語" | "ページ" | "章" | "回" | "分";
-
+import { useState } from "react";
+import TodayHeader from "@/app/components/story1/TodayHeader";
 type Task = {
-  id: string;
+  id: number;
   title: string;
-  type: TaskType;
-  material: string;
+  deck: string;
   target: number;
-  unit: TaskUnit;
-  scheduledDate: string;
-  dueDate: string;
-  status: TaskStatus;
-  repeat: RepeatType;
-  repeatDays: number[];
+  unit: string;
+  completed: boolean;
+  time: string;
+  category: "language" | "reading" | "health";
 };
 
-function todayString() {
-  const now = new Date();
-  const local = new Date(
-    now.getTime() - now.getTimezoneOffset() * 60000
-  );
-  return local.toISOString().slice(0, 10);
-}
 
-function formatTargets(tasks: Task[], onlyRemaining = false) {
-  const filtered = onlyRemaining
-    ? tasks.filter((task) => task.status !== "完了")
-    : tasks;
+const initialTasks: Task[] = [];
 
-  const units: TaskUnit[] = ["単語", "ページ", "章", "回", "分"];
-
-  const totals = units
-    .map((unit) => {
-      const amount = filtered
-        .filter((task) => task.unit === unit)
-        .reduce((sum, task) => sum + task.target, 0);
-
-      return amount > 0 ? `${amount}${unit}` : "";
-    })
-    .filter(Boolean);
-
-  return totals.length > 0 ? totals.join("・") : "0";
-}
+const categoryStyles = {
+  language: "bg-blue-50 text-blue-700",
+  reading: "bg-orange-50 text-orange-700",
+  health: "bg-emerald-50 text-emerald-700",
+};
 
 export default function TodayPage() {
-  const [user, setUser] = useState<User | null>(null);
-  const [authReady, setAuthReady] = useState(false);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [savingId, setSavingId] = useState<string | null>(null);
-  const [error, setError] = useState("");
+  const [tasks, setTasks] = useState(initialTasks);
 
-  // ログイン状態を確認
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(
-      auth,
-      (currentUser) => {
-        setUser(currentUser);
-        setAuthReady(true);
-      },
-      () => {
-        setError("ログイン状態を確認できませんでした。");
-        setAuthReady(true);
-        setLoading(false);
-      }
-    );
-
-    return () => unsubscribe();
-  }, []);
-
-  // ログイン中のユーザーのタスクをFirestoreから取得
-  useEffect(() => {
-    if (!authReady) return;
-
-    if (!user) {
-      setTasks([]);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    setError("");
-
-    const tasksRef = collection(db, "users", user.uid, "tasks");
-
-    const unsubscribe = onSnapshot(
-      tasksRef,
-      (snapshot) => {
-        const loadedTasks: Task[] = snapshot.docs.map((item) => {
-          const data = item.data();
-
-          return {
-            id: item.id,
-            title: String(data.title ?? ""),
-            type: (data.type ?? "教材の学習") as TaskType,
-            material: String(data.material ?? ""),
-            target: Number(data.target ?? 0),
-            unit: (data.unit ?? "単語") as TaskUnit,
-            scheduledDate: String(data.scheduledDate ?? ""),
-            dueDate: String(data.dueDate ?? ""),
-            status: (data.status ?? "未着手") as TaskStatus,
-            repeat: (data.repeat ?? "なし") as RepeatType,
-            repeatDays: Array.isArray(data.repeatDays)
-              ? data.repeatDays.map(Number)
-              : [],
-          };
-        });
-
-        setTasks(loadedTasks);
-        setLoading(false);
-      },
-      () => {
-        setError("タスクを読み込めませんでした。");
-        setLoading(false);
-      }
-    );
-
-    return () => unsubscribe();
-  }, [authReady, user]);
-
-  // タスク管理で今日の日付に設定されているタスクだけ表示
-  const todayTasks = useMemo(() => {
-    const today = todayString();
-
-    return tasks
-      .filter((task) => task.scheduledDate === today)
-      .sort((a, b) => a.title.localeCompare(b.title, "ja"));
-  }, [tasks]);
-
-  const completedCount = todayTasks.filter(
-    (task) => task.status === "完了"
+  const completedCount = tasks.filter(
+    (task) => task.completed
   ).length;
 
-  const totalCount = todayTasks.length;
+  const totalCount = tasks.length;
 
-  const remainingCount = totalCount - completedCount;
+  const progress = totalCount
+    ? Math.round((completedCount / totalCount) * 100)
+    : 0;
 
-  const progress =
-    totalCount === 0
-      ? 0
-      : Math.round((completedCount / totalCount) * 100);
+  const totalTarget = tasks.reduce(
+    (sum, task) => sum + task.target,
+    0
+  );
+
+  const remainingTarget = tasks
+    .filter((task) => !task.completed)
+    .reduce((sum, task) => sum + task.target, 0);
+
+  const today = new Date();
 
   const dateText = new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
     month: "long",
     day: "numeric",
-    weekday: "short",
-  }).format(new Date());
+    weekday: "long",
+  }).format(today);
 
-  // Firestore上のタスクの完了状態を更新
-  async function toggleTask(task: Task) {
-    if (!user || savingId) return;
-
-    setSavingId(task.id);
-    setError("");
-
-    try {
-      const taskRef = doc(
-        db,
-        "users",
-        user.uid,
-        "tasks",
-        task.id
-      );
-
-      await updateDoc(taskRef, {
-        status: task.status === "完了" ? "未着手" : "完了",
-        updatedAt: serverTimestamp(),
-      });
-    } catch {
-      setError("完了状態を保存できませんでした。もう一度お試しください。");
-    } finally {
-      setSavingId(null);
-    }
+  function toggleTask(id: number) {
+    setTasks((current) =>
+      current.map((task) =>
+        task.id === id
+          ? { ...task, completed: !task.completed }
+          : task
+      )
+    );
   }
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background: "#d9c49f",
-        color: "#302a22",
-        padding: "28px 18px 115px",
-        fontFamily:
-          '-apple-system, BlinkMacSystemFont, "Noto Sans JP", sans-serif',
-        boxSizing: "border-box",
-      }}
-    >
-      <div style={{ maxWidth: 650, margin: "0 auto" }}>
+    <main className="min-h-screen bg-[#f5f7fb] text-slate-800">
+      <div className="mx-auto max-w-5xl px-4 pb-28 pt-6 sm:px-8 sm:pt-10">
+
         {/* ヘッダー */}
-        <header style={{ marginBottom: 26 }}>
-          <p
-            style={{
-              margin: 0,
-              fontSize: 17,
-              color: "#665b4a",
-              fontWeight: 700,
-            }}
-          >
-            {dateText}
-          </p>
+        <TodayHeader
+  completedCount={completedCount}
+  totalCount={totalCount}
+  totalTarget={totalTarget}
+/>
 
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: 12,
-              flexWrap: "wrap",
-            }}
-          >
-            <h1 style={{ fontSize: 30, margin: "6px 0" }}>
-              今日のノルマ
-            </h1>
+        {/* 今日のノルマ */}
+        <section className="mb-8 rounded-[1.75rem] border border-slate-200/80 bg-white p-5 shadow-[0_8px_30px_rgba(39,61,99,0.04)] sm:p-7">
+          <div className="mb-6 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-medium tracking-widest text-slate-400">
+                DAILY GOALS
+              </p>
+              <h2 className="mt-1 text-xl font-semibold tracking-tight">
+                今日のノルマ
+              </h2>
+            </div>
 
-            <span
-              style={{
-                background: "#f7e8c9",
-                border: "2px solid #302a22",
-                borderRadius: 30,
-                padding: "9px 15px",
-                fontWeight: 700,
-                whiteSpace: "nowrap",
-              }}
-            >
-              今日の進捗 {completedCount}/{totalCount}
+            <span className="rounded-full bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700">
+              {completedCount} / {totalCount} 完了
             </span>
           </div>
 
-          <div
-            style={{
-              display: "flex",
-              gap: 12,
-              flexWrap: "wrap",
-              marginTop: 12,
-            }}
-          >
-            <Link
-              href="/"
-              style={{
-                display: "inline-block",
-                padding: "10px 16px",
-                borderRadius: 10,
-                background: "#e8eefc",
-                color: "#23345b",
-                textDecoration: "none",
-                fontWeight: 700,
-              }}
-            >
-              🏠 最初のページへ
-            </Link>
-
-            <Link
-              href="/plan"
-              style={{
-                display: "inline-block",
-                padding: "10px 16px",
-                borderRadius: 10,
-                background: "#e4f5e9",
-                color: "#205c38",
-                textDecoration: "none",
-                fontWeight: 700,
-              }}
-            >
-              📅 学習計画へ
-            </Link>
-          </div>
-        </header>
-
-        {/* エラーメッセージ */}
-        {error && (
-          <p
-            role="alert"
-            style={{
-              background: "#fff0ed",
-              color: "#9b3024",
-              padding: 14,
-              borderRadius: 12,
-              fontWeight: 700,
-              overflowWrap: "anywhere",
-            }}
-          >
-            {error}
-          </p>
-        )}
-
-        {/* 今日の目標 */}
-        <section
-          style={{
-            background: "#fffdf6",
-            border: "3px solid #302a22",
-            borderRadius: 26,
-            padding: 24,
-            boxShadow: "4px 6px 0 #302a22",
-            marginBottom: 30,
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: 12,
-            }}
-          >
-            <h2 style={{ fontSize: 23, margin: 0 }}>
-              今日の学習目標
-            </h2>
-            <strong style={{ fontSize: 22 }}>
-              {completedCount}/{totalCount}
-            </strong>
-          </div>
-
-          <p style={{ color: "#756b5c", fontWeight: 600 }}>
-            タスク完了率 {progress}%
-          </p>
-
-          <div
-            style={{
-              height: 12,
-              background: "#e8dfcc",
-              borderRadius: 20,
-              overflow: "hidden",
-            }}
-          >
+          <div className="mb-6 h-2 overflow-hidden rounded-full bg-slate-100">
             <div
-              style={{
-                width: `${progress}%`,
-                height: "100%",
-                background: "#548c68",
-                borderRadius: 20,
-                transition: "width 0.2s",
-              }}
+              className="h-full rounded-full bg-gradient-to-r from-blue-400 to-indigo-500 transition-all duration-500"
+              style={{ width: `${progress}%` }}
             />
           </div>
 
-          <p style={{ fontSize: 16, fontWeight: 700 }}>
-            今日の予定：{formatTargets(todayTasks)}
-          </p>
+          <div className="mb-3 flex items-center justify-between text-xs text-slate-400">
+            <span>今日の学習目標</span>
+            <span>合計 {totalTarget}{tasks.every(t => t.unit === "単語") ? "単語" : "（各タスクの目標）"}</span>
+          </div>
 
-          <p
-            style={{
-              fontSize: 14,
-              color: "#756b5c",
-              marginBottom: 0,
-            }}
-          >
-            残りの目標：{formatTargets(todayTasks, true)}
-          </p>
-        </section>
-
-        {/* タスク一覧 */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 12,
-          }}
-        >
-          <h2 style={{ fontSize: 22, margin: 0 }}>
-            今日のタスク
-          </h2>
-
-          <Link
-            href="/tasks"
-            style={{
-              color: "#994638",
-              fontWeight: 700,
-              textDecoration: "none",
-            }}
-          >
-            すべて見る →
-          </Link>
-        </div>
-
-        {!authReady || loading ? (
-          <section
-            style={{
-              background: "#fffdf6",
-              border: "3px solid #302a22",
-              borderRadius: 24,
-              padding: 24,
-              textAlign: "center",
-              fontWeight: 700,
-            }}
-          >
-            タスクを読み込んでいます…
-          </section>
-        ) : !user ? (
-          <section
-            style={{
-              background: "#fffdf6",
-              border: "3px solid #302a22",
-              borderRadius: 24,
-              padding: 24,
-              textAlign: "center",
-            }}
-          >
-            <p style={{ fontWeight: 700 }}>
-              タスクを表示するにはログインしてください。
-            </p>
-            <Link
-              href="/login"
-              style={{
-                display: "inline-block",
-                padding: "12px 20px",
-                borderRadius: 24,
-                background: "#302a22",
-                color: "#fffdf6",
-                textDecoration: "none",
-                fontWeight: 700,
-              }}
-            >
-              ログイン・新規登録
-            </Link>
-          </section>
-        ) : todayTasks.length === 0 ? (
-          <section
-            style={{
-              background: "#fffdf6",
-              border: "3px solid #302a22",
-              borderRadius: 24,
-              padding: 24,
-              textAlign: "center",
-              boxShadow: "4px 5px 0 #302a22",
-            }}
-          >
-            <p style={{ fontSize: 18, fontWeight: 700 }}>
-              今日のタスクはまだありません。
-            </p>
-            <p style={{ color: "#756b5c", lineHeight: 1.8 }}>
-              タスク管理ページで、実施日を今日に設定してタスクを登録してください。
-            </p>
-            <Link
-              href="/tasks"
-              style={{
-                display: "inline-block",
-                padding: "12px 20px",
-                borderRadius: 24,
-                background: "#302a22",
-                color: "#fffdf6",
-                textDecoration: "none",
-                fontWeight: 700,
-              }}
-            >
-              ＋ タスクを登録する
-            </Link>
-          </section>
-        ) : (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 16,
-            }}
-          >
-            {todayTasks.map((task) => {
-              const completed = task.status === "完了";
-
-              return (
-                <section
-                  key={task.id}
-                  style={{
-                    background: "#fffdf6",
-                    border: "3px solid #302a22",
-                    borderRadius: 24,
-                    padding: 20,
-                    boxShadow: "4px 5px 0 #302a22",
-                    opacity: completed ? 0.78 : 1,
-                  }}
+          <div className="divide-y divide-slate-100">
+            {tasks.map((task) => (
+              <div
+                key={task.id}
+                className={`group flex items-center gap-3 py-4 transition-opacity ${
+                  task.completed ? "opacity-60" : ""
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => toggleTask(task.id)}
+                  aria-label={
+                    task.completed
+                      ? `${task.title}を未完了に戻す`
+                      : `${task.title}を完了する`
+                  }
+                  aria-pressed={task.completed}
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all ${
+                    task.completed
+                      ? "border-blue-500 bg-blue-500 text-white"
+                      : "border-slate-300 bg-white hover:border-blue-400"
+                  }`}
                 >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      gap: 14,
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => toggleTask(task)}
-                      disabled={savingId !== null}
-                      aria-label={
-                        completed
-                          ? "未完了に戻す"
-                          : "タスクを完了する"
-                      }
-                      style={{
-                        width: 34,
-                        height: 34,
-                        flexShrink: 0,
-                        borderRadius: "50%",
-                        border: "2px solid #655b4d",
-                        background: completed
-                          ? "#548c68"
-                          : "#fffdf6",
-                        color: "#ffffff",
-                        fontSize: 20,
-                        cursor: savingId ? "wait" : "pointer",
-                      }}
+                  {task.completed && (
+                    <span className="text-sm">✓</span>
+                  )}
+                </button>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={`text-sm font-medium ${
+                        task.completed
+                          ? "text-slate-400 line-through"
+                          : "text-slate-800"
+                      }`}
                     >
-                      {completed ? "✓" : ""}
-                    </button>
-
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <span
-                        style={{
-                          display: "inline-block",
-                          padding: "4px 10px",
-                          borderRadius: 20,
-                          background: "#f3e6c9",
-                          color: "#6b5840",
-                          fontSize: 12,
-                          fontWeight: 700,
-                          marginBottom: 8,
-                        }}
-                      >
-                        {task.type}
-                      </span>
-
-                      <h3
-                        style={{
-                          margin: "0 0 8px",
-                          fontSize: 21,
-                          overflowWrap: "anywhere",
-                          textDecoration: completed
-                            ? "line-through"
-                            : "none",
-                        }}
-                      >
-                        {task.title}
-                      </h3>
-
-                      {task.material && (
-                        <p
-                          style={{
-                            margin: "0 0 8px",
-                            color: "#655b4d",
-                            fontSize: 14,
-                          }}
-                        >
-                          教材・デッキ：{task.material}
-                        </p>
-                      )}
-
-                      <p
-                        style={{
-                          margin: 0,
-                          color: "#655b4d",
-                          fontSize: 15,
-                        }}
-                      >
-                        今日の目標：{task.target}
-                        {task.unit}
-                      </p>
-
-                      {task.repeat !== "なし" && (
-                        <p
-                          style={{
-                            margin: "8px 0 0",
-                            color: "#756b5c",
-                            fontSize: 13,
-                          }}
-                        >
-                          繰り返し設定：{task.repeat}
-                        </p>
-                      )}
-                    </div>
+                      {task.title}
+                    </span>
 
                     <span
-                      style={{
-                        fontSize: 13,
-                        color: completed ? "#548c68" : "#8a7b66",
-                        fontWeight: 700,
-                        whiteSpace: "nowrap",
-                      }}
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${
+                        categoryStyles[task.category]
+                      }`}
                     >
-                      {completed ? "完了" : task.status}
+                      {task.deck}
                     </span>
                   </div>
 
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 10,
-                      marginTop: 18,
-                    }}
-                  >
-                    <Link
-                      href="/plan"
-                      style={{
-                        flex: 1,
-                        textAlign: "center",
-                        padding: "12px 8px",
-                        border: "2px solid #302a22",
-                        borderRadius: 24,
-                        color: "#302a22",
-                        textDecoration: "none",
-                        fontWeight: 700,
-                        fontSize: 14,
-                      }}
-                    >
-                      学習計画
-                    </Link>
+                  <p className="mt-1 text-xs text-slate-400">
+                    目標 {task.target}{task.unit}
+                  </p>
+                </div>
 
-                    <button
-                      type="button"
-                      onClick={() =>
-                        alert(
-                          "このボタンは現在、学習ゲームとは接続していません。"
-                        )
-                      }
-                      style={{
-                        flex: 1,
-                        padding: "12px 8px",
-                        background: "#302a22",
-                        color: "#fffdf6",
-                        border: "2px solid #302a22",
-                        borderRadius: 24,
-                        fontWeight: 700,
-                        fontSize: 14,
-                        cursor: "pointer",
-                      }}
-                    >
-                      学習を始める →
-                    </button>
-                  </div>
-                </section>
-              );
-            })}
+                <span className="shrink-0 text-xs tabular-nums text-slate-400">
+                  {task.time}
+                </span>
+              </div>
+            ))}
           </div>
-        )}
 
-        {/* 今日のまとめ */}
-        <section
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-            gap: 10,
-            marginTop: 28,
-          }}
-        >
-          {[
-            {
-              label: "完了タスク",
-              value: `${completedCount}/${totalCount}`,
-            },
-            {
-              label: "残りタスク",
-              value: `${remainingCount}件`,
-            },
-            {
-              label: "達成率",
-              value: `${progress}%`,
-            },
-          ].map((item) => (
-            <div
-              key={item.label}
-              style={{
-                background: "#f2e4c7",
-                borderRadius: 20,
-                padding: "16px 10px",
-                minWidth: 0,
-              }}
-            >
-              <p
-                style={{
-                  margin: "0 0 8px",
-                  fontSize: 12,
-                  color: "#6c604e",
-                  fontWeight: 700,
-                }}
-              >
-                {item.label}
-              </p>
-              <strong
-                style={{
-                  fontSize: 19,
-                  overflowWrap: "anywhere",
-                }}
-              >
-                {item.value}
-              </strong>
-            </div>
-          ))}
+          <p className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-500">
+            {completedCount === totalCount
+              ? "素晴らしい！今日のノルマを達成しました 🎉"
+              : `あと ${totalCount - completedCount} 件。自分のペースで進めましょう。`}
+          </p>
         </section>
 
-        {/* ページ間の移動 */}
-        <nav
-          style={{
-            display: "flex",
-            justifyContent: "space-around",
-            gap: 8,
-            marginTop: 32,
-            flexWrap: "wrap",
-          }}
-        >
+        {/* サマリー */}
+        <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-5">
+            <p className="text-sm text-slate-400">完了したタスク</p>
+            <p className="mt-2 text-2xl font-semibold">
+              {completedCount}
+              <span className="ml-1 text-sm font-normal text-slate-400">
+                / {totalCount} 件
+              </span>
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-5">
+            <p className="text-sm text-slate-400">残りの目標数</p>
+            <p className="mt-2 text-2xl font-semibold">
+              {remainingTarget}
+              <span className="ml-1 text-sm font-normal text-slate-400">
+                単位
+              </span>
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-5">
+            <p className="text-sm text-slate-400">今日のひとこと</p>
+            <p className="mt-2 text-base font-medium">
+              Small steps, big changes.
+            </p>
+          </div>
+        </section>
+
+        {/* 関連ページ */}
+        <section>
+          <h2 className="mb-4 text-lg font-semibold">
+            次にやること
+          </h2>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Link
+              href="/plan"
+              className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-white p-5 transition hover:border-blue-200 hover:bg-blue-50/40"
+            >
+              <div>
+                <p className="font-medium">学習計画</p>
+                <p className="mt-1 text-sm text-slate-400">
+                  目標と学習スケジュールを確認
+                </p>
+              </div>
+              <span className="text-xl text-slate-400">›</span>
+            </Link>
+
+            <Link
+              href="/tasks"
+              className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-white p-5 transition hover:border-blue-200 hover:bg-blue-50/40"
+            >
+              <div>
+                <p className="font-medium">タスク管理</p>
+                <p className="mt-1 text-sm text-slate-400">
+                  やることを整理する
+                </p>
+              </div>
+              <span className="text-xl text-slate-400">›</span>
+            </Link>
+
+            <Link
+              href="/calendar"
+              className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-white p-5 transition hover:border-blue-200 hover:bg-blue-50/40"
+            >
+              <div>
+                <p className="font-medium">カレンダー</p>
+                <p className="mt-1 text-sm text-slate-400">
+                  予定と学習日を確認
+                </p>
+              </div>
+              <span className="text-xl text-slate-400">›</span>
+            </Link>
+
+            <Link
+              href="/decks"
+              className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-white p-5 transition hover:border-blue-200 hover:bg-blue-50/40"
+            >
+              <div>
+                <p className="font-medium">単語デッキ</p>
+                <p className="mt-1 text-sm text-slate-400">
+                  学習する教材を選ぶ
+                </p>
+              </div>
+              <span className="text-xl text-slate-400">›</span>
+            </Link>
+          </div>
+        </section>
+
+        <footer className="mt-10 text-center text-xs text-slate-400">
+          今日の小さな努力が、明日の自分をつくる。
+        </footer>
+      </div>
+
+      {/* モバイル用ナビゲーション */}
+      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200/80 bg-white/90 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-lg items-center justify-around">
           {[
-            { href: "/decks", label: "デッキ" },
-            { href: "/plans", label: "学習計画" },
-            { href: "/tasks", label: "タスク管理" },
-            { href: "/calendar", label: "学習カレンダー" },
+            { href: "/", icon: "⌂", label: "ホーム" },
+            { href: "/tasks", icon: "✓", label: "タスク" },
+            { href: "/plan", icon: "▤", label: "学習計画" },
+            { href: "/calendar", icon: "▦", label: "カレンダー" },
           ].map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              style={{
-                color: "#302a22",
-                fontSize: 13,
-                fontWeight: 700,
-                textDecoration: "none",
-                padding: "8px 4px",
-              }}
+              className="flex min-w-0 flex-col items-center gap-1 px-2 py-1 text-blue-600 transition hover:text-blue-800"
             >
-              {item.label}
+              <span className="text-xl">{item.icon}</span>
+              <span className="text-[10px] font-medium">
+                {item.label}
+              </span>
             </Link>
           ))}
-        </nav>
-      </div>
+        </div>
+      </nav>
     </main>
   );
 }

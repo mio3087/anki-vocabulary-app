@@ -16,79 +16,67 @@ type Plan = {
 };
 
 const STORAGE_KEY = "anki-study-plans-v1";
-
-const weekdayLabels = [
-  "月",
-  "火",
-  "水",
-  "木",
-  "金",
-  "土",
-  "日",
-];
+const weekdayLabels = ["月", "火", "水", "木", "金", "土", "日"];
+const weekdayNames = ["月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日", "日曜日"];
+const fmt = new Intl.NumberFormat("ja-JP");
 
 function localDateString(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-function countStudyDays(
-  start: string,
-  end: string,
-  weekdays: number[]
-) {
-  if (!start || !end || end < start || weekdays.length === 0) {
-    return 0;
-  }
-
+function countStudyDays(start: string, end: string, weekdays: number[]) {
+  if (!start || !end || end < start || weekdays.length === 0) return 0;
   const current = new Date(`${start}T12:00:00`);
   const last = new Date(`${end}T12:00:00`);
   let count = 0;
 
   while (current <= last) {
-    // JavaScript: 日曜=0、月曜=1 ... 土曜=6
-    const day = (current.getDay() + 6) % 7;
-
-    if (weekdays.includes(day)) {
-      count++;
-    }
-
+    if (weekdays.includes((current.getDay() + 6) % 7)) count++;
     current.setDate(current.getDate() + 1);
   }
-
   return count;
+}
+
+function remainingDays(deadline: string) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const end = new Date(`${deadline}T00:00:00`);
+  return Math.round((end.getTime() - today.getTime()) / 86400000);
+}
+
+function dailyTarget(plan: Plan) {
+  const days = countStudyDays(plan.startDate, plan.deadline, plan.weekdays);
+  return days ? Math.ceil((plan.totalItems * plan.rounds) / days) : 0;
+}
+
+function formatDate(value: string) {
+  if (!value) return "未設定";
+  return new Intl.DateTimeFormat("ja-JP", {
+    month: "short",
+    day: "numeric",
+  }).format(new Date(`${value}T12:00:00`));
 }
 
 export default function PlansPage() {
   const today = localDateString(new Date());
-
   const [deckName, setDeckName] = useState("");
   const [totalItems, setTotalItems] = useState("5000");
   const [startDate, setStartDate] = useState(today);
   const [deadline, setDeadline] = useState("");
   const [rounds, setRounds] = useState("3");
-  const [weekdays, setWeekdays] = useState<number[]>([
-    0, 1, 2, 3, 4,
-  ]);
-
+  const [weekdays, setWeekdays] = useState<number[]>([0, 1, 2, 3, 4]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState<"deadline" | "createdAt">("deadline");
 
-  // 保存済み計画を読み込む
   useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-
       if (stored) {
         const parsed: unknown = JSON.parse(stored);
-
-        if (Array.isArray(parsed)) {
-          setPlans(parsed as Plan[]);
-        }
+        if (Array.isArray(parsed)) setPlans(parsed as Plan[]);
       }
     } catch {
       setError("保存済みの計画を読み込めませんでした。");
@@ -97,10 +85,8 @@ export default function PlansPage() {
     }
   }, []);
 
-  // 計画をブラウザ内に保存する
   useEffect(() => {
     if (!loaded) return;
-
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(plans));
     } catch {
@@ -110,17 +96,18 @@ export default function PlansPage() {
 
   const total = Math.max(0, Number(totalItems) || 0);
   const roundCount = Math.max(0, Number(rounds) || 0);
+  const studyDays = countStudyDays(startDate, deadline, weekdays);
+  const estimate = studyDays > 0 ? Math.ceil((total * roundCount) / studyDays) : 0;
+  const activePlans = plans.filter((plan) => remainingDays(plan.deadline) >= 0);
+  const totalDaily = activePlans.reduce((sum, plan) => sum + dailyTarget(plan), 0);
 
-  const studyDays = countStudyDays(
-    startDate,
-    deadline,
-    weekdays
-  );
-
-  const dailyTarget =
-    studyDays > 0
-      ? Math.ceil((total * roundCount) / studyDays)
-      : 0;
+  const filteredPlans = plans
+    .filter((plan) => plan.deckName.toLowerCase().includes(search.trim().toLowerCase()))
+    .sort((a, b) =>
+      sortBy === "deadline"
+        ? a.deadline.localeCompare(b.deadline)
+        : b.createdAt.localeCompare(a.createdAt)
+    );
 
   function toggleWeekday(day: number) {
     setWeekdays((current) =>
@@ -134,45 +121,16 @@ export default function PlansPage() {
     event.preventDefault();
     setError("");
 
-    if (!deckName.trim()) {
-      setError("教材名を入力してください。");
-      return;
+    if (!deckName.trim()) return setError("教材名を入力してください。");
+    if (!Number.isInteger(total) || total <= 0) return setError("項目数は1以上の整数にしてください。");
+    if (!Number.isInteger(roundCount) || roundCount < 1 || roundCount > 100) {
+      return setError("周回数は1〜100の整数にしてください。");
     }
-
-    if (total <= 0 || !Number.isInteger(total)) {
-      setError("総単語数・総ページ数は1以上の整数にしてください。");
-      return;
-    }
-
-    if (
-      roundCount <= 0 ||
-      !Number.isInteger(roundCount) ||
-      roundCount > 100
-    ) {
-      setError("周回数は1〜100の整数にしてください。");
-      return;
-    }
-
     if (!startDate || !deadline || deadline < startDate) {
-      setError("期限は開始日以降に設定してください。");
-      return;
+      return setError("期限は開始日以降に設定してください。");
     }
-
-    if (weekdays.length === 0) {
-      setError("学習する曜日を1日以上選択してください。");
-      return;
-    }
-
-    const days = countStudyDays(
-      startDate,
-      deadline,
-      weekdays
-    );
-
-    if (days === 0) {
-      setError("期間内に学習できる曜日がありません。");
-      return;
-    }
+    if (weekdays.length === 0) return setError("学習する曜日を選択してください。");
+    if (studyDays === 0) return setError("期間内に学習できる曜日がありません。");
 
     const newPlan: Plan = {
       id: crypto.randomUUID(),
@@ -191,425 +149,234 @@ export default function PlansPage() {
   }
 
   function deletePlan(id: string) {
-    if (!window.confirm("この学習計画を削除しますか？")) {
-      return;
-    }
-
-    setPlans((current) =>
-      current.filter((plan) => plan.id !== id)
-    );
+    if (!window.confirm("この学習計画を削除しますか？")) return;
+    setPlans((current) => current.filter((plan) => plan.id !== id));
   }
 
-  function getPlanDailyTarget(plan: Plan) {
-    const days = countStudyDays(
-      plan.startDate,
-      plan.deadline,
-      plan.weekdays
-    );
-
-    return days > 0
-      ? Math.ceil((plan.totalItems * plan.rounds) / days)
-      : 0;
-  }
-
-  const inputStyle = {
-    width: "100%",
-    boxSizing: "border-box" as const,
-    padding: "13px 14px",
-    border: "1px solid #cbbd9f",
-    borderRadius: 12,
-    background: "#fffdf6",
-    color: "#302a22",
-    fontSize: 16,
-  };
-
-  const labelStyle = {
-    display: "block",
-    fontWeight: 700,
-    marginBottom: 8,
-    fontSize: 15,
-  };
+  const inputClass =
+    "w-full min-w-0 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-slate-500 focus:ring-4 focus:ring-slate-100";
+  const labelClass = "mb-2 block text-sm font-medium text-slate-700";
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background: "#d9c49f",
-        color: "#302a22",
-        padding: "28px 18px 60px",
-        fontFamily:
-          '-apple-system, BlinkMacSystemFont, "Noto Sans JP", sans-serif',
-      }}
-    >
-      <div style={{ maxWidth: 680, margin: "0 auto" }}>
-        <header style={{ marginBottom: 26 }}>
-          <Link
-            href="/today"
-            style={{
-              color: "#76503a",
-              textDecoration: "none",
-              fontWeight: 700,
-            }}
-          >
-            ← 今日のノルマ
-          </Link>
+    <main className="min-h-screen bg-[#F7F8FA] text-slate-800">
+      <div className="mx-auto max-w-6xl px-4 pb-12 pt-5 sm:px-8 sm:pt-8">
+        <header className="mb-8">
+          <div className="mb-8 flex items-center justify-between gap-4">
+            <details className="relative">
+              <summary
+                aria-label="ナビゲーションメニュー"
+                className="flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 [&::-webkit-details-marker]:hidden"
+              >
+                <span aria-hidden="true" className="flex flex-col gap-[5px]">
+                  <span className="h-[2px] w-5 rounded bg-current" />
+                  <span className="h-[2px] w-5 rounded bg-current" />
+                  <span className="h-[2px] w-5 rounded bg-current" />
+                </span>
+              </summary>
+              <nav className="absolute left-0 top-14 z-50 w-56 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+                <Link href="/today" className="block rounded-xl px-4 py-3 text-sm hover:bg-slate-50">今日のノルマ</Link>
+                <Link href="/plan" className="block rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold">学習計画</Link>
+                <Link href="/tasks" className="block rounded-xl px-4 py-3 text-sm hover:bg-slate-50">タスク管理</Link>
+                <Link href="/calendar" className="block rounded-xl px-4 py-3 text-sm hover:bg-slate-50">学習カレンダー</Link>
+              </nav>
+            </details>
 
-          <p
-            style={{
-              color: "#71634f",
-              fontWeight: 700,
-              marginBottom: 4,
-              marginTop: 22,
-            }}
-          >
-            STUDY PLANNER
-          </p>
+            <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              <span className="text-xs font-medium text-slate-600">Learning workspace</span>
+            </div>
+          </div>
 
-          <h1 style={{ fontSize: 30, margin: "4px 0 8px" }}>
-            学習計画
-          </h1>
-
-          <p style={{ color: "#655947", lineHeight: 1.8 }}>
-            期限と目標を決めて、今日やることを明確にしよう。
-          </p>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">Plan your progress</p>
+              <h1 className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">学習計画<span className="text-slate-300">.</span></h1>
+              <p className="mt-3 text-sm leading-7 text-slate-500 sm:text-base">学びを設計する。小さな積み重ねを、確かな力に。</p>
+            </div>
+            <p className="text-sm text-slate-500">
+              {new Intl.DateTimeFormat("ja-JP", { year: "numeric", month: "long", day: "numeric", weekday: "short" }).format(new Date())}
+            </p>
+          </div>
         </header>
 
-        <section
-          style={{
-            background: "#fffdf6",
-            border: "2px solid #302a22",
-            borderRadius: 24,
-            padding: 22,
-            boxShadow: "4px 5px 0 #302a22",
-            marginBottom: 30,
-          }}
-        >
-          <h2 style={{ marginTop: 0, fontSize: 22 }}>
-            ＋ 新しい学習計画
-          </h2>
+        <section className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {[
+            { label: "すべての計画", value: loaded ? fmt.format(plans.length) : "—", note: "これまでに作成した計画" },
+            { label: "進行中・期限内", value: loaded ? fmt.format(activePlans.length) : "—", note: "期限を迎えていない計画" },
+            { label: "1日の学習目安", value: loaded ? fmt.format(totalDaily) : "—", note: "期限内の計画から算出", unit: "項目" },
+          ].map((item) => (
+            <div key={item.label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <p className="text-sm text-slate-500">{item.label}</p>
+              <p className="mt-4 text-3xl font-semibold tracking-tight text-slate-900">
+                {item.value}<span className="ml-2 text-sm font-normal text-slate-400">{item.unit ?? "件"}</span>
+              </p>
+              <p className="mt-2 text-xs text-slate-400">{item.note}</p>
+            </div>
+          ))}
+        </section>
 
-          <form onSubmit={savePlan}>
-            <div style={{ marginBottom: 20 }}>
-              <label style={labelStyle} htmlFor="deckName">
-                教材・デッキ名
-              </label>
-              <input
-                id="deckName"
-                value={deckName}
-                onChange={(e) => setDeckName(e.target.value)}
-                placeholder="例：HSK7-9級、台湾華語中級"
-                style={inputStyle}
-                required
-              />
+        <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-2">
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-5 py-5 sm:px-6">
+              <h2 className="font-semibold text-slate-900">＋ 新しい学習計画</h2>
+              <p className="mt-1 text-xs text-slate-400">ゴールから逆算して、学習を設計する</p>
             </div>
 
-            <div style={{ marginBottom: 20 }}>
-              <label style={labelStyle} htmlFor="totalItems">
-                総単語数・総ページ数
-              </label>
-              <input
-                id="totalItems"
-                type="number"
-                min="1"
-                step="1"
-                value={totalItems}
-                onChange={(e) => setTotalItems(e.target.value)}
-                style={inputStyle}
-                required
-              />
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                gap: 12,
-                marginBottom: 20,
-              }}
-            >
+            <form onSubmit={savePlan} className="space-y-5 p-5 sm:p-6">
               <div>
-                <label style={labelStyle} htmlFor="startDate">
-                  開始日
-                </label>
-                <input
-                  id="startDate"
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  style={inputStyle}
-                  required
-                />
+                <label htmlFor="deckName" className={labelClass}>教材・デッキ名</label>
+                <input id="deckName" value={deckName} onChange={(e) => setDeckName(e.target.value)} placeholder="例：HSK 7–9級、台湾華語中級" className={inputClass} required />
               </div>
 
               <div>
-                <label style={labelStyle} htmlFor="deadline">
-                  完了期限
-                </label>
-                <input
-                  id="deadline"
-                  type="date"
-                  min={startDate}
-                  value={deadline}
-                  onChange={(e) => setDeadline(e.target.value)}
-                  style={inputStyle}
-                  required
-                />
+                <label htmlFor="totalItems" className={labelClass}>総単語数・総ページ数</label>
+                <input id="totalItems" type="number" min="1" step="1" value={totalItems} onChange={(e) => setTotalItems(e.target.value)} className={inputClass} required />
               </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="startDate" className={labelClass}>開始日</label>
+                  <input id="startDate" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputClass} required />
+                </div>
+                <div>
+                  <label htmlFor="deadline" className={labelClass}>完了期限</label>
+                  <input id="deadline" type="date" min={startDate} value={deadline} onChange={(e) => setDeadline(e.target.value)} className={inputClass} required />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="rounds" className={labelClass}>目標周回数</label>
+                <select id="rounds" value={rounds} onChange={(e) => setRounds(e.target.value)} className={inputClass}>
+                  {[1, 2, 3, 4, 5, 6, 7, 10, 15, 20].map((n) => <option key={n} value={n}>{n} 周</option>)}
+                </select>
+              </div>
+
+              <fieldset>
+                <legend className={labelClass}>学習する曜日</legend>
+                <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+                  {weekdayLabels.map((label, index) => {
+                    const selected = weekdays.includes(index);
+                    return (
+                      <button
+                        key={label}
+                        type="button"
+                        aria-label={weekdayNames[index]}
+                        aria-pressed={selected}
+                        onClick={() => toggleWeekday(index)}
+                        className={`rounded-xl border py-3 text-sm font-medium transition ${selected ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"}`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-2 text-xs leading-5 text-slate-400">選択した曜日を学習日として計算します。</p>
+              </fieldset>
+
+              <div className="rounded-xl border border-blue-100 bg-[#F5F8FD] p-4 sm:p-5">
+                <p className="text-sm font-medium text-slate-600">1日の学習量（目安）</p>
+                <p className="mt-2 text-3xl font-semibold text-slate-900">
+                  {fmt.format(estimate)} <span className="text-sm font-normal text-slate-500">項目 / 日</span>
+                </p>
+                <p className="mt-3 border-t border-blue-100 pt-3 text-xs leading-6 text-slate-500">
+                  学習予定日 <strong className="text-slate-700">{studyDays}日</strong>
+                  <span className="mx-2 text-slate-300">/</span>
+                  合計 <strong className="text-slate-700">{fmt.format(total * roundCount)}項目分</strong>
+                </p>
+                {studyDays === 0 && <p className="mt-2 text-xs text-amber-700">開始日・期限・曜日を設定すると目安が表示されます。</p>}
+              </div>
+
+              {error && <p role="alert" className="rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
+
+              <button type="submit" className="w-full rounded-xl bg-slate-900 px-5 py-4 text-sm font-medium text-white transition hover:bg-slate-800">
+                学習計画を保存する <span aria-hidden="true">→</span>
+              </button>
+            </form>
+          </section>
+
+          <section className="min-w-0">
+            <div className="mb-5">
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Your library</p>
+              <h2 className="text-xl font-semibold text-slate-900">保存した学習計画</h2>
+              <p className="mt-1 text-sm text-slate-500">{loaded ? `${plans.length} 件の計画` : "読み込み中..."}</p>
             </div>
 
-            <div style={{ marginBottom: 22 }}>
-              <label style={labelStyle} htmlFor="rounds">
-                目標周回数
-              </label>
-              <select
-                id="rounds"
-                value={rounds}
-                onChange={(e) => setRounds(e.target.value)}
-                style={inputStyle}
-              >
-                {[1, 2, 3, 4, 5, 6, 7, 10, 15, 20].map(
-                  (number) => (
-                    <option key={number} value={number}>
-                      {number}周
-                    </option>
-                  )
-                )}
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row">
+              <input aria-label="学習計画を検索" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="教材名で検索..." className={inputClass} />
+              <select aria-label="並び替え" value={sortBy} onChange={(e) => setSortBy(e.target.value as "deadline" | "createdAt")} className={`${inputClass} sm:w-auto`}>
+                <option value="deadline">期限が近い順</option>
+                <option value="createdAt">新しく作成した順</option>
               </select>
             </div>
 
-            <div style={{ marginBottom: 24 }}>
-              <label style={labelStyle}>
-                学習する曜日
-              </label>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
-                  gap: 5,
-                }}
-              >
-                {weekdayLabels.map((label, index) => {
-                  const selected = weekdays.includes(index);
+            {!loaded ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-400">学習計画を読み込んでいます...</div>
+            ) : plans.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+                <p className="font-medium text-slate-800">最初の計画をつくりましょう</p>
+                <p className="mt-2 text-sm leading-6 text-slate-500">教材と期限を設定すると、今日から必要な学習量が見えてきます。</p>
+              </div>
+            ) : filteredPlans.length === 0 ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
+                <p className="text-sm text-slate-500">「{search}」に一致する計画はありません。</p>
+                <button type="button" onClick={() => setSearch("")} className="mt-3 text-sm font-medium text-blue-700">検索をクリア</button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filteredPlans.map((plan) => {
+                  const remaining = remainingDays(plan.deadline);
+                  const status = remaining < 0 ? "期限超過" : remaining === 0 ? "本日期限" : "進行中";
+                  const statusClass = remaining < 0 ? "bg-rose-50 text-rose-700" : remaining === 0 ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700";
+                  const scheduled = countStudyDays(plan.startDate, plan.deadline, plan.weekdays);
 
                   return (
-                    <button
-                      key={label}
-                      type="button"
-                      aria-pressed={selected}
-                      onClick={() => toggleWeekday(index)}
-                      style={{
-                        padding: "12px 0",
-                        borderRadius: 12,
-                        border: selected
-                          ? "2px solid #302a22"
-                          : "1px solid #cbbd9f",
-                        background: selected
-                          ? "#302a22"
-                          : "#fffdf6",
-                        color: selected ? "#fffdf6" : "#655947",
-                        fontWeight: 700,
-                        cursor: "pointer",
-                      }}
-                    >
-                      {label}
-                    </button>
+                    <article key={plan.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300 sm:p-5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="break-words font-semibold text-slate-900">{plan.deckName}</h3>
+                            <span className={`rounded-full px-2.5 py-1 text-[10px] font-medium ${statusClass}`}>{status}</span>
+                          </div>
+                          <p className="mt-2 text-xs text-slate-500">{fmt.format(plan.totalItems)}項目 <span className="mx-1 text-slate-300">·</span> {plan.rounds}周</p>
+                        </div>
+                        <button type="button" onClick={() => deletePlan(plan.id)} aria-label={`${plan.deckName}の計画を削除`} className="shrink-0 rounded-lg px-3 py-2 text-xs text-slate-400 hover:bg-rose-50 hover:text-rose-600">削除</button>
+                      </div>
+
+                      <div className="mt-5 grid grid-cols-2 gap-3">
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <p className="text-[11px] text-slate-500">1日の学習目安</p>
+                          <p className="mt-1 text-xl font-semibold text-slate-900">{fmt.format(dailyTarget(plan))}<span className="ml-1 text-xs font-normal text-slate-500">項目</span></p>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <p className="text-[11px] text-slate-500">{remaining < 0 ? "期限から" : "残り日数"}</p>
+                          <p className={`mt-1 text-xl font-semibold ${remaining < 0 ? "text-rose-600" : "text-slate-900"}`}>{Math.abs(remaining)}<span className="ml-1 text-xs font-normal text-slate-500">日</span></p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                        <span>{formatDate(plan.startDate)} – {formatDate(plan.deadline)}</span>
+                        <span className="text-slate-300">·</span>
+                        <span>{plan.weekdays.map((day) => weekdayLabels[day]).join("・")}</span>
+                      </div>
+                      <p className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-400">
+                        学習予定 {scheduled}日 · 合計 {fmt.format(plan.totalItems * plan.rounds)}項目分
+                      </p>
+                    </article>
                   );
                 })}
               </div>
-
-              <p style={{ color: "#786b58", fontSize: 13 }}>
-                選択した曜日だけを学習予定日として計算します。
-              </p>
-            </div>
-
-            <div
-              style={{
-                background: "#f3e7cf",
-                borderRadius: 18,
-                padding: 18,
-                marginBottom: 22,
-              }}
-            >
-              <p style={{ margin: "0 0 8px", fontWeight: 700 }}>
-                1日の学習量（目安）
-              </p>
-
-              <p
-                style={{
-                  margin: "0 0 8px",
-                  fontSize: 30,
-                  fontWeight: 800,
-                }}
-              >
-                {dailyTarget.toLocaleString()}
-                <span style={{ fontSize: 15, marginLeft: 6 }}>
-                  回/日
-                </span>
-              </p>
-
-              <p style={{ margin: 0, color: "#71634f", fontSize: 13 }}>
-                学習予定日 {studyDays}日・合計
-                {(total * roundCount).toLocaleString()}回分
-              </p>
-            </div>
-
-            {error && (
-              <p
-                role="alert"
-                style={{
-                  color: "#a12f26",
-                  fontWeight: 700,
-                  lineHeight: 1.7,
-                }}
-              >
-                {error}
-              </p>
             )}
+          </section>
+        </div>
 
-            <button
-              type="submit"
-              style={{
-                width: "100%",
-                padding: 16,
-                background: "#302a22",
-                color: "#fffdf6",
-                border: "none",
-                borderRadius: 18,
-                fontSize: 17,
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
-            >
-              学習計画を保存する
-            </button>
-          </form>
-        </section>
-
-        <section>
-          <h2 style={{ fontSize: 23, marginBottom: 16 }}>
-            保存した学習計画
-          </h2>
-
-          {!loaded ? (
-            <p>読み込み中...</p>
-          ) : plans.length === 0 ? (
-            <div
-              style={{
-                background: "#f3e7cf",
-                padding: 24,
-                borderRadius: 20,
-                textAlign: "center",
-                color: "#71634f",
-                lineHeight: 1.8,
-              }}
-            >
-              まだ学習計画がありません。
-              <br />
-              上のフォームから最初の計画を作成しましょう。
-            </div>
-          ) : (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 16,
-              }}
-            >
-              {plans.map((plan) => (
-                <article
-                  key={plan.id}
-                  style={{
-                    background: "#fffdf6",
-                    border: "2px solid #302a22",
-                    borderRadius: 22,
-                    padding: 20,
-                    boxShadow: "3px 4px 0 #302a22",
-                  }}
-                >
-                  <h3 style={{ fontSize: 21, marginTop: 0 }}>
-                    {plan.deckName}
-                  </h3>
-
-                  <p>
-                    教材数：{plan.totalItems.toLocaleString()}
-                  </p>
-
-                  <p>目標：{plan.rounds}周</p>
-
-                  <p>
-                    期間：{plan.startDate} ～ {plan.deadline}
-                  </p>
-
-                  <p>
-                    曜日：
-                    {plan.weekdays
-                      .map((day) => weekdayLabels[day])
-                      .join("・")}
-                  </p>
-
-                  <div
-                    style={{
-                      background: "#f3e7cf",
-                      borderRadius: 14,
-                      padding: 14,
-                      marginTop: 14,
-                    }}
-                  >
-                    <span style={{ color: "#71634f", fontSize: 13 }}>
-                      1日の学習目安
-                    </span>
-                    <p
-                      style={{
-                        fontSize: 25,
-                        fontWeight: 800,
-                        margin: "4px 0",
-                      }}
-                    >
-                      {getPlanDailyTarget(plan).toLocaleString()}回
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => deletePlan(plan.id)}
-                    style={{
-                      marginTop: 16,
-                      padding: "10px 16px",
-                      borderRadius: 12,
-                      border: "1px solid #a64c3d",
-                      background: "#fffdf6",
-                      color: "#a64c3d",
-                      fontWeight: 700,
-                      cursor: "pointer",
-                    }}
-                  >
-                    計画を削除
-                  </button>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <nav
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 16,
-            marginTop: 30,
-          }}
-        >
-          <Link href="/today" style={{ color: "#65412f" }}>
-            今日のノルマ
-          </Link>
-          <Link href="/tasks" style={{ color: "#65412f" }}>
-            タスク管理
-          </Link>
-          <Link href="/calendar" style={{ color: "#65412f" }}>
-            学習カレンダー
-          </Link>
-        </nav>
+        <footer className="mt-12 flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 pt-6">
+          <p className="text-xs text-slate-400">Anki Workspace · Make learning intentional.</p>
+          <nav aria-label="関連ページ" className="flex flex-wrap gap-4 text-sm">
+            <Link href="/today" className="text-slate-500 hover:text-slate-900">今日のノルマ</Link>
+            <Link href="/tasks" className="text-slate-500 hover:text-slate-900">タスク管理</Link>
+            <Link href="/calendar" className="text-slate-500 hover:text-slate-900">学習カレンダー</Link>
+          </nav>
+        </footer>
       </div>
     </main>
   );

@@ -181,6 +181,8 @@ export default function Home() {
 
 
   // ホーム画面のデザインを Apple × Notion の落ち着いた見た目に整える
+
+  
   useEffect(() => {
     const style = document.createElement("style");
     style.id = "anki-home-design-v2";
@@ -3823,7 +3825,18 @@ const parts = parseCSVLine(line);
         <div>
           <p className="anki-home-eyebrow">LANGUAGE LEARNING WORKSPACE</p>
           <h1>Anki</h1>
-          <p className="anki-home-tagline">言葉を学び、世界を広げる。</p>
+          
+<Link
+  href="/little-moments"
+  aria-label="little moments — 小さな幸せの記録"
+  title="little moments"
+  className="group flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-[#e4e8dc] bg-[#edf1e7] text-3xl transition-all duration-300 hover:-translate-y-1 hover:bg-[#dfe9d9] hover:shadow-md"
+>
+  <span className="transition-transform duration-300 group-hover:rotate-12">
+    🐾
+  </span>
+</Link>
+
         </div>
       </header>
 
