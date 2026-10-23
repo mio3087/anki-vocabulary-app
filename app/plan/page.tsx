@@ -1,7 +1,10 @@
+
 "use client";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+
+type PlanStatus = "pending" | "completed" | "postponed";
 
 type Plan = {
   id: string;
@@ -12,10 +15,10 @@ type Plan = {
   rounds: number;
   weekdays: number[];
   createdAt: string;
+  status?: PlanStatus;
 };
 
 const STORAGE_KEY = "anki-study-plans-v1";
-
 const weekdayLabels = ["月", "火", "水", "木", "金", "土", "日"];
 
 function todayString() {
@@ -38,21 +41,16 @@ function countStudyDays(start: string, end: string, weekdays: number[]) {
     date <= to;
     date.setDate(date.getDate() + 1)
   ) {
-    const jsDay = date.getDay();
-    const mondayBasedDay = (jsDay + 6) % 7;
-    if (weekdays.includes(mondayBasedDay)) count++;
+    const day = (date.getDay() + 6) % 7;
+    if (weekdays.includes(day)) count++;
   }
 
   return count;
 }
 
 function dailyTarget(plan: Plan) {
-  const days = countStudyDays(
-    plan.startDate,
-    plan.deadline,
-    plan.weekdays
-  );
-  if (days === 0) return 0;
+  const days = countStudyDays(plan.startDate, plan.deadline, plan.weekdays);
+  if (!days) return 0;
   return Math.ceil((plan.totalItems * plan.rounds) / days);
 }
 
@@ -61,6 +59,12 @@ function remainingDays(deadline: string) {
   const end = new Date(`${deadline}T00:00:00`);
   const today = new Date(`${todayString()}T00:00:00`);
   return Math.ceil((end.getTime() - today.getTime()) / 86400000);
+}
+
+function statusLabel(status?: PlanStatus) {
+  if (status === "completed") return "完了";
+  if (status === "postponed") return "延期";
+  return "未完了";
 }
 
 export default function StudyPlanPage() {
@@ -77,7 +81,15 @@ export default function StudyPlanPage() {
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) setPlans(JSON.parse(saved));
+      if (saved) {
+        const parsed: Plan[] = JSON.parse(saved);
+        setPlans(
+          parsed.map((plan) => ({
+            ...plan,
+            status: plan.status ?? "pending",
+          }))
+        );
+      }
     } catch (error) {
       console.error("学習計画の読み込みに失敗しました", error);
     } finally {
@@ -90,13 +102,19 @@ export default function StudyPlanPage() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(plans));
   }, [plans, loaded]);
 
-  const filteredPlans = useMemo(() => {
-    return plans
-      .filter((plan) =>
-        plan.deckName.toLowerCase().includes(search.toLowerCase())
-      )
-      .sort((a, b) => a.deadline.localeCompare(b.deadline));
-  }, [plans, search]);
+  const filteredPlans = useMemo(
+    () =>
+      plans
+        .filter((plan) =>
+          plan.deckName.toLowerCase().includes(search.toLowerCase())
+        )
+        .sort((a, b) => a.deadline.localeCompare(b.deadline)),
+    [plans, search]
+  );
+
+  const completedCount = plans.filter(
+    (plan) => plan.status === "completed"
+  ).length;
 
   function toggleWeekday(day: number) {
     setWeekdays((current) =>
@@ -116,22 +134,18 @@ export default function StudyPlanPage() {
       alert("教材名を入力してください。");
       return;
     }
-
     if (!Number.isFinite(total) || total <= 0) {
       alert("教材の総量は1以上で入力してください。");
       return;
     }
-
     if (!Number.isFinite(roundCount) || roundCount <= 0) {
       alert("周回数は1以上で入力してください。");
       return;
     }
-
     if (!deadline || deadline < startDate) {
       alert("期限は開始日以降の日付にしてください。");
       return;
     }
-
     if (weekdays.length === 0) {
       alert("学習する曜日を1つ以上選んでください。");
       return;
@@ -146,12 +160,57 @@ export default function StudyPlanPage() {
       rounds: roundCount,
       weekdays,
       createdAt: new Date().toISOString(),
+      status: "pending",
     };
 
     setPlans((current) => [newPlan, ...current]);
     setDeckName("");
     setTotalItems("100");
     setRounds("1");
+  }
+
+  function updateStatus(id: string, status: PlanStatus) {
+    setPlans((current) =>
+      current.map((plan) =>
+        plan.id === id ? { ...plan, status } : plan
+      )
+    );
+  }
+
+  function postponePlan(plan: Plan) {
+    const newDeadline = window.prompt(
+      `「${plan.deckName}」の新しい期限を入力してください（YYYY-MM-DD）`,
+      plan.deadline
+    );
+
+    if (newDeadline === null) return;
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(newDeadline)) {
+      alert("日付は YYYY-MM-DD の形式で入力してください。");
+      return;
+    }
+
+    const parsedDate = new Date(`${newDeadline}T12:00:00`);
+    if (
+      Number.isNaN(parsedDate.getTime()) ||
+      parsedDate.toISOString().slice(0, 10) !== newDeadline
+    ) {
+      alert("正しい日付を入力してください。");
+      return;
+    }
+
+    if (newDeadline <= plan.deadline) {
+      alert("延期する場合は、現在の期限より後の日付を指定してください。");
+      return;
+    }
+
+    setPlans((current) =>
+      current.map((item) =>
+        item.id === plan.id
+          ? { ...item, deadline: newDeadline, status: "postponed" }
+          : item
+      )
+    );
   }
 
   function deletePlan(id: string) {
@@ -184,14 +243,35 @@ export default function StudyPlanPage() {
           </Link>
         </header>
 
+        <div className="mb-8 grid grid-cols-3 border-y border-[#dfe3da] py-5">
+          <div>
+            <p className="text-xs text-[#858b81]">登録計画</p>
+            <p className="mt-1 text-3xl font-semibold tabular-nums">
+              {plans.length}
+            </p>
+          </div>
+          <div className="border-l border-[#dfe3da] pl-4">
+            <p className="text-xs text-[#858b81]">完了</p>
+            <p className="mt-1 text-3xl font-semibold tabular-nums">
+              {completedCount}
+            </p>
+          </div>
+          <div className="border-l border-[#dfe3da] pl-4">
+            <p className="text-xs text-[#858b81]">未完了・延期</p>
+            <p className="mt-1 text-3xl font-semibold tabular-nums">
+              {plans.length - completedCount}
+            </p>
+          </div>
+        </div>
+
         <div className="grid gap-8 lg:grid-cols-[0.85fr_1.15fr]">
-          <section className="h-fit rounded-3xl border border-[#e5e8e0] bg-white p-6 shadow-sm md:p-7">
+          <section className="h-fit rounded-3xl border border-[#e5e8e0] bg-white p-6 md:p-7">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#829079]">
               New plan
             </p>
             <h2 className="mt-2 text-xl font-semibold">計画を作成</h2>
             <p className="mt-2 text-sm leading-6 text-[#858b81]">
-              登録した計画から、学習日数と1日あたりの目標量を自動計算します。
+              学習日数と1日あたりの目標量を自動計算します。
             </p>
 
             <form onSubmit={addPlan} className="mt-6 space-y-5">
@@ -201,7 +281,7 @@ export default function StudyPlanPage() {
                   value={deckName}
                   onChange={(e) => setDeckName(e.target.value)}
                   placeholder="例：ドイツ語 C1 単語"
-                  className="w-full rounded-xl border border-[#e1e5dc] bg-[#fbfcfa] px-4 py-3 outline-none transition focus:border-[#819477]"
+                  className="w-full rounded-xl border border-[#e1e5dc] bg-[#fbfcfa] px-4 py-3 outline-none focus:border-[#819477]"
                   required
                 />
               </label>
@@ -297,9 +377,7 @@ export default function StudyPlanPage() {
                 </p>
                 <h2 className="mt-2 text-xl font-semibold">登録済みの計画</h2>
               </div>
-              <span className="text-sm text-[#858b81]">
-                {plans.length} 件
-              </span>
+              <span className="text-sm text-[#858b81]">{plans.length} 件</span>
             </div>
 
             <input
@@ -330,41 +408,63 @@ export default function StudyPlanPage() {
                   );
                   const isActive =
                     plan.startDate <= today && plan.deadline >= today;
+                  const status = plan.status ?? "pending";
 
                   return (
                     <article
                       key={plan.id}
-                      className="rounded-3xl border border-[#e5e8e0] bg-white p-5 shadow-sm md:p-6"
+                      className={`rounded-3xl border bg-white p-5 md:p-6 ${
+                        status === "completed"
+                          ? "border-[#cbd8c4]"
+                          : "border-[#e5e8e0]"
+                      }`}
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <span
                               className={`rounded-full px-2.5 py-1 text-xs ${
-                                isActive
+                                status === "completed"
+                                  ? "bg-[#e3eee0] text-[#42613d]"
+                                  : status === "postponed"
+                                  ? "bg-[#f7edda] text-[#8b6a2d]"
+                                  : isActive
                                   ? "bg-[#e8efe4] text-[#52684d]"
                                   : daysLeft < 0
                                   ? "bg-[#f7e9e5] text-[#9b5a4c]"
                                   : "bg-[#f0f1ed] text-[#7b8176]"
                               }`}
                             >
-                              {isActive
-                                ? "計画期間中"
-                                : daysLeft < 0
-                                ? "期限超過"
-                                : "開始前"}
+                              {statusLabel(status)}
                             </span>
+                            {status !== "completed" && (
+                              <span className="text-xs text-[#92978f]">
+                                {isActive
+                                  ? "計画期間中"
+                                  : daysLeft < 0
+                                  ? "期限超過"
+                                  : "開始前"}
+                              </span>
+                            )}
                             <span className="text-xs text-[#92978f]">
                               {plan.rounds} 周
                             </span>
                           </div>
-                          <h3 className="mt-3 break-words text-lg font-semibold">
+
+                          <h3
+                            className={`mt-3 break-words text-lg font-semibold ${
+                              status === "completed"
+                                ? "text-[#777f72]"
+                                : ""
+                            }`}
+                          >
                             {plan.deckName}
                           </h3>
                           <p className="mt-1 text-sm text-[#858b81]">
                             {plan.startDate} ～ {plan.deadline}
                           </p>
                         </div>
+
                         <button
                           onClick={() => deletePlan(plan.id)}
                           className="shrink-0 rounded-full px-3 py-2 text-sm text-[#969b92] transition hover:bg-[#f8eeeb] hover:text-[#a55e4e]"
@@ -398,7 +498,8 @@ export default function StudyPlanPage() {
 
                       <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-[#858b81]">
                         <span>
-                          学習曜日：{plan.weekdays
+                          学習曜日：
+                          {plan.weekdays
                             .slice()
                             .sort((a, b) => a - b)
                             .map((d) => weekdayLabels[d])
@@ -410,6 +511,49 @@ export default function StudyPlanPage() {
                             : `${Math.abs(daysLeft)} 日経過`}
                         </span>
                       </div>
+
+                      <div className="mt-5 border-t border-[#ecefe8] pt-4">
+                        <p className="mb-3 text-xs font-medium uppercase tracking-wider text-[#858b81]">
+                          計画のステータス
+                        </p>
+                        <div className="grid grid-cols-3 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => updateStatus(plan.id, "pending")}
+                            aria-pressed={status === "pending"}
+                            className={`rounded-xl border px-2 py-3 text-sm transition ${
+                              status === "pending"
+                                ? "border-[#52684d] bg-[#edf2e9] font-semibold text-[#40563b]"
+                                : "border-[#e1e5dc] bg-white text-[#777f72] hover:bg-[#f6f7f4]"
+                            }`}
+                          >
+                            未完了
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateStatus(plan.id, "completed")}
+                            aria-pressed={status === "completed"}
+                            className={`rounded-xl border px-2 py-3 text-sm transition ${
+                              status === "completed"
+                                ? "border-[#52684d] bg-[#52684d] font-semibold text-white"
+                                : "border-[#e1e5dc] bg-white text-[#777f72] hover:bg-[#f6f7f4]"
+                            }`}
+                          >
+                            ✓ 完了
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => postponePlan(plan)}
+                            className={`rounded-xl border px-2 py-3 text-sm transition ${
+                              status === "postponed"
+                                ? "border-[#b89a5a] bg-[#f7edda] font-semibold text-[#8b6a2d]"
+                                : "border-[#e1e5dc] bg-white text-[#777f72] hover:bg-[#f6f7f4]"
+                            }`}
+                          >
+                            延期 →
+                          </button>
+                        </div>
+                      </div>
                     </article>
                   );
                 })}
@@ -419,9 +563,15 @@ export default function StudyPlanPage() {
         </div>
 
         <footer className="mt-12 flex flex-wrap gap-3 border-t border-[#e2e6dd] pt-6 text-sm text-[#81877d]">
-          <Link href="/today" className="hover:text-[#52684d]">今日のノルマ</Link>
-          <Link href="/tasks" className="hover:text-[#52684d]">タスク管理</Link>
-          <Link href="/calendar" className="hover:text-[#52684d]">学習カレンダー</Link>
+          <Link href="/today" className="hover:text-[#52684d]">
+            今日のノルマ
+          </Link>
+          <Link href="/tasks" className="hover:text-[#52684d]">
+            タスク管理
+          </Link>
+          <Link href="/calendar" className="hover:text-[#52684d]">
+            学習カレンダー
+          </Link>
         </footer>
       </div>
     </main>
