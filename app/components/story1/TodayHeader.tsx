@@ -4,9 +4,9 @@
 import { useEffect, useState } from "react";
 
 type TodayHeaderProps = {
-  completedCount: number;
-  totalCount: number;
-  totalTarget: number;
+  completedCount?: number;
+  totalCount?: number;
+  totalTarget?: number;
 };
 
 type Season = "spring" | "summer" | "autumn" | "winter";
@@ -51,7 +51,6 @@ const scenes: Record<Season, Record<TimeOfDay, Scene>> = {
       overlay: "from-slate-950/75 via-indigo-950/35 to-transparent",
     },
   },
-
   summer: {
     morning: {
       image: "/images/landscapes/summer-morning.jpg",
@@ -82,7 +81,6 @@ const scenes: Record<Season, Record<TimeOfDay, Scene>> = {
       overlay: "from-slate-950/75 via-indigo-950/30 to-transparent",
     },
   },
-
   autumn: {
     morning: {
       image: "/images/landscapes/autumn-morning.jpg",
@@ -113,7 +111,6 @@ const scenes: Record<Season, Record<TimeOfDay, Scene>> = {
       overlay: "from-slate-950/80 via-amber-950/25 to-transparent",
     },
   },
-
   winter: {
     morning: {
       image: "/images/landscapes/winter-morning.jpg",
@@ -152,6 +149,7 @@ function getSeason(date: Date): Season {
   if (month >= 3 && month <= 5) return "spring";
   if (month >= 6 && month <= 8) return "summer";
   if (month >= 9 && month <= 11) return "autumn";
+
   return "winter";
 }
 
@@ -161,18 +159,18 @@ function getTimeOfDay(date: Date): TimeOfDay {
   if (hour >= 5 && hour < 11) return "morning";
   if (hour >= 11 && hour < 16) return "day";
   if (hour >= 16 && hour < 19) return "evening";
+
   return "night";
 }
 
 export default function TodayHeader({
-  completedCount,
-  totalCount,
-  totalTarget,
+  completedCount = 0,
+  totalCount = 0,
+  totalTarget = 0,
 }: TodayHeaderProps) {
   const [now, setNow] = useState<Date | null>(null);
   const [imageFailed, setImageFailed] = useState(false);
 
-  // 初回表示と、その後の時間帯変更を反映
   useEffect(() => {
     const updateTime = () => setNow(new Date());
 
@@ -187,14 +185,29 @@ export default function TodayHeader({
   const timeOfDay = now ? getTimeOfDay(now) : "morning";
   const scene = scenes[season][timeOfDay];
 
-  // 背景画像が変わったらエラー状態をリセット
   useEffect(() => {
     setImageFailed(false);
   }, [scene.image]);
 
-  const progress = totalCount
-    ? Math.round((completedCount / totalCount) * 100)
+  const safeCompletedCount = Number.isFinite(completedCount)
+    ? Math.max(0, completedCount)
     : 0;
+
+  const safeTotalCount = Number.isFinite(totalCount)
+    ? Math.max(0, totalCount)
+    : 0;
+
+  const safeTotalTarget = Number.isFinite(totalTarget)
+    ? Math.max(0, totalTarget)
+    : 0;
+
+  const progress =
+    safeTotalCount > 0
+      ? Math.min(
+          100,
+          Math.round((safeCompletedCount / safeTotalCount) * 100)
+        )
+      : 0;
 
   const dateText = now
     ? new Intl.DateTimeFormat("ja-JP", {
@@ -207,7 +220,6 @@ export default function TodayHeader({
 
   return (
     <header className="relative isolate mb-8 overflow-hidden rounded-[28px] bg-gradient-to-br from-sky-100 via-blue-100 to-indigo-200 shadow-sm">
-      {/* 背景写真 */}
       {!imageFailed && (
         <img
           key={scene.image}
@@ -219,14 +231,12 @@ export default function TodayHeader({
         />
       )}
 
-      {/* 写真の明るさに応じて文字を読みやすくする */}
       <div
         aria-hidden="true"
         className={`absolute inset-0 -z-10 bg-gradient-to-r ${scene.overlay}`}
       />
 
       <div className="p-5 sm:p-8 lg:p-10">
-        {/* 日付と風景の情報 */}
         <div className="flex items-center justify-between gap-4">
           <p className="text-xs font-medium tracking-wide text-white/90 drop-shadow sm:text-sm">
             {dateText}
@@ -237,7 +247,6 @@ export default function TodayHeader({
           </span>
         </div>
 
-        {/* 挨拶 */}
         <div className="mb-8 mt-8 max-w-xl">
           <h1 className="text-3xl font-semibold leading-tight tracking-tight text-white drop-shadow-md sm:text-4xl lg:text-5xl">
             {scene.greeting}
@@ -251,7 +260,6 @@ export default function TodayHeader({
           </p>
         </div>
 
-        {/* 進捗カード */}
         <section
           aria-label="今日の学習進捗"
           className="rounded-2xl border border-white/70 bg-white/85 p-4 shadow-lg shadow-slate-900/5 backdrop-blur-xl sm:p-6"
@@ -276,7 +284,7 @@ export default function TodayHeader({
                   今日の達成率
                 </p>
                 <p className="mt-1 text-sm text-slate-500">
-                  {completedCount} / {totalCount} 件完了
+                  {safeCompletedCount} / {safeTotalCount} 件完了
                 </p>
               </div>
             </div>
@@ -288,7 +296,7 @@ export default function TodayHeader({
                 ◎　今日の学習目標
               </p>
               <p className="mt-2 text-2xl font-semibold tracking-tight text-[#244f7d]">
-                {totalTarget.toLocaleString()}
+                {safeTotalTarget.toLocaleString("ja-JP")}
                 <span className="ml-2 text-sm font-normal text-slate-500">
                   目標単語数
                 </span>
