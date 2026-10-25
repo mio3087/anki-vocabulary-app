@@ -437,16 +437,6 @@ const [loadingCards, setLoadingCards] = useState(true);
             </h1>
           </div>
 
-          <a
-            href="/"
-            style={{
-              color: "#c4cee8",
-              textDecoration: "none",
-              padding: 10,
-            }}
-          >
-            ← アプリに戻る
-          </a>
         </header>
 
         

@@ -3419,67 +3419,7 @@ const parts = parseCSVLine(line);
         <span /><span /><span />
       </button>
 
-      {showNavigationMenu && (
-        <div className="anki-menu-overlay" onClick={() => setShowNavigationMenu(false)}>
-          <button type="button" className="anki-menu-backdrop" aria-label="メニューを閉じる" />
-          <nav
-            id="anki-navigation-menu"
-            className="anki-menu-panel"
-            aria-label="メインメニュー"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button type="button" className="anki-menu-close" onClick={() => setShowNavigationMenu(false)}>閉じる ✕</button>
-            <div className="anki-menu-brand">
-              <div className="anki-menu-brand-mark" aria-hidden="true">A</div>
-              <div>
-                <div style={{ color: "#26372D", fontSize: "17px", fontWeight: 750, letterSpacing: "-.04em" }}>Anki</div>
-                <div style={{ color: "#858C82", fontSize: "11px", marginTop: "3px" }}>Language Learning Workspace</div>
-              </div>
-            </div>
-            <div className="anki-menu-label">YOUR STUDY</div>
-            <Link className="anki-menu-link" href="/login" onClick={() => setShowNavigationMenu(false)}><span className="anki-menu-icon">↗</span>ログイン・新規登録</Link>
-            <Link className="anki-menu-link" href="/today" onClick={() => setShowNavigationMenu(false)}><span className="anki-menu-icon">◷</span>今日のノルマ</Link>
-            
-<Link
-  className="anki-menu-link"
-  href="/study-data"
-  onClick={() => setShowNavigationMenu(false)}
->
-  <span className="anki-menu-icon">▥</span>
-  学習記録
-</Link>
 
-            <a className="anki-menu-link" href="#deck-management" onClick={() => setShowNavigationMenu(false)}><span className="anki-menu-icon">▤</span>暗記デッキ管理画面</a>
-            <div className="anki-menu-label">GAMES & STORIES</div>
-            <Link className="anki-menu-link" href="/game" onClick={() => setShowNavigationMenu(false)}><span className="anki-menu-icon">⚔</span>ゲーム画面 · Language Quest</Link>
-            <Link className="anki-menu-link" href="/armada" onClick={() => setShowNavigationMenu(false)}><span className="anki-menu-icon">⛵</span>無敵艦隊 · スペイン語</Link>
-            <Link className="anki-menu-link" href="/story1" onClick={() => setShowNavigationMenu(false)}><span className="anki-menu-icon">城</span>戦国策 · 中国語</Link>
-            <div className="anki-menu-label">PREFERENCES</div>
-            <Link className="anki-menu-link" href="/settings" onClick={() => setShowNavigationMenu(false)}><span className="anki-menu-icon">⚙</span>設定</Link>
-            <p style={{ margin: "24px 8px 0", color: "#9AA095", fontSize: "11px", lineHeight: 1.7 }}>自分のペースで、少しずつ言葉の世界へ。</p>
-          </nav>
-        </div>
-      )}
-
-      <header className="anki-home-header">
-        <div className="anki-home-mark" aria-hidden="true">A</div>
-        <div>
-          <p className="anki-home-eyebrow">LANGUAGE LEARNING WORKSPACE</p>
-          <h1>Anki</h1>
-          
-<Link
-  href="/little-moments"
-  aria-label="little moments — 小さな幸せの記録"
-  title="little moments"
-  className="group flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-[#e4e8dc] bg-[#edf1e7] text-3xl transition-all duration-300 hover:-translate-y-1 hover:bg-[#dfe9d9] hover:shadow-md"
->
-  <span className="transition-transform duration-300 group-hover:rotate-12">
-    🐾
-  </span>
-</Link>
-
-        </div>
-      </header>
 
       <div id="deck-management" style={{ scrollMarginTop: "28px", margin: "28px 0 16px", padding: "18px 18px 6px", borderTop: "1px solid #E5E9E2" }}>
         <p style={{ margin: 0, color: "#7B847A", fontSize: "10px", fontWeight: 750, letterSpacing: ".14em" }}>YOUR LIBRARY</p>

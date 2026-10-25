@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -45,18 +44,9 @@ type StudyTask = {
 
 const PLAN_STORAGE_KEY = "anki-study-plans-v1";
 
-const navigation = [
-  { label: "ホーム", href: "/", number: "00" },
-  { label: "今日のノルマ", href: "/today", number: "01" },
-  { label: "学習カレンダー", href: "/calendar", number: "02" },
-  { label: "タスク管理", href: "/tasks", number: "03" },
-  { label: "学習計画", href: "/plan", number: "04" },
-  { label: "Little Moments", href: "/little-moments", number: "05" },
-];
-
 const ink = "#20231F";
 const muted = "#777C74";
-const line = "#DCDD D6".replace(" ", "");
+const line = "#DCDDD6";
 const accent = "#425D4B";
 
 function dateString(date = new Date()) {
@@ -142,13 +132,13 @@ export default function TodayPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
-  const [menuOpen, setMenuOpen] = useState(false);
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
 
   const today = dateString();
   const todayWeekday = weekdayIndex();
 
   const now = new Date();
+
   const formattedDate = new Intl.DateTimeFormat("ja-JP", {
     year: "numeric",
     month: "long",
@@ -229,17 +219,6 @@ export default function TodayPage() {
 
     return unsubscribe;
   }, [authReady, user]);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setMenuOpen(false);
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [menuOpen]);
 
   const todaysPlans = useMemo(
     () =>
@@ -336,108 +315,9 @@ export default function TodayPage() {
 
   return (
     <main className="min-h-screen bg-[#F7F7F5] text-[#20231F]">
-      {/* Navigation drawer */}
-      <button
-        type="button"
-        onClick={() => setMenuOpen(true)}
-        aria-label="メニューを開く"
-        aria-expanded={menuOpen}
-        className="fixed left-5 top-5 z-40 flex h-10 w-10 items-center justify-center border border-[#DCDD D6] bg-[#F7F7F5] text-[#20231F] transition hover:bg-white"
-        style={{ borderColor: line }}
-      >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          className="h-5 w-5"
-          aria-hidden="true"
-        >
-          <path d="M4 7h16M4 12h16M4 17h16" strokeLinecap="square" />
-        </svg>
-      </button>
-
-      {menuOpen && (
-        <button
-          type="button"
-          aria-label="メニューを閉じる"
-          onClick={() => setMenuOpen(false)}
-          className="fixed inset-0 z-40 bg-black/25"
-        />
-      )}
-
-      <aside
-        aria-label="メインメニュー"
-        aria-hidden={!menuOpen}
-        className={`fixed inset-y-0 left-0 z-50 flex w-[280px] max-w-[85vw] flex-col border-r bg-[#F7F7F5] p-6 transition-transform duration-300 ${
-          menuOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-        style={{ borderColor: line }}
-      >
-        <div
-          className="flex items-center justify-between border-b pb-5"
-          style={{ borderColor: line }}
-        >
-          <Link
-            href="/"
-            onClick={() => setMenuOpen(false)}
-            tabIndex={menuOpen ? 0 : -1}
-            className="text-sm font-semibold tracking-[0.18em]"
-          >
-            YOUR ANKI
-            <span className="mt-1 block text-[10px] font-normal tracking-normal text-[#777C74]">
-              PERSONAL LEARNING SYSTEM
-            </span>
-          </Link>
-
-          <button
-            type="button"
-            onClick={() => setMenuOpen(false)}
-            aria-label="メニューを閉じる"
-            className="flex h-8 w-8 items-center justify-center text-xl text-[#777C74] hover:bg-white"
-          >
-            ×
-          </button>
-        </div>
-
-        <p className="mb-3 mt-8 text-[10px] font-semibold tracking-[0.2em] text-[#777C74]">
-          WORKSPACE
-        </p>
-
-        <nav>
-          {navigation.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setMenuOpen(false)}
-              tabIndex={menuOpen ? 0 : -1}
-              aria-current={item.href === "/today" ? "page" : undefined}
-              className={`grid grid-cols-[30px_1fr] items-center border-b py-3 text-sm transition ${
-                item.href === "/today"
-                  ? "font-semibold text-[#425D4B]"
-                  : "text-[#555B53] hover:text-[#20231F]"
-              }`}
-              style={{ borderColor: line }}
-            >
-              <span className="font-mono text-[10px] text-[#858A82]">
-                {item.number}
-              </span>
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-
-        <div className="mt-auto border-t pt-4" style={{ borderColor: line }}>
-          <p className="text-[10px] tracking-[0.15em] text-[#777C74]">
-            LEARN AT YOUR OWN PACE
-          </p>
-        </div>
-      </aside>
-
-      {/* Main content */}
       <div className="mx-auto max-w-6xl px-5 pb-12 pt-7 sm:px-8 md:px-12 md:pt-10">
         <header
-          className="mb-10 border-b pb-7 pl-14 sm:mb-12 sm:pb-9"
+          className="mb-10 border-b pb-7 sm:mb-12 sm:pb-9"
           style={{ borderColor: line }}
         >
           <div className="flex flex-wrap items-end justify-between gap-5">
@@ -470,7 +350,6 @@ export default function TodayPage() {
           </div>
         )}
 
-        {/* Overview metrics */}
         <section className="mb-12">
           <div className="mb-4 flex items-center justify-between">
             <SectionLabel>01 / PROGRESS</SectionLabel>
@@ -561,7 +440,6 @@ export default function TodayPage() {
           </div>
         </section>
 
-        {/* Today's tasks */}
         <section className="mb-12">
           <div
             className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b pb-4"
@@ -630,6 +508,7 @@ export default function TodayPage() {
                         ? "border-[#425D4B] bg-[#425D4B] text-white"
                         : "border-[#BFC4BB] text-transparent hover:border-[#425D4B]"
                     }`}
+                    style={{ borderColor: task.status === "完了" ? accent : undefined }}
                   >
                     ✓
                   </button>
@@ -673,7 +552,6 @@ export default function TodayPage() {
           )}
         </section>
 
-        {/* Today's study plans */}
         <section>
           <div
             className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b pb-4"

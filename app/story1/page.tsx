@@ -1,24 +1,11 @@
 
+
 "use client";
 
 import { useState } from "react";
-import { chapters } from "../../lib/story1/chapters";
-
 
 type Language = "ja" | "zh-CN" | "zh-TW" | "en" | "de" | "es" | "it";
 type Screen = "title" | "intro" | "guide";
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -206,7 +193,7 @@ const languageNames: Record<Language, string> = {
 export default function Story1Page() {
   const [language, setLanguage] = useState<Language>("ja");
   const [screen, setScreen] = useState<Screen>("title");
-    const [menuOpen, setMenuOpen] = useState(false);
+  
   const t = translations[language];
 
   const buttonStyle: React.CSSProperties = {

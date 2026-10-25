@@ -1,7 +1,5 @@
-
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
 import {
@@ -36,14 +34,11 @@ export default function StudyDataPage() {
   const [studyRecords, setStudyRecords] = useState<StudyRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     async function loadRecords() {
       try {
-        const snapshot = await getDocs(
-          collection(db, "studyRecords")
-        );
+        const snapshot = await getDocs(collection(db, "studyRecords"));
 
         const records: StudyRecord[] = snapshot.docs.map((item) => {
           const data = item.data();
@@ -124,48 +119,6 @@ export default function StudyDataPage() {
 
   return (
     <main className="study-data-page">
-      <button
-        type="button"
-        className="study-data-menu-button"
-        aria-label={menuOpen ? "メニューを閉じる" : "メニューを開く"}
-        aria-expanded={menuOpen}
-        onClick={() => setMenuOpen((open) => !open)}
-      >
-        <span className={`menu-line menu-line-top${menuOpen ? " menu-line-open" : ""}`} />
-        <span className={`menu-line menu-line-middle${menuOpen ? " menu-line-open" : ""}`} />
-        <span className={`menu-line menu-line-bottom${menuOpen ? " menu-line-open" : ""}`} />
-      </button>
-
-      {menuOpen && (
-        <>
-          <button
-            type="button"
-            className="study-data-menu-backdrop"
-            aria-label="メニューを閉じる"
-            onClick={() => setMenuOpen(false)}
-          />
-          <nav className="study-data-menu" aria-label="メインメニュー">
-            <div className="study-data-menu-brand">
-              <span className="study-data-menu-mark">A</span>
-              <div>
-                <strong>Anki</strong>
-                <p>LANGUAGE LEARNING WORKSPACE</p>
-              </div>
-            </div>
-
-            <p className="study-data-menu-label">YOUR ANKI</p>
-            <Link href="/" className="study-data-menu-link" onClick={() => setMenuOpen(false)}><span>⌂</span>ホーム</Link>
-            <Link href="/today" className="study-data-menu-link" onClick={() => setMenuOpen(false)}><span>✳</span>今日のノルマ</Link>
-            <Link href="/calendar" className="study-data-menu-link" onClick={() => setMenuOpen(false)}><span>▦</span>学習カレンダー</Link>
-            <Link href="/tasks" className="study-data-menu-link" onClick={() => setMenuOpen(false)}><span>✓</span>タスク管理</Link>
-            <Link href="/plan" className="study-data-menu-link" onClick={() => setMenuOpen(false)}><span>↗</span>学習計画</Link>
-            <Link href="/study-data" className="study-data-menu-link study-data-menu-active" onClick={() => setMenuOpen(false)}><span>▤</span>学習記録</Link>
-
-            <div className="study-data-menu-footer">YOUR PROGRESS, YOUR PACE.</div>
-          </nav>
-        </>
-      )}
-
       <header className="study-data-header">
         <p className="study-data-eyebrow">YOUR PROGRESS</p>
         <h1>学習記録</h1>
@@ -173,7 +126,6 @@ export default function StudyDataPage() {
           積み重ねた学習を、振り返る。
         </p>
       </header>
-
 
       {loading ? (
         <p className="study-data-message">学習記録を読み込み中...</p>
@@ -298,187 +250,6 @@ export default function StudyDataPage() {
       )}
 
       <style jsx>{`
-        .study-data-menu-button {
-          position: fixed;
-          top: 20px;
-          left: 20px;
-          z-index: 130;
-          display: flex;
-          width: 46px;
-          height: 46px;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          gap: 5px;
-          border: 1px solid #e1e7df;
-          border-radius: 14px;
-          background: #ffffff;
-          color: #35473b;
-          box-shadow: 0 4px 16px rgba(35, 48, 38, 0.08);
-          cursor: pointer;
-        }
-
-        .study-data-menu-button:hover {
-          background: #edf2ec;
-          border-color: #cbd7cb;
-        }
-
-        .menu-line {
-          display: block;
-          width: 18px;
-          height: 2px;
-          border-radius: 2px;
-          background: #35473b;
-          transition: transform 180ms ease, opacity 180ms ease;
-        }
-
-        .menu-line-top.menu-line-open {
-          transform: translateY(7px) rotate(45deg);
-        }
-
-        .menu-line-middle.menu-line-open {
-          opacity: 0;
-        }
-
-        .menu-line-bottom.menu-line-open {
-          transform: translateY(-7px) rotate(-45deg);
-        }
-
-        .study-data-menu-backdrop {
-          position: fixed;
-          inset: 0;
-          z-index: 140;
-          width: 100%;
-          height: 100%;
-          border: 0;
-          background: rgba(27, 35, 29, 0.25);
-          backdrop-filter: blur(3px);
-          cursor: default;
-        }
-
-        .study-data-menu {
-          position: fixed;
-          top: 12px;
-          bottom: 12px;
-          left: 12px;
-          z-index: 150;
-          display: flex;
-          width: min(300px, calc(100vw - 24px));
-          flex-direction: column;
-          padding: 28px 18px 18px;
-          overflow-y: auto;
-          border: 1px solid #e7ebe5;
-          border-radius: 22px;
-          background: #fbfcfa;
-          box-shadow: 0 18px 60px rgba(25, 38, 28, 0.14);
-          animation: study-data-menu-in 180ms ease-out;
-        }
-
-        .study-data-menu-brand {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 8px 8px 28px;
-        }
-
-        .study-data-menu-mark {
-          display: grid;
-          width: 40px;
-          height: 40px;
-          flex-shrink: 0;
-          place-items: center;
-          border: 1px solid #dce5db;
-          border-radius: 13px;
-          background: #edf2ec;
-          color: #354b3c;
-          font-size: 20px;
-          font-weight: 600;
-        }
-
-        .study-data-menu-brand strong {
-          color: #2c382f;
-          font-size: 17px;
-          font-weight: 650;
-          letter-spacing: -0.04em;
-        }
-
-        .study-data-menu-brand p {
-          margin: 4px 0 0;
-          color: #929b92;
-          font-size: 8px;
-          letter-spacing: 0.1em;
-        }
-
-        .study-data-menu-label {
-          margin: 0 10px 10px;
-          color: #99a197;
-          font-size: 10px;
-          font-weight: 700;
-          letter-spacing: 0.15em;
-        }
-
-        .study-data-menu-link {
-          display: flex;
-          min-height: 45px;
-          align-items: center;
-          gap: 13px;
-          padding: 0 12px;
-          border-radius: 11px;
-          color: #59645b;
-          font-size: 13px;
-          text-decoration: none;
-          transition: background 150ms ease, color 150ms ease;
-        }
-
-        .study-data-menu-link > span {
-          display: inline-grid;
-          width: 20px;
-          flex-shrink: 0;
-          place-items: center;
-          color: #849184;
-          font-size: 17px;
-        }
-
-        .study-data-menu-link:hover {
-          background: #f0f3ee;
-          color: #2d4534;
-        }
-
-        .study-data-menu-link.study-data-menu-active {
-          background: #eaf0e8;
-          color: #2d4935;
-          font-weight: 600;
-        }
-
-        .study-data-menu-link.study-data-menu-active > span {
-          color: #42694b;
-        }
-
-        .study-data-menu-footer {
-          margin-top: auto;
-          padding: 18px 10px 4px;
-          border-top: 1px solid #e9ece7;
-          color: #a0a79f;
-          font-size: 9px;
-          letter-spacing: 0.12em;
-        }
-
-        @keyframes study-data-menu-in {
-          from { opacity: 0; transform: translateX(-8px); }
-          to { opacity: 1; transform: translateX(0); }
-        }
-
-        @media (max-width: 480px) {
-          .study-data-menu-button {
-            top: 14px;
-            left: 14px;
-          }
-
-          .study-data-header {
-            padding-top: 38px;
-          }
-        }
-
         .study-data-page {
           min-height: 100vh;
           padding: 48px 24px 80px;
@@ -682,14 +453,6 @@ export default function StudyDataPage() {
         @media (max-width: 480px) {
           .study-data-page {
             padding: 30px 16px 56px;
-          }
-
-          .study-data-stat {
-            padding: 16px;
-          }
-
-          .study-data-record {
-            padding: 17px;
           }
         }
       `}</style>

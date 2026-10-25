@@ -1,7 +1,5 @@
-
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import {
@@ -36,9 +34,7 @@ type StudyTask = {
 
 const todayString = () => {
   const now = new Date();
-  const local = new Date(
-    now.getTime() - now.getTimezoneOffset() * 60000
-  );
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
   return local.toISOString().slice(0, 10);
 };
 
@@ -57,16 +53,6 @@ const emptyForm = () => ({
 
 const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
 
-const navigationItems = [
-  { href: "/", icon: "⌂", label: "ホーム" },
-  { href: "/today", icon: "✳", label: "今日のノルマ" },
-  { href: "/calendar", icon: "▦", label: "学習カレンダー" },
-  { href: "/tasks", icon: "✓", label: "タスク管理" },
-  { href: "/plan", icon: "↗", label: "学習計画" },
-  { href: "/decks", icon: "▤", label: "単語帳・デッキ" },
-  { href: "/little-moments", icon: "♡", label: "Little Moments" },
-];
-
 export default function TasksPage() {
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
@@ -80,27 +66,12 @@ export default function TasksPage() {
   const [dateFilter, setDateFilter] = useState("");
   const [search, setSearch] = useState("");
 
-  // ハンバーガーメニューの状態
-  const [menuOpen, setMenuOpen] = useState(false);
-
   useEffect(() => {
     return onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setAuthReady(true);
     });
   }, []);
-
-  // Escapeキーでもメニューを閉じる
-  useEffect(() => {
-    if (!menuOpen) return;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMenuOpen(false);
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [menuOpen]);
 
   useEffect(() => {
     if (!authReady) return;
@@ -119,16 +90,16 @@ export default function TasksPage() {
     const unsubscribe = onSnapshot(
       tasksRef,
       (snapshot) => {
-        const loadedTasks = snapshot.docs.map((item) => {
+        const loadedTasks: StudyTask[] = snapshot.docs.map((item) => {
           const data = item.data();
 
           return {
             id: item.id,
             title: String(data.title ?? ""),
-            type: data.type as TaskType,
+            type: (data.type ?? "教材の学習") as TaskType,
             material: String(data.material ?? ""),
             target: Number(data.target ?? 0),
-            unit: data.unit as StudyTask["unit"],
+            unit: (data.unit ?? "単語") as StudyTask["unit"],
             startDate: String(data.startDate ?? ""),
             scheduledDate: String(data.scheduledDate ?? ""),
             dueDate: String(data.dueDate ?? ""),
@@ -199,9 +170,7 @@ export default function TasksPage() {
     setEditingId(null);
   };
 
-  const saveTask = async (
-    event: React.FormEvent<HTMLFormElement>
-  ) => {
+  const saveTask = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!user) {
@@ -303,17 +272,14 @@ export default function TasksPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const changeStatus = async (
-    task: StudyTask,
-    status: TaskStatus
-  ) => {
+  const changeStatus = async (task: StudyTask, status: TaskStatus) => {
     if (!user) return;
 
     try {
-      await updateDoc(
-        doc(db, "users", user.uid, "tasks", task.id),
-        { status, updatedAt: serverTimestamp() }
-      );
+      await updateDoc(doc(db, "users", user.uid, "tasks", task.id), {
+        status,
+        updatedAt: serverTimestamp(),
+      });
       setError("");
     } catch (err) {
       console.error("状態更新エラー:", err);
@@ -349,8 +315,10 @@ export default function TasksPage() {
   const pageStyle: React.CSSProperties = {
     maxWidth: 1000,
     margin: "0 auto",
-    padding: "24px 16px 48px",
+    padding: "36px 24px 48px",
     color: "#332d25",
+    minHeight: "100vh",
+    boxSizing: "border-box",
   };
 
   const inputStyle: React.CSSProperties = {
@@ -387,188 +355,10 @@ export default function TasksPage() {
 
   return (
     <main style={pageStyle}>
-      {/* ハンバーガーボタン */}
-      <button
-        type="button"
-        aria-label={menuOpen ? "メニューを閉じる" : "メニューを開く"}
-        aria-expanded={menuOpen}
-        aria-controls="anki-sidebar"
-        onClick={() => setMenuOpen((open) => !open)}
-        style={{
-          position: "fixed",
-          top: 16,
-          left: 16,
-          zIndex: 1002,
-          width: 46,
-          height: 46,
-          border: "1px solid #e8e2d9",
-          borderRadius: 14,
-          background: "#fffdf9",
-          color: "#332d25",
-          fontSize: 23,
-          cursor: "pointer",
-          boxShadow: "0 4px 16px rgba(40, 30, 20, 0.07)",
-          display: "grid",
-          placeItems: "center",
-        }}
-      >
-        {menuOpen ? "×" : "☰"}
-      </button>
-
-      {/* 背景オーバーレイ */}
-      {menuOpen && (
-        <button
-          type="button"
-          aria-label="メニューを閉じる"
-          onClick={() => setMenuOpen(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 1000,
-            width: "100%",
-            height: "100%",
-            border: "none",
-            borderRadius: 0,
-            background: "rgba(35, 30, 25, 0.24)",
-            backdropFilter: "blur(2px)",
-            cursor: "pointer",
-          }}
-        />
-      )}
-
-      {/* サイドメニュー */}
-      <aside
-        id="anki-sidebar"
-        aria-label="メインメニュー"
-        aria-hidden={!menuOpen}
-        style={{
-          position: "fixed",
-          top: 0,
-          left: menuOpen ? 0 : -290,
-          bottom: 0,
-          zIndex: 1001,
-          width: 270,
-          boxSizing: "border-box",
-          padding: "88px 20px 24px",
-          background: "#fffdf9",
-          borderRight: "1px solid #e8e2d9",
-          boxShadow: "8px 0 32px rgba(40, 30, 20, 0.08)",
-          transition: "left 0.25s ease",
-          overflowY: "auto",
-          visibility: menuOpen ? "visible" : "hidden",
-        }}
-      >
-        <p
-          style={{
-            color: "#a08b70",
-            fontSize: 11,
-            letterSpacing: 3,
-            fontWeight: 700,
-            marginBottom: 8,
-          }}
-        >
-          YOUR ANKI
-        </p>
-
-        <h2
-          style={{
-            fontSize: 25,
-            letterSpacing: -1,
-            margin: "0 0 30px",
-            color: "#332d25",
-          }}
-        >
-          Anki
-        </h2>
-
-        <p
-          style={{
-            fontSize: 10,
-            color: "#a69a89",
-            letterSpacing: 1.5,
-            margin: "0 0 10px 12px",
-          }}
-        >
-          MENU
-        </p>
-
-        <nav style={{ display: "grid", gap: 5 }}>
-          {navigationItems.map((item) => {
-            const active = item.href === "/tasks";
-
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                tabIndex={menuOpen ? 0 : -1}
-                onClick={() => setMenuOpen(false)}
-                aria-current={active ? "page" : undefined}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 13,
-                  padding: "12px 14px",
-                  borderRadius: 12,
-                  textDecoration: "none",
-                  color: active ? "#65513a" : "#62594f",
-                  background: active ? "#f2ece2" : "transparent",
-                  fontSize: 14,
-                  fontWeight: active ? 700 : 500,
-                  transition: "background 0.2s ease",
-                }}
-              >
-                <span
-                  style={{
-                    width: 22,
-                    fontSize: 18,
-                    textAlign: "center",
-                  }}
-                >
-                  {item.icon}
-                </span>
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div
-          style={{
-            marginTop: 32,
-            padding: "15px 13px",
-            borderRadius: 13,
-            background: "#f8f4ed",
-          }}
-        >
-          <p
-            style={{
-              fontSize: 12,
-              fontWeight: 600,
-              color: "#655947",
-              margin: "0 0 5px",
-            }}
-          >
-            YOUR OWN PACE
-          </p>
-          <p
-            style={{
-              fontSize: 11,
-              color: "#8b8072",
-              lineHeight: 1.7,
-              margin: 0,
-            }}
-          >
-            自分のペースで、少しずつ。
-          </p>
-        </div>
-      </aside>
-
-      {/* ページヘッダー */}
       <header
         style={{
           marginBottom: 28,
           paddingTop: 12,
-          paddingLeft: 54,
         }}
       >
         <p
@@ -642,7 +432,6 @@ export default function TasksPage() {
         </p>
       )}
 
-      {/* タスク登録・編集 */}
       <section style={sectionStyle}>
         <div style={{ marginBottom: 22 }}>
           <p
@@ -656,13 +445,7 @@ export default function TasksPage() {
             CREATE & ORGANIZE
           </p>
 
-          <h2
-            style={{
-              fontSize: 20,
-              letterSpacing: -0.5,
-              margin: 0,
-            }}
-          >
+          <h2 style={{ fontSize: 20, letterSpacing: -0.5, margin: 0 }}>
             {editingId ? "タスクを編集" : "新しいタスクを登録"}
           </h2>
         </div>
@@ -722,10 +505,7 @@ export default function TasksPage() {
                 min="0"
                 value={form.target}
                 onChange={(e) =>
-                  setForm({
-                    ...form,
-                    target: Number(e.target.value),
-                  })
+                  setForm({ ...form, target: Number(e.target.value) })
                 }
               />
             </label>
@@ -821,13 +601,7 @@ export default function TasksPage() {
                 繰り返す曜日
               </legend>
 
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 14,
-                }}
-              >
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
                 {weekdays.map((day, index) => (
                   <label
                     key={day}
@@ -857,14 +631,7 @@ export default function TasksPage() {
             </fieldset>
           )}
 
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 10,
-              marginTop: 22,
-            }}
-          >
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 22 }}>
             <button
               type="submit"
               disabled={
@@ -889,11 +656,7 @@ export default function TasksPage() {
             </button>
 
             {editingId && (
-              <button
-                type="button"
-                onClick={resetForm}
-                style={buttonStyle}
-              >
+              <button type="button" onClick={resetForm} style={buttonStyle}>
                 編集をキャンセル
               </button>
             )}
@@ -901,7 +664,6 @@ export default function TasksPage() {
         </form>
       </section>
 
-      {/* タスク一覧 */}
       <section>
         <div style={{ marginBottom: 20 }}>
           <p
@@ -915,23 +677,11 @@ export default function TasksPage() {
             YOUR STUDY LIST
           </p>
 
-          <h2
-            style={{
-              fontSize: 22,
-              letterSpacing: -0.7,
-              margin: "0 0 6px",
-            }}
-          >
+          <h2 style={{ fontSize: 22, letterSpacing: -0.7, margin: "0 0 6px" }}>
             タスク一覧
           </h2>
 
-          <p
-            style={{
-              fontSize: 13,
-              color: "#8b8175",
-              margin: 0,
-            }}
-          >
+          <p style={{ fontSize: 13, color: "#8b8175", margin: 0 }}>
             {visibleTasks.length} 件のタスク
           </p>
         </div>
@@ -981,9 +731,7 @@ export default function TasksPage() {
         </div>
 
         {loading ? (
-          <p style={{ color: "#8b8175" }}>
-            タスクを読み込んでいます...
-          </p>
+          <p style={{ color: "#8b8175" }}>タスクを読み込んでいます...</p>
         ) : !user ? (
           <p style={{ color: "#8b8175" }}>
             ログインすると保存済みのタスクが表示されます。
@@ -999,22 +747,10 @@ export default function TasksPage() {
             }}
           >
             <p style={{ fontSize: 26, margin: "0 0 10px" }}>✳</p>
-            <p
-              style={{
-                fontSize: 14,
-                color: "#655947",
-                margin: "0 0 6px",
-              }}
-            >
+            <p style={{ fontSize: 14, color: "#655947", margin: "0 0 6px" }}>
               該当するタスクはありません
             </p>
-            <p
-              style={{
-                fontSize: 12,
-                color: "#8b8175",
-                margin: 0,
-              }}
-            >
+            <p style={{ fontSize: 12, color: "#8b8175", margin: 0 }}>
               条件を変更するか、上のフォームから登録できます。
             </p>
           </div>
@@ -1068,9 +804,7 @@ export default function TasksPage() {
                           lineHeight: 1.6,
                           fontWeight: 600,
                           textDecoration:
-                            task.status === "完了"
-                              ? "line-through"
-                              : "none",
+                            task.status === "完了" ? "line-through" : "none",
                         }}
                       >
                         {task.title}
@@ -1090,31 +824,16 @@ export default function TasksPage() {
                       {` ・ 目標 ${task.target}${task.unit}`}
                     </p>
 
-                    <p
-                      style={{
-                        fontSize: 12,
-                        color: "#8b8175",
-                        margin: "6px 0",
-                      }}
-                    >
+                    <p style={{ fontSize: 12, color: "#8b8175", margin: "6px 0" }}>
                       実施日：{task.scheduledDate || "未設定"}
                       {" ・ "}
                       期限：{task.dueDate || "未設定"}
                     </p>
 
-                    <p
-                      style={{
-                        fontSize: 12,
-                        color: "#8b8175",
-                        margin: "6px 0 0",
-                      }}
-                    >
+                    <p style={{ fontSize: 12, color: "#8b8175", margin: "6px 0 0" }}>
                       繰り返し：{task.repeat}
-                      {task.repeat === "毎週" &&
-                      task.repeatDays.length > 0
-                        ? `（${task.repeatDays
-                            .map((d) => weekdays[d])
-                            .join("・")}）`
+                      {task.repeat === "毎週" && task.repeatDays.length > 0
+                        ? `（${task.repeatDays.map((d) => weekdays[d]).join("・")}）`
                         : ""}
                     </p>
                   </div>
@@ -1129,17 +848,10 @@ export default function TasksPage() {
                   >
                     <select
                       aria-label={`${task.title}の状態`}
-                      style={{
-                        ...inputStyle,
-                        width: 120,
-                        marginTop: 0,
-                      }}
+                      style={{ ...inputStyle, width: 120, marginTop: 0 }}
                       value={task.status}
                       onChange={(e) =>
-                        changeStatus(
-                          task,
-                          e.target.value as TaskStatus
-                        )
+                        changeStatus(task, e.target.value as TaskStatus)
                       }
                     >
                       <option>未着手</option>

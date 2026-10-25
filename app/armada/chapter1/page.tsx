@@ -373,9 +373,7 @@ export default function ArmadaChapter1Page() {
             marginBottom: 24,
           }}
         >
-          <a href="/armada" style={{ color: "#f0d6ae" }}>
-            ← {t.back}
-          </a>
+        
           <select
             aria-label="Language"
             value={lang}

@@ -369,65 +369,7 @@ function mergeEntries(remote: Moment[], local: Moment[]): Moment[] {
 
 
 
-<div className="relative z-50 mb-7">
-  <div className="flex items-center justify-between">
-    <button
-      type="button"
-      onClick={() => setMenuOpen((open) => !open)}
-      aria-label={menuOpen ? "メニューを閉じる" : "メニューを開く"}
-      aria-expanded={menuOpen}
-      className="flex items-center gap-3 rounded-full px-2 py-2 text-[#536650] transition hover:bg-[#eaf0e5]"
-    >
-      <span className="flex h-10 w-10 flex-col items-center justify-center gap-[5px] rounded-full border border-[#e5e3d8] bg-[#fffefa]">
-        <span className={`h-[1.5px] w-5 bg-[#536650] transition ${menuOpen ? "translate-y-[6.5px] rotate-45" : ""}`} />
-        <span className={`h-[1.5px] w-5 bg-[#536650] transition ${menuOpen ? "opacity-0" : ""}`} />
-        <span className={`h-[1.5px] w-5 bg-[#536650] transition ${menuOpen ? "-translate-y-[6.5px] -rotate-45" : ""}`} />
-      </span>
-      <span className="text-sm font-semibold tracking-wide">Anki</span>
-    </button>
-
-    {menuOpen && (
-      <>
-        <button
-          type="button"
-          aria-label="メニューを閉じる"
-          className="fixed inset-0 z-40 cursor-default bg-[#373e35]/10"
-          onClick={() => setMenuOpen(false)}
-        />
-
-        <nav className="absolute left-0 top-14 z-50 w-60 rounded-2xl border border-[#e8e4d9] bg-[#fffefa] p-2 shadow-xl">
-          <p className="px-3 pb-2 pt-3 text-[10px] font-semibold tracking-[0.2em] text-[#aaa38e]">
-            YOUR ANKI
-          </p>
-
-          {[
-            { href: "/", label: "ホーム", icon: "⌂" },
-            { href: "/today", label: "今日のノルマ", icon: "✳" },
-            { href: "/calendar", label: "学習カレンダー", icon: "▦" },
-            { href: "/tasks", label: "タスク管理", icon: "✓" },
-            { href: "/plan", label: "学習計画", icon: "↗" },
-            { href: "/decks", label: "単語デッキ", icon: "▤" },
-            { href: "/little-moments", label: "little moments", icon: "🌿" },
-          ].map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setMenuOpen(false)}
-              className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm transition hover:bg-[#f0f3ea] ${
-                item.href === "/little-moments"
-                  ? "bg-[#edf1e7] font-medium text-[#526b56]"
-                  : "text-[#626b5d]"
-              }`}
-            >
-              <span className="w-5 text-center text-base">{item.icon}</span>
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-      </>
-    )}
-  </div>
-</div>
+        
 
 
 
@@ -437,7 +379,7 @@ function mergeEntries(remote: Moment[], local: Moment[]): Moment[] {
                 A collection of little joys
               </p>
               <h1 className="mt-2 text-4xl font-medium tracking-tight text-[#425344] sm:text-5xl">
-                little moments
+                Little Moments
               </h1>
               <p className="mt-4 max-w-xl text-sm leading-7 text-[#777b6d] sm:text-base">
                 大きな出来事じゃなくてもいい。
