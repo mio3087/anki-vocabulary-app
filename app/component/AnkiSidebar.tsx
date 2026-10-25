@@ -47,9 +47,7 @@ const sections = [
   },
   {
     title: "PREFERENCES",
-    items: [
-      { label: "設定", href: "/settings", icon: Settings2 },
-    ],
+    items: [{ label: "設定", href: "/settings", icon: Settings2 }],
   },
 ];
 
@@ -58,9 +56,12 @@ const squareButtonStyle = {
   height: "48px",
   minWidth: "48px",
   minHeight: "48px",
-  aspectRatio: "1 / 1",
   padding: 0,
   flexShrink: 0,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  boxSizing: "border-box",
 } as const;
 
 export default function AnkiSidebar() {
@@ -91,10 +92,6 @@ export default function AnkiSidebar() {
     };
   }, [open]);
 
-  const mapActive =
-    pathname === "/language-world" ||
-    pathname.startsWith("/language-world/");
-
   return (
     <>
       {/* 左上の共通メニューボタン */}
@@ -106,14 +103,17 @@ export default function AnkiSidebar() {
           aria-expanded={open}
           aria-controls="anki-sidebar"
           style={squareButtonStyle}
-          className="box-border flex items-center justify-center
-            rounded-2xl border border-stone-200/80
+          className="rounded-2xl border border-stone-200/80
             bg-[#F7F6F2]/95 text-stone-700
             shadow-sm backdrop-blur
             transition-all duration-200
             hover:bg-white hover:shadow-md active:scale-95"
         >
-          <Menu size={21} strokeWidth={1.7} />
+          <Menu
+            size={21}
+            strokeWidth={1.7}
+            className="block shrink-0"
+          />
         </button>
       </div>
 
@@ -184,13 +184,16 @@ export default function AnkiSidebar() {
             onClick={() => setOpen(false)}
             aria-label="メニューを閉じる"
             style={squareButtonStyle}
-            className="ml-2 box-border flex items-center
-              justify-center rounded-2xl border
+            className="ml-2 rounded-2xl border
               border-stone-200/80 text-stone-500
               transition hover:bg-stone-200/70 hover:text-stone-900
               active:scale-95"
           >
-            <X size={21} strokeWidth={1.7} />
+            <X
+              size={21}
+              strokeWidth={1.7}
+              className="block shrink-0"
+            />
           </button>
         </div>
 
