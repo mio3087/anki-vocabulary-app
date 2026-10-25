@@ -488,7 +488,7 @@ if (
         </header>
 
         <nav style={styles.nav}>
-          <Link href="/plans" style={styles.navLink}>
+          <Link href="/plan" style={styles.navLink}>
             学習計画
           </Link>
           <Link href="/today" style={styles.navLink}>
@@ -797,7 +797,7 @@ if (
         </section>
 
         <footer style={styles.footer}>
-          <Link href="/plans" style={styles.textLink}>
+          <Link href="/plan" style={styles.textLink}>
             学習計画へ
           </Link>
           {"　・　"}

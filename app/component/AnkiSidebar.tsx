@@ -21,27 +21,33 @@ import {
   UserRound,
   ArrowUpRight,
   Map,
+  Library,
 } from "lucide-react";
 
 const sections = [
   {
     title: "YOUR STUDY",
     items: [
+      
+    items: [
       { label: "今日のノルマ", href: "/today", icon: Sun },
-      { label: "学習記録", href: "/records", icon: ChartNoAxesColumn },
+      { label: "学習記録", href: "/study-data", icon: ChartNoAxesColumn },
       { label: "学習カレンダー", href: "/calendar", icon: CalendarDays },
-      { label: "暗記デッキ管理", href: "/decks", icon: Layers3 },
-      { label: "学習計画", href: "/study-plan", icon: Route },
-      { label: "タスク管理", href: "/tasks", icon: ListChecks },
+      { label: "暗記デッキ", href: "/", icon: Layers3 },
+      { label: "教材", href: "/materials", icon: BookOpen },
+      { label: "学習計画", href: "/plan", icon: Route },
+      { label: "タスク", href: "/tasks", icon: ListChecks },
       { label: "世界地図", href: "/language-world", icon: Map },
+      { label: "Little Library", href: "/library", icon: Library },
     ],
+
   },
   {
     title: "GAMES & STORIES",
     items: [
-      { label: "Language Quest", href: "/games", icon: Swords },
+      { label: "Language Quest", href: "/game", icon: Swords },
       { label: "無敵艦隊 · スペイン語", href: "/armada", icon: Sailboat },
-      { label: "戦国策 · 中国語", href: "/sengoku", icon: Castle },
+      { label: "戦国策 · 中国語", href: "/story1", icon: Castle },
       { label: "Little Moments", href: "/little-moments", icon: PawPrint },
     ],
   },
@@ -94,7 +100,7 @@ export default function AnkiSidebar() {
 
   return (
     <>
-      {/* 左上の共通メニューボタン */}
+      {/* 共通メニューボタン */}
       <div className="fixed left-4 top-4 z-[60]">
         <button
           type="button"
@@ -109,11 +115,7 @@ export default function AnkiSidebar() {
             transition-all duration-200
             hover:bg-white hover:shadow-md active:scale-95"
         >
-          <Menu
-            size={21}
-            strokeWidth={1.7}
-            className="block shrink-0"
-          />
+          <Menu size={21} strokeWidth={1.7} />
         </button>
       </div>
 
@@ -150,7 +152,7 @@ export default function AnkiSidebar() {
             border-stone-200/80 px-5 py-5"
         >
           <Link
-            href="/decks"
+            href="/materials"
             onClick={() => setOpen(false)}
             className="flex min-w-0 items-center gap-3"
           >
@@ -178,7 +180,6 @@ export default function AnkiSidebar() {
             </span>
           </Link>
 
-          {/* 閉じるボタン */}
           <button
             type="button"
             onClick={() => setOpen(false)}
@@ -189,11 +190,7 @@ export default function AnkiSidebar() {
               transition hover:bg-stone-200/70 hover:text-stone-900
               active:scale-95"
           >
-            <X
-              size={21}
-              strokeWidth={1.7}
-              className="block shrink-0"
-            />
+            <X size={21} strokeWidth={1.7} />
           </button>
         </div>
 
@@ -214,8 +211,7 @@ export default function AnkiSidebar() {
 
                   const active =
                     pathname === item.href ||
-                    (item.href !== "/" &&
-                      pathname.startsWith(`${item.href}/`));
+                    pathname.startsWith(`${item.href}/`);
 
                   return (
                     <Link
