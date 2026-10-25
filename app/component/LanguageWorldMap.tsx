@@ -599,7 +599,7 @@ export default function LanguageWorldMap() {
           <Geographies geography={geoUrl}>
             {({ geographies }) =>
               geographies.map((geo) => {
-                const countryId = getCountryId(geo.id);
+                const countryId = getCountryId(geo.id ?? "");
                 const level = getLevel(selectedLanguageId, countryId);
                 const isSelected = selectedCountry?.id === countryId;
 
