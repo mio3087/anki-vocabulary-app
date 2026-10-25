@@ -20,6 +20,7 @@ import {
   Settings2,
   UserRound,
   ArrowUpRight,
+  Map,
 } from "lucide-react";
 
 const sections = [
@@ -32,6 +33,7 @@ const sections = [
       { label: "暗記デッキ管理", href: "/decks", icon: Layers3 },
       { label: "学習計画", href: "/study-plan", icon: Route },
       { label: "タスク管理", href: "/tasks", icon: ListChecks },
+      { label: "世界地図", href: "/language-world", icon: Map },
     ],
   },
   {
@@ -50,6 +52,16 @@ const sections = [
     ],
   },
 ];
+
+const squareButtonStyle = {
+  width: "48px",
+  height: "48px",
+  minWidth: "48px",
+  minHeight: "48px",
+  aspectRatio: "1 / 1",
+  padding: 0,
+  flexShrink: 0,
+} as const;
 
 export default function AnkiSidebar() {
   const [open, setOpen] = useState(false);
@@ -79,34 +91,31 @@ export default function AnkiSidebar() {
     };
   }, [open]);
 
+  const mapActive =
+    pathname === "/language-world" ||
+    pathname.startsWith("/language-world/");
+
   return (
     <>
-      {/* 共通ハンバーガーボタン：正方形に固定 */}
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label="メニューを開く"
-        aria-expanded={open}
-        aria-controls="anki-sidebar"
-        style={{
-          width: "48px",
-          height: "48px",
-          minWidth: "48px",
-          minHeight: "48px",
-          aspectRatio: "1 / 1",
-          padding: 0,
-          flexShrink: 0,
-        }}
-        className="fixed left-4 top-4 z-[60]
-          box-border flex items-center justify-center
-          rounded-2xl border border-stone-200/80
-          bg-[#F7F6F2]/95 text-stone-700
-          shadow-sm backdrop-blur
-          transition-all duration-200
-          hover:bg-white hover:shadow-md active:scale-95"
-      >
-        <Menu size={21} strokeWidth={1.7} />
-      </button>
+      {/* 左上の共通メニューボタン */}
+      <div className="fixed left-4 top-4 z-[60]">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label="メニューを開く"
+          aria-expanded={open}
+          aria-controls="anki-sidebar"
+          style={squareButtonStyle}
+          className="box-border flex items-center justify-center
+            rounded-2xl border border-stone-200/80
+            bg-[#F7F6F2]/95 text-stone-700
+            shadow-sm backdrop-blur
+            transition-all duration-200
+            hover:bg-white hover:shadow-md active:scale-95"
+        >
+          <Menu size={21} strokeWidth={1.7} />
+        </button>
+      </div>
 
       {/* 背景 */}
       {open && (
@@ -154,26 +163,34 @@ export default function AnkiSidebar() {
             </span>
 
             <span className="min-w-0">
-              <span className="block text-lg font-semibold
-                tracking-tight text-stone-900">
+              <span
+                className="block text-lg font-semibold
+                  tracking-tight text-stone-900"
+              >
                 Anki
               </span>
-              <span className="block text-[9px] font-medium
-                tracking-[0.12em] text-stone-500">
+              <span
+                className="block text-[9px] font-medium
+                  tracking-[0.12em] text-stone-500"
+              >
                 LANGUAGE LEARNING WORKSPACE
               </span>
             </span>
           </Link>
 
+          {/* 閉じるボタン */}
           <button
             type="button"
             onClick={() => setOpen(false)}
             aria-label="メニューを閉じる"
-            className="ml-2 flex h-9 w-9 shrink-0 items-center
-              justify-center rounded-full text-stone-500
-              transition hover:bg-stone-200/70 hover:text-stone-900"
+            style={squareButtonStyle}
+            className="ml-2 box-border flex items-center
+              justify-center rounded-2xl border
+              border-stone-200/80 text-stone-500
+              transition hover:bg-stone-200/70 hover:text-stone-900
+              active:scale-95"
           >
-            <X size={20} strokeWidth={1.7} />
+            <X size={21} strokeWidth={1.7} />
           </button>
         </div>
 
@@ -263,8 +280,10 @@ export default function AnkiSidebar() {
             <ArrowUpRight size={18} />
           </Link>
 
-          <p className="mt-4 text-center text-[10px]
-            tracking-wide text-stone-400">
+          <p
+            className="mt-4 text-center text-[10px]
+              tracking-wide text-stone-400"
+          >
             A quiet space to keep learning.
           </p>
         </div>
