@@ -622,13 +622,8 @@ export default function LanguageWorldMap() {
                     stroke={isSelected ? "#303830" : "#FFFFFF"}
                     strokeWidth={isSelected ? 1.8 : 0.6}
                     style={{
-                      default: { outline: "none", cursor: "pointer" },
-                      hover: {
-                        fill: selectedLanguage?.color ?? "#718675",
-                        outline: "none",
-                        cursor: "pointer",
-                      },
-                      pressed: { outline: "none" },
+                      outline: "none",
+                      cursor: "pointer",
                     }}
                   />
                 );
@@ -717,3 +712,4 @@ export default function LanguageWorldMap() {
     </div>
   );
 }
+
