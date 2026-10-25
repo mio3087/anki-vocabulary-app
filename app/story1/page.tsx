@@ -193,6 +193,7 @@ const languageNames: Record<Language, string> = {
 export default function Story1Page() {
   const [language, setLanguage] = useState<Language>("ja");
   const [screen, setScreen] = useState<Screen>("title");
+  const [menuOpen, setMenuOpen] = useState(false);
   
   const t = translations[language];
 
