@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -40,11 +41,13 @@ type SavedBook = {
   status: string;
 };
 
+// メインボタン：薄いグレー＋黒文字
 const primaryButton =
-  "rounded-xl bg-[#334155] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#1E293B] disabled:cursor-not-allowed disabled:opacity-50";
+  "rounded-xl bg-[#E5E7EB] px-4 py-3 text-sm font-semibold !text-black transition hover:bg-[#D1D5DB] disabled:cursor-not-allowed disabled:opacity-50";
 
+// サブボタン：白背景＋黒文字
 const secondaryButton =
-  "rounded-xl border border-[#D1D5DB] bg-white px-4 py-2.5 text-sm font-medium text-[#1F2937] transition hover:bg-[#F3F4F6]";
+  "rounded-xl border border-[#D1D5DB] bg-white px-4 py-2.5 text-sm font-medium !text-black transition hover:bg-[#F3F4F6] disabled:cursor-not-allowed disabled:opacity-50";
 
 export default function LibraryScanPage() {
   const cameraRef = useRef<HTMLVideoElement>(null);
@@ -675,6 +678,7 @@ export default function LibraryScanPage() {
               type="button"
               onClick={startCamera}
               className={secondaryButton}
+              style={{ color: "#000000" }}
             >
               カメラを起動
             </button>
@@ -683,6 +687,7 @@ export default function LibraryScanPage() {
               type="button"
               onClick={() => photoRef.current?.click()}
               className={secondaryButton}
+              style={{ color: "#000000" }}
             >
               写真を選択
             </button>
@@ -691,6 +696,7 @@ export default function LibraryScanPage() {
               type="button"
               onClick={() => pdfRef.current?.click()}
               className={secondaryButton}
+              style={{ color: "#000000" }}
             >
               PDFを選択
             </button>
@@ -733,6 +739,7 @@ export default function LibraryScanPage() {
                   type="button"
                   onClick={takePhoto}
                   className={primaryButton}
+                  style={{ color: "#000000" }}
                 >
                   撮影する
                 </button>
@@ -741,6 +748,7 @@ export default function LibraryScanPage() {
                   type="button"
                   onClick={stopCamera}
                   className={secondaryButton}
+                  style={{ color: "#000000" }}
                 >
                   カメラを閉じる
                 </button>
@@ -766,7 +774,7 @@ export default function LibraryScanPage() {
                       className="h-16 w-16 rounded-lg object-cover"
                     />
                   ) : (
-                    <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-[#E9EDF2] text-sm font-semibold text-[#334155]">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-[#E9EDF2] text-sm font-semibold text-black">
                       PDF
                     </div>
                   )}
@@ -783,7 +791,7 @@ export default function LibraryScanPage() {
                   <button
                     type="button"
                     onClick={() => removeSource(source.id)}
-                    className="rounded-lg px-2 py-1 text-xs font-medium text-[#475569] hover:bg-[#F1F5F9] hover:text-red-700"
+                    className="rounded-lg px-2 py-1 text-xs font-medium text-black hover:bg-[#F1F5F9] hover:text-red-700"
                   >
                     削除
                   </button>
@@ -797,6 +805,7 @@ export default function LibraryScanPage() {
             onClick={readFiles}
             disabled={!sources.length || scanning}
             className={`${primaryButton} mt-5 w-full sm:w-auto`}
+            style={{ color: "#000000" }}
           >
             {scanning
               ? "読み取り・書籍検索中…"
@@ -840,6 +849,7 @@ export default function LibraryScanPage() {
                 type="button"
                 onClick={registerBooks}
                 className={primaryButton}
+                style={{ color: "#000000" }}
               >
                 選択した本を本棚に登録
               </button>
@@ -870,7 +880,7 @@ export default function LibraryScanPage() {
                     <button
                       type="button"
                       onClick={() => removeDraft(book.id)}
-                      className="text-xs font-medium text-[#475569] hover:text-red-700"
+                      className="text-xs font-medium text-black hover:text-red-700"
                     >
                       候補を削除
                     </button>
@@ -938,6 +948,7 @@ export default function LibraryScanPage() {
                       onClick={() => lookupBook(book.id)}
                       disabled={book.searching || !book.isbn.trim()}
                       className={secondaryButton}
+                      style={{ color: "#000000" }}
                     >
                       {book.searching ? "検索中…" : "ISBNから情報を再検索"}
                     </button>
@@ -956,6 +967,7 @@ export default function LibraryScanPage() {
               type="button"
               onClick={registerBooks}
               className={`${primaryButton} mt-5`}
+              style={{ color: "#000000" }}
             >
               選択した本を本棚に登録
             </button>
