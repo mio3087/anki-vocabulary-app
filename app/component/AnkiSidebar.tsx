@@ -22,17 +22,24 @@ import {
   ArrowUpRight,
   Map,
   Library,
+  BookOpen,
 } from "lucide-react";
 
 const sections = [
   {
     title: "YOUR STUDY",
     items: [
-      
-    items: [
       { label: "今日のノルマ", href: "/today", icon: Sun },
-      { label: "学習記録", href: "/study-data", icon: ChartNoAxesColumn },
-      { label: "学習カレンダー", href: "/calendar", icon: CalendarDays },
+      {
+        label: "学習記録",
+        href: "/study-data",
+        icon: ChartNoAxesColumn,
+      },
+      {
+        label: "学習カレンダー",
+        href: "/calendar",
+        icon: CalendarDays,
+      },
       { label: "暗記デッキ", href: "/", icon: Layers3 },
       { label: "教材", href: "/materials", icon: BookOpen },
       { label: "学習計画", href: "/plan", icon: Route },
@@ -40,15 +47,26 @@ const sections = [
       { label: "世界地図", href: "/language-world", icon: Map },
       { label: "Little Library", href: "/library", icon: Library },
     ],
-
   },
   {
     title: "GAMES & STORIES",
     items: [
       { label: "Language Quest", href: "/game", icon: Swords },
-      { label: "無敵艦隊 · スペイン語", href: "/armada", icon: Sailboat },
-      { label: "戦国策 · 中国語", href: "/story1", icon: Castle },
-      { label: "Little Moments", href: "/little-moments", icon: PawPrint },
+      {
+        label: "無敵艦隊 · スペイン語",
+        href: "/armada",
+        icon: Sailboat,
+      },
+      {
+        label: "戦国策 · 中国語",
+        href: "/story1",
+        icon: Castle,
+      },
+      {
+        label: "Little Moments",
+        href: "/little-moments",
+        icon: PawPrint,
+      },
     ],
   },
   {
@@ -211,7 +229,8 @@ export default function AnkiSidebar() {
 
                   const active =
                     pathname === item.href ||
-                    pathname.startsWith(`${item.href}/`);
+                    (item.href !== "/" &&
+                      pathname.startsWith(`${item.href}/`));
 
                   return (
                     <Link
