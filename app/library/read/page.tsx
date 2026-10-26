@@ -27,6 +27,15 @@ type ReadingLog = {
   learned: string;
 };
 
+const linkClass =
+  "text-sm font-medium text-black underline-offset-4 transition hover:text-[#52664D] hover:underline";
+
+const buttonClass =
+  "w-full rounded-xl border border-[#D5D8D0] bg-[#E0E7DC] px-4 py-3 text-sm font-semibold text-black transition hover:bg-[#D5DFD0]";
+
+const inputClass =
+  "mt-2 block w-full rounded-xl border border-[#D5D8D0] bg-white px-3 py-3 text-black outline-none placeholder:text-[#858980] focus:border-[#718675]";
+
 function ReadContent() {
   const searchParams = useSearchParams();
   const rawBookId = searchParams.get("id");
@@ -42,7 +51,6 @@ function ReadContent() {
   const [learned, setLearned] = useState("");
   const [message, setMessage] = useState("");
 
-  // 本棚と読書履歴を読み込む
   useEffect(() => {
     try {
       const savedBooks = localStorage.getItem(BOOKS_KEY);
@@ -66,7 +74,6 @@ function ReadContent() {
 
   const book = books.find((item) => item.id === bookId);
 
-  // 読書記録を保存する
   function saveReading() {
     if (!book) return;
 
@@ -77,10 +84,10 @@ function ReadContent() {
     if (
       !Number.isInteger(start) ||
       !Number.isInteger(end) ||
+      !Number.isInteger(time) ||
       start < 1 ||
       end < start ||
-      time < 1 ||
-      !Number.isFinite(time)
+      time < 1
     ) {
       setMessage("ページ数と読書時間を確認してください。");
       return;
@@ -105,9 +112,7 @@ function ReadContent() {
     const updatedLogs = [log, ...logs];
 
     const updatedBooks = books.map((item) =>
-      item.id === book.id
-        ? { ...item, status: "読書中" }
-        : item
+      item.id === book.id ? { ...item, status: "読書中" } : item
     );
 
     try {
@@ -128,7 +133,7 @@ function ReadContent() {
 
   if (!loaded) {
     return (
-      <main className="min-h-screen bg-[#F7F7F5] p-8 text-[#858980]">
+      <main className="min-h-screen bg-[#F7F7F5] p-8 text-black">
         読書記録を読み込んでいます…
       </main>
     );
@@ -138,10 +143,7 @@ function ReadContent() {
     return (
       <main className="min-h-screen bg-[#F7F7F5] px-5 py-8 text-[#30332F] sm:px-8">
         <div className="mx-auto max-w-3xl">
-          <Link
-            href="/library"
-            className="text-sm text-[#718675] hover:underline"
-          >
+          <Link href="/library" className={linkClass}>
             ← Library
           </Link>
 
@@ -158,7 +160,7 @@ function ReadContent() {
 
             <Link
               href="/library/books"
-              className="mt-5 inline-flex rounded-xl bg-[#718675] px-5 py-3 text-sm font-medium text-white hover:bg-[#5E7563]"
+              className="mt-5 inline-flex rounded-xl border border-[#D5D8D0] bg-[#E0E7DC] px-5 py-3 text-sm font-semibold text-black transition hover:bg-[#D5DFD0]"
             >
               本棚から本を選ぶ →
             </Link>
@@ -178,29 +180,18 @@ function ReadContent() {
   return (
     <main className="min-h-screen bg-[#F7F7F5] px-5 py-8 text-[#30332F] sm:px-8">
       <div className="mx-auto max-w-3xl">
-        {/* ページ間ナビゲーション */}
-        <nav className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
-          <Link
-            href="/library"
-            className="text-[#718675] hover:text-[#52664D]"
-          >
+        <nav className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          <Link href="/library" className={linkClass}>
             ← Library
           </Link>
-          <Link
-            href="/library/books"
-            className="text-[#777D75] hover:text-[#52664D]"
-          >
+          <Link href="/library/books" className={linkClass}>
             本棚
           </Link>
-          <Link
-            href="/library/pdf"
-            className="text-[#777D75] hover:text-[#52664D]"
-          >
+          <Link href="/library/pdf" className={linkClass}>
             PDFリーダー
           </Link>
         </nav>
 
-        {/* 本の情報 */}
         <header className="mt-8">
           <p className="text-xs tracking-[0.2em] text-[#858980]">
             READING JOURNAL
@@ -240,7 +231,6 @@ function ReadContent() {
           </div>
         </header>
 
-        {/* 読書記録フォーム */}
         <section className="mt-8 rounded-2xl border border-[#E6E7E1] bg-white p-5 sm:p-6">
           <h2 className="text-base font-semibold">今日の読書を記録</h2>
           <p className="mt-2 text-sm leading-6 text-[#858980]">
@@ -256,7 +246,7 @@ function ReadContent() {
                 step="1"
                 value={startPage}
                 onChange={(e) => setStartPage(e.target.value)}
-                className="mt-2 block w-full rounded-xl border border-[#E1E3DC] px-3 py-3 outline-none focus:border-[#718675]"
+                className={inputClass}
               />
             </label>
 
@@ -268,7 +258,7 @@ function ReadContent() {
                 step="1"
                 value={endPage}
                 onChange={(e) => setEndPage(e.target.value)}
-                className="mt-2 block w-full rounded-xl border border-[#E1E3DC] px-3 py-3 outline-none focus:border-[#718675]"
+                className={inputClass}
               />
             </label>
 
@@ -280,7 +270,7 @@ function ReadContent() {
                 step="1"
                 value={minutes}
                 onChange={(e) => setMinutes(e.target.value)}
-                className="mt-2 block w-full rounded-xl border border-[#E1E3DC] px-3 py-3 outline-none focus:border-[#718675]"
+                className={inputClass}
               />
             </label>
 
@@ -291,7 +281,7 @@ function ReadContent() {
                 onChange={(e) => setLearned(e.target.value)}
                 rows={4}
                 placeholder="新しく知ったこと、気になった言葉、感想など…"
-                className="mt-2 block w-full rounded-xl border border-[#E1E3DC] px-3 py-3 leading-6 outline-none focus:border-[#718675]"
+                className={`${inputClass} leading-6`}
               />
             </label>
           </div>
@@ -299,7 +289,7 @@ function ReadContent() {
           <button
             type="button"
             onClick={saveReading}
-            className="mt-5 w-full rounded-xl bg-[#718675] px-4 py-3 text-sm font-medium text-white transition hover:bg-[#5E7563]"
+            className={`mt-5 ${buttonClass}`}
           >
             読書記録を保存
           </button>
@@ -318,7 +308,6 @@ function ReadContent() {
           )}
         </section>
 
-        {/* 読書履歴 */}
         <section className="mt-9">
           <div>
             <h2 className="text-base font-semibold">Reading History</h2>
@@ -345,12 +334,12 @@ function ReadContent() {
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <time className="text-sm font-medium">{log.date}</time>
-                    <span className="rounded-lg bg-[#F0F2ED] px-3 py-1.5 text-xs text-[#52664D]">
+                    <span className="rounded-lg bg-[#F0F2ED] px-3 py-1.5 text-xs text-black">
                       {log.minutes} 分
                     </span>
                   </div>
 
-                  <p className="mt-3 text-sm text-[#666D64]">
+                  <p className="mt-3 text-sm text-[#30332F]">
                     {log.startPage}〜{log.endPage} ページ
                     <span className="ml-2 text-xs text-[#858980]">
                       （{Math.max(0, log.endPage - log.startPage + 1)}ページ分）
@@ -358,7 +347,7 @@ function ReadContent() {
                   </p>
 
                   {log.learned && (
-                    <p className="mt-3 whitespace-pre-wrap border-t border-[#F0F0EB] pt-3 text-sm leading-7 text-[#555D54]">
+                    <p className="mt-3 whitespace-pre-wrap border-t border-[#F0F0EB] pt-3 text-sm leading-7 text-[#30332F]">
                       {log.learned}
                     </p>
                   )}
@@ -369,17 +358,11 @@ function ReadContent() {
         </section>
 
         <footer className="mt-10 border-t border-[#E6E7E1] pt-5">
-          <Link
-            href="/library/books"
-            className="text-sm text-[#718675] hover:text-[#52664D]"
-          >
+          <Link href="/library/books" className={linkClass}>
             ← 本棚に戻る
           </Link>
           <span className="mx-3 text-[#D9DCD4]">/</span>
-          <Link
-            href="/library"
-            className="text-sm text-[#718675] hover:text-[#52664D]"
-          >
+          <Link href="/library" className={linkClass}>
             Library トップ
           </Link>
         </footer>
@@ -392,7 +375,7 @@ export default function ReadPage() {
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen bg-[#F7F7F5] p-8 text-[#858980]">
+        <main className="min-h-screen bg-[#F7F7F5] p-8 text-black">
           読書画面を開いています…
         </main>
       }

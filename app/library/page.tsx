@@ -34,12 +34,6 @@ export default function LibraryPage() {
   return (
     <main className="min-h-screen bg-[#F7F7F5] px-5 py-8 text-[#30332F] sm:px-10">
       <div className="mx-auto max-w-5xl">
-        <Link
-          href="/"
-          className="text-sm text-[#718675] hover:underline"
-        >
-          ← Anki に戻る
-        </Link>
 
         <header className="mt-10">
           <p className="text-xs tracking-[0.25em] text-[#858980]">
