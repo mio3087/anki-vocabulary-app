@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -40,6 +39,12 @@ type SavedBook = {
   category: string;
   status: string;
 };
+
+const primaryButton =
+  "rounded-xl bg-[#334155] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#1E293B] disabled:cursor-not-allowed disabled:opacity-50";
+
+const secondaryButton =
+  "rounded-xl border border-[#D1D5DB] bg-white px-4 py-2.5 text-sm font-medium text-[#1F2937] transition hover:bg-[#F3F4F6]";
 
 export default function LibraryScanPage() {
   const cameraRef = useRef<HTMLVideoElement>(null);
@@ -91,7 +96,7 @@ export default function LibraryScanPage() {
         }
       });
     } catch (error) {
-      console.error(error);
+      console.error("カメラ起動エラー:", error);
       setMessage("カメラを起動できません。ブラウザのカメラ使用を許可してください。");
     }
   }
@@ -100,7 +105,10 @@ export default function LibraryScanPage() {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
 
-    if (cameraRef.current) cameraRef.current.srcObject = null;
+    if (cameraRef.current) {
+      cameraRef.current.srcObject = null;
+    }
+
     setCameraOpen(false);
   }
 
@@ -138,6 +146,7 @@ export default function LibraryScanPage() {
       setSources((current) => [...current, ...next]);
       setDrafts([]);
       setPreviewText("");
+      setPdfPages(0);
     }
 
     if (photoRef.current) photoRef.current.value = "";
@@ -157,6 +166,7 @@ export default function LibraryScanPage() {
     canvas.height = video.videoHeight;
 
     const context = canvas.getContext("2d");
+
     if (!context) {
       setMessage("撮影に失敗しました。");
       return;
@@ -177,7 +187,7 @@ export default function LibraryScanPage() {
 
         addFiles([file]);
         stopCamera();
-        setMessage("撮影しました。「読み取り」を押してください。");
+        setMessage("撮影しました。「読み取り・書籍情報を検索」を押してください。");
       },
       "image/jpeg",
       0.95
@@ -195,10 +205,10 @@ export default function LibraryScanPage() {
     setSources((current) => current.filter((source) => source.id !== id));
     setDrafts([]);
     setPreviewText("");
+    setPdfPages(0);
     setMessage("");
   }
 
-  // ISBN-10 / ISBN-13 の候補を文章から抽出
   function extractISBNs(text: string): string[] {
     const normalized = text
       .replace(/[‐‑‒–—―ー]/g, "-")
@@ -206,14 +216,16 @@ export default function LibraryScanPage() {
         String.fromCharCode(char.charCodeAt(0) - 0xFEE0)
       );
 
-    const candidates = normalized.match(
-      /(?:ISBN(?:-1[03])?\s*:?\s*)?(?:97[89][-\s]?)?(?:\d[-\s]?){9,12}[\dXx]/gi
-    ) ?? [];
+    const candidates =
+      normalized.match(
+        /(?:ISBN(?:-1[03])?\s*:?\s*)?(?:97[89][-\s]?)?(?:\d[-\s]?){9,12}[\dXx]/gi
+      ) ?? [];
 
     const valid: string[] = [];
 
     for (const candidate of candidates) {
-      const digits = candidate.replace(/^ISBN(?:-1[03])?\s*:?\s*/i, "")
+      const digits = candidate
+        .replace(/^ISBN(?:-1[03])?\s*:?\s*/i, "")
         .replace(/[-\s]/g, "")
         .toUpperCase();
 
@@ -228,24 +240,26 @@ export default function LibraryScanPage() {
           );
 
         const check = (10 - (sum % 10)) % 10;
-        if (check === Number(digits[12])) valid.push(digits);
-      } else if (digits.length === 10 && /^\d{9}[\dX]$/.test(digits)) {
-        const sum = digits
-          .split("")
-          .reduce(
-            (total, digit, index) =>
-              total + (digit === "X" ? 10 : Number(digit)) * (10 - index),
-            0
-          );
 
-        if (sum % 11 === 0) valid.push(digits);
+        if (check === Number(digits[12])) {
+          valid.push(digits);
+        }
+      } else if (digits.length === 10 && /^\d{9}[\dX]$/.test(digits)) {
+        const sum = digits.split("").reduce(
+          (total, digit, index) =>
+            total + (digit === "X" ? 10 : Number(digit)) * (10 - index),
+          0
+        );
+
+        if (sum % 11 === 0) {
+          valid.push(digits);
+        }
       }
     }
 
     return Array.from(new Set(valid));
   }
 
-  // Google Books API から書誌情報を検索
   async function lookupBook(id: string, isbnOverride?: string) {
     const draft = drafts.find((item) => item.id === id);
     const isbn = (isbnOverride ?? draft?.isbn ?? "").replace(/[-\s]/g, "");
@@ -274,7 +288,9 @@ export default function LibraryScanPage() {
         `https://www.googleapis.com/books/v1/volumes?q=isbn:${encodeURIComponent(isbn)}&maxResults=10`
       );
 
-      if (!response.ok) throw new Error("書籍情報サービスに接続できませんでした。");
+      if (!response.ok) {
+        throw new Error("書籍情報サービスに接続できませんでした。");
+      }
 
       const data = await response.json();
       const items: { volumeInfo?: GoogleBook }[] = data.items ?? [];
@@ -284,7 +300,8 @@ export default function LibraryScanPage() {
 
       const exact = items.find((item) =>
         item.volumeInfo?.industryIdentifiers?.some(
-          (identifier) => normalizedISBN(identifier.identifier) === normalizedISBN(isbn)
+          (identifier) =>
+            normalizedISBN(identifier.identifier) === normalizedISBN(isbn)
         )
       );
 
@@ -327,13 +344,14 @@ export default function LibraryScanPage() {
                 searching: false,
                 info: volume.pageCount
                   ? "書籍情報を取得しました。内容を確認してください。"
-                  : "書名・著者を取得しました。総ページ数は登録されていないため、必要なら手入力してください。",
+                  : "書名・著者を取得しました。総ページ数は必要なら手入力してください。",
               }
             : item
         )
       );
     } catch (error) {
-      console.error(error);
+      console.error("書籍情報検索エラー:", error);
+
       setDrafts((current) =>
         current.map((item) =>
           item.id === id
@@ -363,13 +381,7 @@ export default function LibraryScanPage() {
     const extractedTexts: string[] = [];
 
     try {
-      const pdfjs = await import("pdfjs-dist");
-
-      pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-        "pdfjs-dist/build/pdf.worker.min.mjs",
-        import.meta.url
-      ).toString();
-
+      let pdfjs: typeof import("pdfjs-dist") | null = null;
       let Tesseract: typeof import("tesseract.js") | null = null;
       let pageCount = 0;
 
@@ -379,6 +391,15 @@ export default function LibraryScanPage() {
         setMessage(`読み取り中：${i + 1}/${sources.length} ファイル`);
 
         if (source.kind === "pdf") {
+          if (!pdfjs) {
+            pdfjs = await import("pdfjs-dist");
+
+            pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+              "pdfjs-dist/build/pdf.worker.min.mjs",
+              import.meta.url
+            ).toString();
+          }
+
           const buffer = await source.file.arrayBuffer();
           const pdf = await pdfjs.getDocument({
             data: new Uint8Array(buffer),
@@ -386,23 +407,30 @@ export default function LibraryScanPage() {
 
           pageCount += pdf.numPages;
 
-          for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+          for (
+            let pageNumber = 1;
+            pageNumber <= pdf.numPages;
+            pageNumber++
+          ) {
             setMessage(
               `PDF読み取り中：${i + 1}/${sources.length} ファイル、${pageNumber}/${pdf.numPages} ページ`
             );
 
             const page = await pdf.getPage(pageNumber);
             const content = await page.getTextContent();
+
             let pageText = content.items
               .map((item) => ("str" in item ? item.str : ""))
               .join(" ");
 
-            // 文字データのないスキャンPDFはOCRで読み取る
             if (!pageText.trim()) {
-              if (!Tesseract) Tesseract = await import("tesseract.js");
+              if (!Tesseract) {
+                Tesseract = await import("tesseract.js");
+              }
 
               const viewport = page.getViewport({ scale: 2 });
               const canvas = document.createElement("canvas");
+
               canvas.width = Math.ceil(viewport.width);
               canvas.height = Math.ceil(viewport.height);
 
@@ -417,6 +445,7 @@ export default function LibraryScanPage() {
 
               const result = await Tesseract.recognize(canvas, "jpn+eng");
               pageText = result.data.text;
+
               canvas.width = 0;
               canvas.height = 0;
             }
@@ -426,10 +455,15 @@ export default function LibraryScanPage() {
             );
           }
         } else {
-          if (!Tesseract) Tesseract = await import("tesseract.js");
+          if (!Tesseract) {
+            Tesseract = await import("tesseract.js");
+          }
 
           const result = await Tesseract.recognize(source.file, "jpn+eng");
-          extractedTexts.push(`【${source.file.name}】\n${result.data.text}`);
+
+          extractedTexts.push(
+            `【${source.file.name}】\n${result.data.text}`
+          );
         }
       }
 
@@ -439,14 +473,14 @@ export default function LibraryScanPage() {
       setPreviewText(allText);
 
       if (!allText) {
-        setMessage("文字を読み取れませんでした。写真を明るくして撮り直してください。");
+        setMessage(
+          "文字を読み取れませんでした。写真を明るくし、文字やISBNがはっきり写るように撮り直してください。"
+        );
         return;
       }
 
       const isbns = extractISBNs(allText);
 
-      // ISBNが見つかった場合はISBNごとに候補を作成。
-      // ISBNがない場合も、タイトルなどを手入力できる候補を用意。
       const nextDrafts: BookDraft[] = isbns.length
         ? isbns.map((isbn, index) => ({
             id: `${Date.now()}-${index}-${Math.random()}`,
@@ -455,7 +489,7 @@ export default function LibraryScanPage() {
             isbn,
             totalPages: "",
             selected: true,
-            info: "ISBNを検出しました。書籍情報を検索してください。",
+            info: "ISBNを検出しました。書籍情報を検索しています。",
           }))
         : [
             {
@@ -465,29 +499,33 @@ export default function LibraryScanPage() {
               isbn: "",
               totalPages: "",
               selected: true,
-              info: "ISBNが検出されませんでした。表紙・裏表紙を撮影するか、項目を手入力してください。",
+              info: "ISBNが検出されませんでした。ISBNを手入力して検索するか、書籍情報を手入力してください。",
             },
           ];
 
       setDrafts(nextDrafts);
+
       setMessage(
         isbns.length
-          ? `読み取り完了。ISBNを${isbns.length}件検出しました。書籍情報を検索できます。`
-          : "読み取り完了。ただしISBNは検出できませんでした。候補を手入力してください。"
+          ? `読み取り完了。ISBNを${isbns.length}件検出しました。書籍情報を検索します。`
+          : "文字の読み取りが完了しましたが、ISBNは検出できませんでした。候補を手入力してください。"
       );
 
-      // React state更新を待たず、作成した候補のISBNを検索する
       if (isbns.length) {
         for (const draft of nextDrafts) {
           await lookupBook(draft.id, draft.isbn);
         }
       }
     } catch (error) {
-  console.error(error);
-  setMessage(
-    "読み取りに失敗しました。pdfjs-dist と tesseract.js がインストールされているか確認してください。"
-  );
-} finally {
+      console.error("書籍読み取りエラー:", error);
+
+      const detail =
+        error instanceof Error
+          ? `${error.name}: ${error.message}`
+          : String(error);
+
+      setMessage(`読み取りに失敗しました。\n原因：${detail}`);
+    } finally {
       setScanning(false);
     }
   }
@@ -535,9 +573,12 @@ export default function LibraryScanPage() {
       }
 
       const existing = parsed as SavedBook[];
+
       const existingISBNs = new Set(
         existing
-          .map((book) => (book.isbn || "").replace(/[-\s]/g, "").toUpperCase())
+          .map((book) =>
+            (book.isbn || "").replace(/[-\s]/g, "").toUpperCase()
+          )
           .filter(Boolean)
       );
 
@@ -553,7 +594,9 @@ export default function LibraryScanPage() {
             return false;
           }
 
-          if (!isbn && addedTitles.has(title)) return false;
+          if (!isbn && addedTitles.has(title)) {
+            return false;
+          }
 
           if (isbn) addedISBNs.add(isbn);
           else addedTitles.add(title);
@@ -571,7 +614,9 @@ export default function LibraryScanPage() {
         }));
 
       if (!newBooks.length) {
-        setMessage("選択した本はすでに本棚に登録されているようです。ISBNを確認してください。");
+        setMessage(
+          "選択した本はすでに本棚に登録されているようです。ISBNやタイトルを確認してください。"
+        );
         return;
       }
 
@@ -580,73 +625,72 @@ export default function LibraryScanPage() {
         JSON.stringify([...existing, ...newBooks])
       );
 
-      setDrafts((current) =>
-        current.filter(
-          (draft) =>
-            !newBooks.some(
+      const registeredIds = new Set(
+        selected
+          .filter((draft) =>
+            newBooks.some(
               (book) =>
                 book.title === draft.title.trim() &&
                 book.isbn === draft.isbn.trim()
             )
-        )
+          )
+          .map((draft) => draft.id)
+      );
+
+      setDrafts((current) =>
+        current.filter((draft) => !registeredIds.has(draft.id))
       );
 
       setMessage(`${newBooks.length}冊を本棚に登録しました。`);
     } catch (error) {
-      console.error(error);
+      console.error("本棚登録エラー:", error);
       setMessage("登録できませんでした。本棚の保存データを確認してください。");
     }
   }
 
-  const navClass =
-    "rounded-xl border border-[#D9DCD4] bg-white px-4 py-2.5 text-sm transition hover:bg-[#F0F2ED]";
-
   return (
     <main className="min-h-screen bg-[#F7F7F5] px-5 py-8 text-[#30332F] sm:px-8">
       <div className="mx-auto max-w-5xl">
-        <Link href="/library" className="text-sm text-[#697D6B] hover:underline">
-          ← Libraryトップ
-        </Link>
-
-        <nav className="mt-5 flex flex-wrap gap-2">
-          <Link href="/library" className={navClass}>Libraryトップ</Link>
-          <Link href="/library/books" className={navClass}>本棚</Link>
+        <header className="mb-7">
           <Link
-            href="/library/scan"
-            className="rounded-xl bg-[#718675] px-4 py-2.5 text-sm text-white"
+            href="/library"
+            className="text-sm font-medium text-[#526B59] hover:underline"
           >
-            本・教材を読み取る
+            ← Libraryトップへ戻る
           </Link>
-          <Link href="/library/pdf" className={navClass}>PDF Reader</Link>
-        </nav>
 
-        <h1 className="mt-7 text-2xl font-semibold tracking-tight">
-          本・教材を読み取る
-        </h1>
-        <p className="mt-2 text-sm text-[#777D75]">
-          表紙や裏表紙を撮影し、ISBNから書名・著者・総ページ数を検索します。
-        </p>
+          <h1 className="mt-5 text-2xl font-semibold tracking-tight">
+            本・教材を読み取る
+          </h1>
 
-        <section className="mt-6 rounded-2xl border border-[#E6E7E1] bg-white p-5">
+          <p className="mt-2 text-sm leading-6 text-[#626A62]">
+            表紙や裏表紙を撮影するか、写真・PDFを選択してください。
+            ISBNから書名・著者・総ページ数を検索できます。
+          </p>
+        </header>
+
+        <section className="rounded-2xl border border-[#E2E5DE] bg-white p-5 sm:p-6">
           <div className="grid gap-3 sm:grid-cols-3">
             <button
               type="button"
               onClick={startCamera}
-              className="rounded-xl border border-[#D9DCD4] px-4 py-3 text-sm font-medium hover:bg-[#F0F2ED]"
+              className={secondaryButton}
             >
               カメラを起動
             </button>
+
             <button
               type="button"
               onClick={() => photoRef.current?.click()}
-              className="rounded-xl border border-[#D9DCD4] px-4 py-3 text-sm font-medium hover:bg-[#F0F2ED]"
+              className={secondaryButton}
             >
               写真を選択
             </button>
+
             <button
               type="button"
               onClick={() => pdfRef.current?.click()}
-              className="rounded-xl border border-[#D9DCD4] px-4 py-3 text-sm font-medium hover:bg-[#F0F2ED]"
+              className={secondaryButton}
             >
               PDFを選択
             </button>
@@ -658,15 +702,20 @@ export default function LibraryScanPage() {
             accept="image/*"
             multiple
             className="hidden"
-            onChange={(event) => addFiles(Array.from(event.target.files ?? []))}
+            onChange={(event) =>
+              addFiles(Array.from(event.target.files ?? []))
+            }
           />
+
           <input
             ref={pdfRef}
             type="file"
             accept="application/pdf,.pdf"
             multiple
             className="hidden"
-            onChange={(event) => addFiles(Array.from(event.target.files ?? []))}
+            onChange={(event) =>
+              addFiles(Array.from(event.target.files ?? []))
+            }
           />
 
           {cameraOpen && (
@@ -678,18 +727,20 @@ export default function LibraryScanPage() {
                 muted
                 className="max-h-[65vh] w-full rounded-xl bg-black object-contain"
               />
+
               <div className="flex flex-wrap gap-3">
                 <button
                   type="button"
                   onClick={takePhoto}
-                  className="rounded-xl bg-[#30332F] px-4 py-2.5 text-sm text-white"
+                  className={primaryButton}
                 >
                   撮影する
                 </button>
+
                 <button
                   type="button"
                   onClick={stopCamera}
-                  className="rounded-xl border border-[#D9DCD4] px-4 py-2.5 text-sm"
+                  className={secondaryButton}
                 >
                   カメラを閉じる
                 </button>
@@ -698,14 +749,15 @@ export default function LibraryScanPage() {
           )}
 
           {sources.length > 0 && (
-            <div className="mt-5 space-y-3">
-              <h2 className="text-sm font-semibold">
+            <div className="mt-6 space-y-3">
+              <h2 className="text-sm font-semibold text-[#30332F]">
                 選択したファイル（{sources.length}件）
               </h2>
+
               {sources.map((source) => (
                 <div
                   key={source.id}
-                  className="flex items-center gap-3 rounded-xl border border-[#E6E7E1] p-3"
+                  className="flex items-center gap-3 rounded-xl border border-[#E2E5DE] p-3"
                 >
                   {source.kind === "image" ? (
                     <img
@@ -714,20 +766,24 @@ export default function LibraryScanPage() {
                       className="h-16 w-16 rounded-lg object-cover"
                     />
                   ) : (
-                    <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-[#F0F2ED] text-sm font-semibold">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-[#E9EDF2] text-sm font-semibold text-[#334155]">
                       PDF
                     </div>
                   )}
+
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{source.file.name}</p>
-                    <p className="text-xs text-[#858980]">
+                    <p className="truncate text-sm font-medium text-[#30332F]">
+                      {source.file.name}
+                    </p>
+                    <p className="mt-1 text-xs text-[#626A62]">
                       {(source.file.size / 1024 / 1024).toFixed(2)} MB
                     </p>
                   </div>
+
                   <button
                     type="button"
                     onClick={() => removeSource(source.id)}
-                    className="text-xs text-[#858980] hover:text-red-600"
+                    className="rounded-lg px-2 py-1 text-xs font-medium text-[#475569] hover:bg-[#F1F5F9] hover:text-red-700"
                   >
                     削除
                   </button>
@@ -740,27 +796,34 @@ export default function LibraryScanPage() {
             type="button"
             onClick={readFiles}
             disabled={!sources.length || scanning}
-            className="mt-5 rounded-xl bg-[#718675] px-4 py-3 text-sm font-medium text-white hover:bg-[#5F7563] disabled:cursor-not-allowed disabled:opacity-50"
+            className={`${primaryButton} mt-5 w-full sm:w-auto`}
           >
-            {scanning ? "読み取り・書籍検索中…" : "読み取り・書籍情報を検索"}
+            {scanning
+              ? "読み取り・書籍検索中…"
+              : "読み取り・書籍情報を検索"}
           </button>
 
           {message && (
-            <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[#697D6B]">
+            <p
+              role="status"
+              className="mt-4 whitespace-pre-wrap rounded-xl bg-[#F1F5F9] p-3 text-sm leading-6 text-[#334155]"
+            >
               {message}
             </p>
           )}
         </section>
 
         {previewText && (
-          <section className="mt-7 rounded-2xl border border-[#E6E7E1] bg-white p-5">
+          <section className="mt-7 rounded-2xl border border-[#E2E5DE] bg-white p-5 sm:p-6">
             <h2 className="text-base font-semibold">読み取り文章</h2>
+
             {pdfPages > 0 && (
-              <p className="mt-2 text-xs text-[#858980]">
+              <p className="mt-2 text-xs text-[#626A62]">
                 PDFページ数：{pdfPages}
               </p>
             )}
-            <pre className="mt-4 max-h-[360px] overflow-auto whitespace-pre-wrap break-words rounded-xl bg-[#F7F7F5] p-4 text-sm leading-6">
+
+            <pre className="mt-4 max-h-[360px] overflow-auto whitespace-pre-wrap break-words rounded-xl bg-[#F7F7F5] p-4 text-sm leading-6 text-[#30332F]">
               {previewText}
             </pre>
           </section>
@@ -772,45 +835,49 @@ export default function LibraryScanPage() {
               <h2 className="text-base font-semibold">
                 書籍情報（{drafts.length}件）
               </h2>
+
               <button
                 type="button"
                 onClick={registerBooks}
-                className="rounded-xl bg-[#718675] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#5F7563]"
+                className={primaryButton}
               >
                 選択した本を本棚に登録
               </button>
             </div>
 
-            <p className="mt-2 text-xs leading-5 text-[#858980]">
-              自動取得した情報を確認してください。取得できない項目は手入力できます。総ページ数には本の最後のページ番号を入力してください。
+            <p className="mt-2 text-xs leading-5 text-[#626A62]">
+              自動取得した情報を確認してください。取得できない項目は手入力できます。
+              総ページ数には本の最後のページ番号を入力してください。
             </p>
 
             <div className="mt-4 space-y-4">
               {drafts.map((book, index) => (
                 <article
                   key={book.id}
-                  className="rounded-2xl border border-[#E6E7E1] bg-white p-5"
+                  className="rounded-2xl border border-[#E2E5DE] bg-white p-5"
                 >
                   <div className="mb-4 flex items-center justify-between gap-3">
-                    <label className="flex items-center gap-2 text-sm font-medium">
+                    <label className="flex items-center gap-2 text-sm font-medium text-[#30332F]">
                       <input
                         type="checkbox"
                         checked={book.selected}
                         onChange={() => toggleDraft(book.id)}
+                        className="h-4 w-4 accent-[#334155]"
                       />
                       登録対象 {index + 1}
                     </label>
+
                     <button
                       type="button"
                       onClick={() => removeDraft(book.id)}
-                      className="text-xs text-[#858980] hover:text-red-600"
+                      className="text-xs font-medium text-[#475569] hover:text-red-700"
                     >
                       候補を削除
                     </button>
                   </div>
 
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <label className="text-xs text-[#777D75]">
+                    <label className="text-xs font-medium text-[#626A62]">
                       タイトル
                       <input
                         value={book.title}
@@ -818,11 +885,11 @@ export default function LibraryScanPage() {
                           updateDraft(book.id, "title", event.target.value)
                         }
                         placeholder="本のタイトル"
-                        className="mt-1 w-full rounded-xl border border-[#D9DCD4] px-3 py-2.5 text-sm text-[#30332F]"
+                        className="mt-1 w-full rounded-xl border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#1F2937] outline-none focus:border-[#334155] focus:ring-2 focus:ring-[#CBD5E1]"
                       />
                     </label>
 
-                    <label className="text-xs text-[#777D75]">
+                    <label className="text-xs font-medium text-[#626A62]">
                       著者
                       <input
                         value={book.author}
@@ -830,11 +897,11 @@ export default function LibraryScanPage() {
                           updateDraft(book.id, "author", event.target.value)
                         }
                         placeholder="著者名"
-                        className="mt-1 w-full rounded-xl border border-[#D9DCD4] px-3 py-2.5 text-sm text-[#30332F]"
+                        className="mt-1 w-full rounded-xl border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#1F2937] outline-none focus:border-[#334155] focus:ring-2 focus:ring-[#CBD5E1]"
                       />
                     </label>
 
-                    <label className="text-xs text-[#777D75]">
+                    <label className="text-xs font-medium text-[#626A62]">
                       ISBN
                       <input
                         value={book.isbn}
@@ -842,21 +909,25 @@ export default function LibraryScanPage() {
                           updateDraft(book.id, "isbn", event.target.value)
                         }
                         placeholder="ISBN-13 または ISBN-10"
-                        className="mt-1 w-full rounded-xl border border-[#D9DCD4] px-3 py-2.5 text-sm text-[#30332F]"
+                        className="mt-1 w-full rounded-xl border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#1F2937] outline-none focus:border-[#334155] focus:ring-2 focus:ring-[#CBD5E1]"
                       />
                     </label>
 
-                    <label className="text-xs text-[#777D75]">
+                    <label className="text-xs font-medium text-[#626A62]">
                       総ページ数
                       <input
                         type="number"
                         min="1"
                         value={book.totalPages}
                         onChange={(event) =>
-                          updateDraft(book.id, "totalPages", event.target.value)
+                          updateDraft(
+                            book.id,
+                            "totalPages",
+                            event.target.value
+                          )
                         }
                         placeholder="例：320"
-                        className="mt-1 w-full rounded-xl border border-[#D9DCD4] px-3 py-2.5 text-sm text-[#30332F]"
+                        className="mt-1 w-full rounded-xl border border-[#D1D5DB] bg-white px-3 py-2.5 text-sm text-[#1F2937] outline-none focus:border-[#334155] focus:ring-2 focus:ring-[#CBD5E1]"
                       />
                     </label>
                   </div>
@@ -866,12 +937,13 @@ export default function LibraryScanPage() {
                       type="button"
                       onClick={() => lookupBook(book.id)}
                       disabled={book.searching || !book.isbn.trim()}
-                      className="rounded-xl border border-[#D9DCD4] px-4 py-2.5 text-sm hover:bg-[#F0F2ED] disabled:opacity-50"
+                      className={secondaryButton}
                     >
                       {book.searching ? "検索中…" : "ISBNから情報を再検索"}
                     </button>
+
                     {book.info && (
-                      <p className="text-xs leading-5 text-[#697D6B]">
+                      <p className="text-xs leading-5 text-[#475569]">
                         {book.info}
                       </p>
                     )}
@@ -883,20 +955,12 @@ export default function LibraryScanPage() {
             <button
               type="button"
               onClick={registerBooks}
-              className="mt-5 rounded-xl bg-[#718675] px-4 py-3 text-sm font-medium text-white hover:bg-[#5F7563]"
+              className={`${primaryButton} mt-5`}
             >
               選択した本を本棚に登録
             </button>
           </section>
         )}
-
-        <footer className="mt-10 border-t border-[#E6E7E1] pt-5 text-sm text-[#697D6B]">
-          <Link href="/library/books" className="hover:underline">本棚を見る</Link>
-          <span className="mx-3 text-[#C5C9C0]">/</span>
-          <Link href="/library/pdf" className="hover:underline">PDF Reader</Link>
-          <span className="mx-3 text-[#C5C9C0]">/</span>
-          <Link href="/library" className="hover:underline">Libraryトップ</Link>
-        </footer>
       </div>
     </main>
   );
