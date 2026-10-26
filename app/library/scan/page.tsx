@@ -483,11 +483,11 @@ export default function LibraryScanPage() {
         }
       }
     } catch (error) {
-      console.error(error);
-      setMessage(
-        "読み取りに失敗しました。pdfjs-dist と tesseract.js がインストールされているか確認してください。"
-      );
-    } finally {
+  console.error(error);
+  setMessage(
+    "読み取りに失敗しました。pdfjs-dist と tesseract.js がインストールされているか確認してください。"
+  );
+} finally {
       setScanning(false);
     }
   }
