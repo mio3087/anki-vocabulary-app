@@ -154,7 +154,6 @@ function makeThemeColors(primary: string): ThemeColors {
 export default function Home() {
   const [themeColor, setThemeColor] = useState("#718675");
   const [showThemeSettings, setShowThemeSettings] = useState(false);
-  const [showNavigationMenu, setShowNavigationMenu] = useState(false);
   const [color, setColor] = useState("#718675");
   const [savedColor, setSavedColor] = useState("#718675");
   const [hexInput, setHexInput] = useState("#718675");
@@ -262,39 +261,6 @@ export default function Home() {
       .anki-home button { transition: filter .15s ease, transform .15s ease; }
       .anki-home button:hover { filter: brightness(.98); }
       .anki-home a:focus-visible, .anki-home button:focus-visible { outline: 3px solid #9BAE9A; outline-offset: 3px; }
-      .anki-home .anki-menu-trigger {
-        position: fixed !important; top: 18px !important; left: 18px !important; z-index: 1002 !important;
-        display: flex !important; width: 46px !important; height: 46px !important; padding: 0 !important; margin: 0 !important;
-        align-items: center !important; justify-content: center !important; flex-direction: column !important; gap: 5px !important;
-        border: 1px solid rgba(220,225,217,.95) !important; border-radius: 15px !important; background: rgba(255,255,255,.92) !important;
-        color: #26372D !important; box-shadow: 0 6px 20px rgba(35,45,35,.08) !important; cursor: pointer !important;
-        backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-      }
-      .anki-home .anki-menu-trigger span { display: block; width: 17px; height: 2px; border-radius: 2px; background: currentColor; }
-      .anki-home > .anki-menu-overlay {
-        position: fixed !important; inset: 0 !important; z-index: 1001 !important; display: block !important;
-        width: 100vw !important; height: 100dvh !important; max-width: none !important; margin: 0 !important; padding: 0 !important;
-        border: 0 !important; border-radius: 0 !important; background: rgba(25,31,26,.28) !important;
-        box-shadow: none !important; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
-      }
-      .anki-home .anki-menu-backdrop { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0 !important; margin: 0 !important; border: 0 !important; border-radius: 0 !important; background: transparent !important; }
-      .anki-home .anki-menu-panel {
-        position: absolute; inset: 0 auto 0 0; width: min(340px, calc(100vw - 52px)); height: 100%; overflow-y: auto;
-        box-sizing: border-box; padding: 28px 20px 24px; margin: 0 !important; border: 1px solid #E6E9E2 !important;
-        border-left: 0 !important; border-radius: 0 24px 24px 0 !important; background: #FBFCF9 !important;
-        box-shadow: 18px 0 50px rgba(20,30,20,.14); animation: anki-menu-in .22s ease-out;
-      }
-      .anki-home .anki-menu-panel > * { box-sizing: border-box; }
-      .anki-home .anki-menu-brand { display: flex; align-items: center; gap: 12px; padding: 4px 2px 22px; margin-bottom: 18px; border-bottom: 1px solid #E8EBE5; }
-      .anki-home .anki-menu-brand-mark { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 13px; background: #26372D; color: #F8FAF6; font-weight: 750; font-size: 20px; }
-      .anki-home .anki-menu-label { margin: 20px 8px 8px; color: #8A9187; font-size: 10px; font-weight: 750; letter-spacing: .14em; }
-      .anki-home .anki-menu-link { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 13px; margin: 3px 0; border: 1px solid transparent; border-radius: 12px; background: transparent; color: #30382F; text-decoration: none; font-size: 14px; font-weight: 600; transition: background .15s ease, border-color .15s ease; }
-      .anki-home .anki-menu-link:hover { background: #F0F3ED; border-color: #E5EAE1; }
-      .anki-home .anki-menu-icon { display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 30px; border-radius: 9px; background: #EEF2EB; color: #4D6651; font-size: 15px; }
-      .anki-home .anki-menu-close { float: right; padding: 7px 10px !important; margin: 0 !important; border: 1px solid #E3E7E0 !important; border-radius: 10px !important; background: #fff !important; color: #586157 !important; font-size: 12px !important; cursor: pointer; }
-      @keyframes anki-menu-in { from { transform: translateX(-14px); opacity: .7; } to { transform: translateX(0); opacity: 1; } }
-      @media (max-width: 640px) { .anki-home .anki-menu-trigger { top: 12px !important; left: 12px !important; width: 42px !important; height: 42px !important; } .anki-home .anki-menu-panel { padding: 22px 16px; } }
-      @media (prefers-reduced-motion: reduce) { .anki-home .anki-menu-panel { animation: none; } }
       @media (max-width: 640px) {
         .anki-home { padding: 22px 15px 44px !important; }
         .anki-home-header { gap: 12px; margin-bottom: 22px; padding-bottom: 19px; }
@@ -3408,18 +3374,6 @@ const parts = parseCSVLine(line);
           "20px",
       }}
     >
-      <button
-        type="button"
-        className="anki-menu-trigger"
-        aria-label={showNavigationMenu ? "メニューを閉じる" : "メニューを開く"}
-        aria-expanded={showNavigationMenu}
-        aria-controls="anki-navigation-menu"
-        onClick={() => setShowNavigationMenu((open) => !open)}
-      >
-        <span /><span /><span />
-      </button>
-
-
 
       <div id="deck-management" style={{ scrollMarginTop: "28px", margin: "28px 0 16px", padding: "18px 18px 6px", borderTop: "1px solid #E5E9E2" }}>
         <p style={{ margin: 0, color: "#7B847A", fontSize: "10px", fontWeight: 750, letterSpacing: ".14em" }}>YOUR LIBRARY</p>
