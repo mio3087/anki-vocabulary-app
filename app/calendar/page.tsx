@@ -157,7 +157,7 @@ export default function CalendarPage() {
   const [tasksLoaded, setTasksLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
-  const [menuOpen, setMenuOpen] = useState(false);
+  
 
   const [taskTitle, setTaskTitle] = useState("");
   const [taskTarget, setTaskTarget] = useState("20");
@@ -576,74 +576,9 @@ export default function CalendarPage() {
           </Link>
         </header>
 
-        <button
-          type="button"
-          className={`anki-menu-trigger ${menuOpen ? "is-open" : ""}`}
-          onClick={() => setMenuOpen((open) => !open)}
-          aria-label={menuOpen ? "メニューを閉じる" : "メニューを開く"}
-          aria-expanded={menuOpen}
-          aria-controls="anki-global-menu"
-        >
-          <span />
-          <span />
-          <span />
-        </button>
+      
 
-        {menuOpen && (
-          <>
-            <button
-              type="button"
-              className="anki-menu-overlay"
-              aria-label="メニューを閉じる"
-              onClick={() => setMenuOpen(false)}
-            />
-
-            <nav
-              id="anki-global-menu"
-              className="anki-menu-panel"
-              aria-label="共通ナビゲーション"
-            >
-              <div className="anki-menu-heading">
-                <span className="anki-menu-logo">a.</span>
-                <div>
-                  <strong>ANKI</strong>
-                  <span>YOUR LEARNING SPACE</span>
-                </div>
-              </div>
-
-              <div className="anki-menu-section">YOUR ANKI</div>
-
-              {[
-                { href: "/", icon: "⌂", label: "ホーム" },
-                { href: "/today", icon: "✳", label: "今日のノルマ" },
-                { href: "/calendar", icon: "▦", label: "学習カレンダー" },
-                { href: "/tasks", icon: "✓", label: "タスク管理" },
-                { href: "/plan", icon: "↗", label: "学習計画" },
-                { href: "/decks", icon: "▤", label: "単語デッキ" },
-                { href: "/little-moments", icon: "🐾", label: "Little Moments" },
-              ].map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`anki-menu-link ${
-                    item.href === "/calendar" ? "anki-menu-active" : ""
-                  }`}
-                  onClick={() => setMenuOpen(false)}
-                >
-                  <span className="anki-menu-icon">{item.icon}</span>
-                  <span>{item.label}</span>
-                  {item.href === "/calendar" && (
-                    <span className="anki-menu-current">CURRENT</span>
-                  )}
-                </Link>
-              ))}
-
-              <div className="anki-menu-footer">
-                Make progress, one little step at a time.
-              </div>
-            </nav>
-          </>
-        )}
+        
 
         <section className="hero">
           <div>
@@ -1319,7 +1254,13 @@ export default function CalendarPage() {
         }
 
         .shell { width: 100%; max-width: 1120px; margin: 0 auto; }
-        .topbar { min-height: 72px; display: flex; align-items: center; border-bottom: 1px solid var(--line); padding-left: 58px; }
+        .topbar {
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  padding-left: 0;
+}
         .brand { display: inline-flex; align-items: center; gap: 11px; color: var(--text); font-size: 12px; font-weight: 750; letter-spacing: .13em; text-decoration: none; }
         .brand-mark, .footer-brand { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: var(--accent); color: white; font-size: 19px; letter-spacing: -2px; font-weight: 750; }
         .brand-muted { color: var(--muted); font-weight: 500; letter-spacing: .07em; }
@@ -1464,26 +1405,7 @@ export default function CalendarPage() {
         .status-dot { width: 6px; height: 6px; }
         .status-saving { background: #d6a06a; }
 
-        .anki-menu-trigger { position: fixed; top: 16px; left: 16px; z-index: 1002; display: flex; width: 46px; height: 46px; flex-direction: column; align-items: center; justify-content: center; gap: 5px; padding: 0; border: 1px solid #e8e9e3; border-radius: 14px; background: rgba(255,255,255,.96); box-shadow: 0 4px 16px rgba(30,35,28,.08); cursor: pointer; transition: background .2s, box-shadow .2s, transform .2s; }
-        .anki-menu-trigger:hover { background: #f1f3ed; box-shadow: 0 6px 20px rgba(30,35,28,.12); }
-        .anki-menu-trigger span { display: block; width: 18px; height: 2px; border-radius: 2px; background: #303c32; transition: transform .2s, opacity .2s; }
-        .anki-menu-trigger.is-open span:first-child { transform: translateY(7px) rotate(45deg); }
-        .anki-menu-trigger.is-open span:nth-child(2) { opacity: 0; }
-        .anki-menu-trigger.is-open span:last-child { transform: translateY(-7px) rotate(-45deg); }
-        .anki-menu-overlay { position: fixed; inset: 0; z-index: 1000; width: 100%; height: 100%; border: 0; background: rgba(25,29,24,.28); backdrop-filter: blur(3px); cursor: pointer; }
-        .anki-menu-panel { position: fixed; top: 0; bottom: 0; left: 0; z-index: 1001; display: flex; width: min(300px,86vw); flex-direction: column; gap: 6px; overflow-y: auto; padding: 86px 20px 24px; border-right: 1px solid #e8e9e3; background: #fbfbf8; box-shadow: 12px 0 40px rgba(25,29,24,.08); animation: anki-menu-in .22s ease-out; }
-        .anki-menu-heading { display: flex; align-items: center; gap: 12px; padding: 0 4px 24px; border-bottom: 1px solid #e8e9e3; }
-        .anki-menu-logo { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 13px; background: #303c32; color: white; font-size: 24px; font-weight: 750; letter-spacing: -2px; }
-        .anki-menu-heading div { display: flex; flex-direction: column; gap: 5px; }
-        .anki-menu-heading strong { color: #303c32; font-size: 13px; letter-spacing: .14em; }
-        .anki-menu-heading div > span { color: #96988e; font-size: 9px; letter-spacing: .09em; }
-        .anki-menu-section { margin: 22px 8px 10px; color: #96988e; font-size: 10px; font-weight: 750; letter-spacing: .15em; }
-        .anki-menu-link { display: flex; min-height: 46px; align-items: center; gap: 12px; padding: 0 12px; border-radius: 12px; color: #5e6258; font-size: 12px; text-decoration: none; transition: background .15s, color .15s; }
-        .anki-menu-link:hover { background: #f0f2ec; color: #303c32; }
-        .anki-menu-active { background: #e9eee5; color: #303c32; font-weight: 700; }
-        .anki-menu-icon { display: grid; width: 25px; height: 25px; flex-shrink: 0; place-items: center; font-size: 17px; }
-        .anki-menu-current { margin-left: auto; color: #84947c; font-size: 8px; font-weight: 750; letter-spacing: .06em; }
-        .anki-menu-footer { margin-top: auto; padding: 24px 6px 0; color: #96988e; font-size: 10px; line-height: 1.8; }
+        
         @keyframes anki-menu-in { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: translateX(0); } }
 
         @media (max-width: 760px) {
@@ -1501,8 +1423,10 @@ export default function CalendarPage() {
           .exam-add-button { grid-column: 1 / -1; }
         }
 
-        @media (max-width: 480px) {
-          .calendar-page { padding-right: 12px; padding-left: 12px; }
+        @media (prefers-reduced-motion: reduce) {
+  .anki-menu-trigger, .anki-menu-trigger span, .anki-menu-link { transition: none; }
+  .anki-menu-panel { animation: none; }
+}
           .topbar { padding-left: 52px; }
           .anki-menu-trigger { top: 12px; left: 12px; width: 42px; height: 42px; }
           .brand { font-size: 11px; }
