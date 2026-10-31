@@ -241,13 +241,14 @@ export default function LoginPage() {
     width: "100%",
     boxSizing: "border-box",
     padding: "13px 14px",
-    border: "1px solid #E1E5DE",
+    border: "1px solid var(--anki-theme-soft)",
     borderRadius: 11,
     background: "#FBFCFA",
     color: "#252A25",
     fontSize: 15,
-    outlineColor: "#718675",
+    outlineColor: "var(--anki-theme-color)",
     marginTop: 7,
+    accentColor: "var(--anki-theme-color)",
   };
 
   const primaryButton: React.CSSProperties = {
@@ -255,7 +256,7 @@ export default function LoginPage() {
     padding: "13px 16px",
     border: 0,
     borderRadius: 11,
-    background: "#354B3B",
+    background: "var(--anki-theme-color)",
     color: "#FFFFFF",
     fontSize: 14,
     fontWeight: 650,
@@ -265,9 +266,9 @@ export default function LoginPage() {
 
   const secondaryButton: React.CSSProperties = {
     ...primaryButton,
-    background: "#F2F4F0",
-    color: "#354B3B",
-    border: "1px solid #E1E5DE",
+    background: "var(--anki-theme-light)",
+    color: "var(--anki-theme-dark)",
+    border: "1px solid var(--anki-theme-soft)",
   };
 
   return (
@@ -277,7 +278,7 @@ export default function LoginPage() {
         boxSizing: "border-box",
         padding: "36px 20px 56px",
         background:
-          "radial-gradient(ellipse at 50% 0%, #E9EFE8 0%, #F6F7F4 43%, #F8F8F6 100%)",
+          "radial-gradient(ellipse at 50% 0%, var(--anki-theme-light) 0%, #F6F7F4 43%, #F8F8F6 100%)",
         color: "#252A25",
         fontFamily:
           '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -290,6 +291,17 @@ export default function LoginPage() {
       <style>{`
         .login-action:hover {
           filter: brightness(1.04);
+        }
+
+        .login-action:disabled {
+          cursor: not-allowed;
+          opacity: .7;
+        }
+
+        .login-field:focus {
+          border-color: var(--anki-theme-color) !important;
+          outline: 2px solid var(--anki-theme-light);
+          outline-offset: 1px;
         }
 
         @media (max-width:520px) {
@@ -320,7 +332,7 @@ export default function LoginPage() {
               justifyContent: "center",
               gap: 11,
               textDecoration: "none",
-              color: "#2B3B2E",
+              color: "var(--anki-theme-dark)",
             }}
           >
             <span
@@ -330,15 +342,16 @@ export default function LoginPage() {
                 display: "grid",
                 placeItems: "center",
                 borderRadius: 15,
-                background: "#354B3B",
+                background: "var(--anki-theme-color)",
                 color: "#FFFFFF",
                 fontWeight: 800,
                 fontSize: 20,
-                boxShadow: "0 7px 16px #354B3B25",
+                boxShadow: "0 7px 16px var(--anki-theme-light)",
               }}
             >
               A
             </span>
+
             <span
               style={{
                 fontSize: 23,
@@ -371,7 +384,7 @@ export default function LoginPage() {
             boxSizing: "border-box",
             padding: 32,
             borderRadius: 23,
-            border: "1px solid rgba(224,229,221,.9)",
+            border: "1px solid var(--anki-theme-soft)",
             background: "rgba(255,255,255,.91)",
             boxShadow:
               "0 18px 55px rgba(40,54,40,.07), 0 2px 8px rgba(40,54,40,.025)",
@@ -381,7 +394,7 @@ export default function LoginPage() {
           <div style={{ marginBottom: 23 }}>
             <p
               style={{
-                color: "#718675",
+                color: "var(--anki-theme-dark)",
                 fontSize: 10,
                 fontWeight: 750,
                 letterSpacing: "2px",
@@ -398,7 +411,7 @@ export default function LoginPage() {
               gridTemplateColumns: "1fr 1fr",
               gap: 5,
               padding: 4,
-              background: "#F2F4F0",
+              background: "var(--anki-theme-light)",
               borderRadius: 12,
               marginBottom: 22,
             }}
@@ -416,8 +429,14 @@ export default function LoginPage() {
                   padding: "10px 12px",
                   border: 0,
                   borderRadius: 9,
-                  background: mode === item ? "#FFFFFF" : "transparent",
-                  color: mode === item ? "#354B3B" : "#7E877C",
+                  background:
+                    mode === item
+                      ? "#FFFFFF"
+                      : "transparent",
+                  color:
+                    mode === item
+                      ? "var(--anki-theme-dark)"
+                      : "#7E877C",
                   fontSize: 13,
                   fontWeight: mode === item ? 700 : 550,
                   boxShadow:
@@ -445,6 +464,7 @@ export default function LoginPage() {
               >
                 メールアドレス
                 <input
+                  className="login-field"
                   type="email"
                   autoComplete="email"
                   required
@@ -465,6 +485,7 @@ export default function LoginPage() {
               >
                 パスワード（6文字以上）
                 <input
+                  className="login-field"
                   type="password"
                   autoComplete={
                     isRegister ? "new-password" : "current-password"
@@ -514,7 +535,7 @@ export default function LoginPage() {
                   style={{
                     border: 0,
                     background: "transparent",
-                    color: "#718675",
+                    color: "var(--anki-theme-dark)",
                     fontSize: 12,
                     padding: 5,
                     cursor: "pointer",
@@ -538,6 +559,7 @@ export default function LoginPage() {
               >
                 電話番号（国番号付き）
                 <input
+                  className="login-field"
                   type="tel"
                   autoComplete="tel"
                   value={phone}
@@ -562,6 +584,7 @@ export default function LoginPage() {
 
               {!confirmation ? (
                 <button
+                  className="login-action"
                   type="button"
                   disabled={loading}
                   onClick={handleSendSms}
@@ -584,6 +607,7 @@ export default function LoginPage() {
                   >
                     SMS確認コード
                     <input
+                      className="login-field"
                       inputMode="numeric"
                       autoComplete="one-time-code"
                       value={smsCode}
@@ -593,6 +617,7 @@ export default function LoginPage() {
                   </label>
 
                   <button
+                    className="login-action"
                     type="button"
                     disabled={loading}
                     onClick={handleVerifySms}

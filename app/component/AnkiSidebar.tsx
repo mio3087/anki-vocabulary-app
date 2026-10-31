@@ -23,6 +23,7 @@ import {
   Map,
   Library,
   BookOpen,
+  Brain,
 } from "lucide-react";
 
 const sections = [
@@ -30,16 +31,13 @@ const sections = [
     title: "YOUR STUDY",
     items: [
       { label: "今日のノルマ", href: "/today", icon: Sun },
+      { label: "学習記録", href: "/study-data", icon: ChartNoAxesColumn },
       {
-        label: "学習記録",
-        href: "/study-data",
-        icon: ChartNoAxesColumn,
+        label: "Reality Check",
+        href: "/understanding-analytics",
+        icon: Brain,
       },
-      {
-        label: "学習カレンダー",
-        href: "/calendar",
-        icon: CalendarDays,
-      },
+      { label: "学習カレンダー", href: "/calendar", icon: CalendarDays },
       { label: "暗記デッキ", href: "/", icon: Layers3 },
       { label: "教材", href: "/materials", icon: BookOpen },
       { label: "学習計画", href: "/plan", icon: Route },
@@ -71,7 +69,9 @@ const sections = [
   },
   {
     title: "PREFERENCES",
-    items: [{ label: "設定", href: "/settings", icon: Settings2 }],
+    items: [
+      { label: "設定", href: "/settings", icon: Settings2 },
+    ],
   },
 ];
 
@@ -85,16 +85,46 @@ const squareButtonStyle = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  boxSizing: "border-box",
-} as const;
+  boxSizing: "border-box" as const,
+};
 
 export default function AnkiSidebar() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
+  
+  
+
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
+
+
+
+    // 保存済みのテーマカラーを全ページに適用
+  useEffect(() => {
+    const applyTheme = () => {
+      const savedColor = localStorage.getItem("anki-theme-color");
+
+      const color =
+        savedColor && /^#[0-9a-fA-F]{6}$/.test(savedColor)
+          ? savedColor
+          : "#718675";
+
+      document.documentElement.style.setProperty(
+        "--anki-theme-color",
+        color
+      );
+    };
+
+    applyTheme();
+
+    window.addEventListener("storage", applyTheme);
+
+    return () => {
+      window.removeEventListener("storage", applyTheme);
+    };
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -176,8 +206,9 @@ export default function AnkiSidebar() {
           >
             <span
               className="flex h-10 w-10 shrink-0 items-center
-                justify-center rounded-xl bg-[#292D27] text-lg
+                justify-center rounded-xl text-lg
                 font-semibold text-white"
+              style={{ background: "var(--anki-theme-color)" }}
             >
               A
             </span>
@@ -240,21 +271,32 @@ export default function AnkiSidebar() {
                       aria-current={active ? "page" : undefined}
                       className={`group flex min-h-11 items-center
                         gap-3 rounded-xl px-3 py-2.5
-                        text-sm transition-colors
+                        text-sm transition-all duration-200
                         ${
                           active
-                            ? "bg-[#E7E9DF] font-medium text-[#455840]"
+                            ? "font-medium"
                             : "text-stone-600 hover:bg-stone-200/60 hover:text-stone-900"
                         }`}
+                      style={
+                        active
+                          ? {
+                              background:
+                                "var(--anki-theme-light)",
+                              color:
+                                "var(--anki-theme-dark)",
+                            }
+                          : undefined
+                      }
                     >
                       <Icon
                         size={19}
                         strokeWidth={1.65}
-                        className={`shrink-0 ${
-                          active
-                            ? "text-[#52664D]"
-                            : "text-stone-500 group-hover:text-stone-700"
-                        }`}
+                        className="shrink-0 transition-colors"
+                        style={{
+                          color: active
+                            ? "var(--anki-theme-color)"
+                            : undefined,
+                        }}
                       />
 
                       <span className="min-w-0 flex-1">
@@ -264,7 +306,11 @@ export default function AnkiSidebar() {
                       {active && (
                         <span
                           className="h-1.5 w-1.5 shrink-0
-                            rounded-full bg-[#71846A]"
+                            rounded-full"
+                          style={{
+                            background:
+                              "var(--anki-theme-color)",
+                          }}
                         />
                       )}
                     </Link>

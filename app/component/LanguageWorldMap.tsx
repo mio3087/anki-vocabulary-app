@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -142,7 +143,6 @@ function getCountryLanguages(
 
     let level: number;
 
-    // 手動設定を最優先する。未学習の0も有効な設定。
     if (
       Object.prototype.hasOwnProperty.call(progress, key)
     ) {
@@ -301,7 +301,6 @@ export default function LanguageWorldMap() {
       const next = { ...previous };
 
       if (level === 0) {
-        // 自動色付けも解除できるよう、0を明示的に保存する。
         next[key] = 0;
       } else {
         next[key] = level;
@@ -475,8 +474,16 @@ export default function LanguageWorldMap() {
 
   if (!ready) {
     return (
-      <div className="mx-auto max-w-5xl rounded-2xl bg-white p-6 shadow-sm">
-        <p className="text-sm text-gray-500">
+      <div
+        className="mx-auto max-w-5xl rounded-2xl p-6 shadow-sm"
+        style={{
+          backgroundColor: "var(--surface)",
+        }}
+      >
+        <p
+          className="text-sm"
+          style={{ color: "var(--muted)" }}
+        >
           地図データを読み込んでいます…
         </p>
       </div>
@@ -484,18 +491,33 @@ export default function LanguageWorldMap() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl rounded-2xl bg-white p-4 shadow-sm md:p-6">
-      <h1 className="text-2xl font-semibold text-gray-800">
+    <div
+      className="mx-auto w-full max-w-5xl rounded-2xl p-4 shadow-sm md:p-6"
+      style={{
+        backgroundColor: "var(--surface)",
+        border: "1px solid var(--border)",
+      }}
+    >
+      <h1
+        className="text-2xl font-semibold"
+        style={{ color: "var(--foreground)" }}
+      >
         Language World
       </h1>
 
-      <p className="mt-2 text-sm leading-6 text-gray-500">
+      <p
+        className="mt-2 text-sm leading-6"
+        style={{ color: "var(--muted)" }}
+      >
         学んだ言語で世界を少しずつ色づけよう。
         複数の言語の記録も同時に残せます。
       </p>
 
       {/* 言語選択 */}
-      <h2 className="mt-6 text-sm font-semibold text-gray-700">
+      <h2
+        className="mt-6 text-sm font-semibold"
+        style={{ color: "var(--anki-theme-dark)" }}
+      >
         ① 学習言語を選ぶ
       </h2>
 
@@ -513,12 +535,19 @@ export default function LanguageWorldMap() {
               backgroundColor:
                 selectedLanguageId === language.id
                   ? language.color
-                  : "#FFFFFF",
+                  : "var(--surface)",
               color:
                 selectedLanguageId === language.id
                   ? "#FFFFFF"
-                  : "#374151",
-              borderColor: language.color,
+                  : "var(--foreground)",
+              borderColor:
+                selectedLanguageId === language.id
+                  ? language.color
+                  : "var(--border)",
+              boxShadow:
+                selectedLanguageId === language.id
+                  ? "0 0 0 2px var(--anki-theme-light)"
+                  : "none",
             }}
           >
             {language.name}
@@ -531,7 +560,12 @@ export default function LanguageWorldMap() {
             setShowAddLanguage((previous) => !previous);
             setEditingLanguageId(null);
           }}
-          className="rounded-xl border border-dashed border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+          className="rounded-xl border border-dashed px-4 py-2 text-sm transition"
+          style={{
+            borderColor: "var(--anki-theme-color)",
+            color: "var(--anki-theme-color)",
+            backgroundColor: "var(--surface)",
+          }}
         >
           ＋ 言語を追加
         </button>
@@ -542,14 +576,21 @@ export default function LanguageWorldMap() {
         {languageList.map((language) => (
           <div
             key={language.id}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-100 px-3 py-3"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-xl px-3 py-3"
+            style={{
+              border: "1px solid var(--border)",
+              backgroundColor: "var(--surface)",
+            }}
           >
             <div className="flex items-center gap-2">
               <span
                 className="h-4 w-4 rounded-full"
                 style={{ backgroundColor: language.color }}
               />
-              <span className="text-sm font-medium text-gray-700">
+              <span
+                className="text-sm font-medium"
+                style={{ color: "var(--foreground)" }}
+              >
                 {language.name}
               </span>
             </div>
@@ -558,7 +599,11 @@ export default function LanguageWorldMap() {
               <button
                 type="button"
                 onClick={() => startEditing(language)}
-                className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
+                className="rounded-lg border px-3 py-1.5 text-xs transition"
+                style={{
+                  borderColor: "var(--border)",
+                  color: "var(--anki-theme-color)",
+                }}
               >
                 編集
               </button>
@@ -566,7 +611,7 @@ export default function LanguageWorldMap() {
               <button
                 type="button"
                 onClick={() => deleteLanguage(language)}
-                className="rounded-lg border border-red-200 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50"
+                className="rounded-lg border border-red-200 px-3 py-1.5 text-xs text-red-600 transition hover:bg-red-50"
               >
                 削除
               </button>
@@ -577,12 +622,24 @@ export default function LanguageWorldMap() {
 
       {/* 言語編集フォーム */}
       {editingLanguageId && (
-        <section className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 p-4">
-          <h3 className="text-sm font-semibold text-gray-800">
+        <section
+          className="mt-4 rounded-2xl p-4"
+          style={{
+            border: "1px solid var(--anki-theme-soft)",
+            backgroundColor: "var(--anki-theme-light)",
+          }}
+        >
+          <h3
+            className="text-sm font-semibold"
+            style={{ color: "var(--anki-theme-dark)" }}
+          >
             言語を編集
           </h3>
 
-          <label className="mt-3 block text-sm text-gray-600">
+          <label
+            className="mt-3 block text-sm"
+            style={{ color: "var(--foreground)" }}
+          >
             言語名
           </label>
 
@@ -591,11 +648,19 @@ export default function LanguageWorldMap() {
             onChange={(event) =>
               setEditName(event.target.value)
             }
-            className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm"
+            className="mt-1 w-full rounded-xl border px-3 py-2 text-sm outline-none"
+            style={{
+              borderColor: "var(--border)",
+              backgroundColor: "var(--surface)",
+              color: "var(--foreground)",
+            }}
           />
 
-          <label className="mt-4 block text-sm text-gray-600">
-            テーマカラー
+          <label
+            className="mt-4 block text-sm"
+            style={{ color: "var(--foreground)" }}
+          >
+            言語カラー
           </label>
 
           <div className="mt-2 flex items-center gap-3">
@@ -607,7 +672,10 @@ export default function LanguageWorldMap() {
               }
               className="h-10 w-14 cursor-pointer"
             />
-            <span className="text-sm text-gray-500">
+            <span
+              className="text-sm"
+              style={{ color: "var(--muted)" }}
+            >
               {editColor.toUpperCase()}
             </span>
           </div>
@@ -616,8 +684,8 @@ export default function LanguageWorldMap() {
             <button
               type="button"
               onClick={saveEdit}
-              className="rounded-xl px-4 py-2 text-sm text-white"
-              style={{ backgroundColor: editColor }}
+              className="rounded-xl px-4 py-2 text-sm font-medium text-white transition"
+              style={{ backgroundColor: "var(--anki-theme-color)" }}
             >
               変更を保存
             </button>
@@ -625,7 +693,12 @@ export default function LanguageWorldMap() {
             <button
               type="button"
               onClick={() => setEditingLanguageId(null)}
-              className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm text-gray-600"
+              className="rounded-xl border px-4 py-2 text-sm transition"
+              style={{
+                borderColor: "var(--border)",
+                backgroundColor: "var(--surface)",
+                color: "var(--foreground)",
+              }}
             >
               キャンセル
             </button>
@@ -635,12 +708,24 @@ export default function LanguageWorldMap() {
 
       {/* 新しい言語の登録 */}
       {showAddLanguage && (
-        <section className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 p-4">
-          <h3 className="text-sm font-semibold text-gray-800">
+        <section
+          className="mt-4 rounded-2xl p-4"
+          style={{
+            border: "1px solid var(--anki-theme-soft)",
+            backgroundColor: "var(--anki-theme-light)",
+          }}
+        >
+          <h3
+            className="text-sm font-semibold"
+            style={{ color: "var(--anki-theme-dark)" }}
+          >
             新しい言語を登録
           </h3>
 
-          <label className="mt-3 block text-sm text-gray-600">
+          <label
+            className="mt-3 block text-sm"
+            style={{ color: "var(--foreground)" }}
+          >
             言語名
           </label>
 
@@ -650,11 +735,19 @@ export default function LanguageWorldMap() {
               setNewLanguageName(event.target.value)
             }
             placeholder="例：アラビア語"
-            className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm"
+            className="mt-1 w-full rounded-xl border px-3 py-2 text-sm outline-none"
+            style={{
+              borderColor: "var(--border)",
+              backgroundColor: "var(--surface)",
+              color: "var(--foreground)",
+            }}
           />
 
-          <label className="mt-4 block text-sm text-gray-600">
-            テーマカラー
+          <label
+            className="mt-4 block text-sm"
+            style={{ color: "var(--foreground)" }}
+          >
+            言語カラー
           </label>
 
           <div className="mt-2 flex items-center gap-3">
@@ -666,7 +759,10 @@ export default function LanguageWorldMap() {
               }
               className="h-10 w-14 cursor-pointer"
             />
-            <span className="text-sm text-gray-500">
+            <span
+              className="text-sm"
+              style={{ color: "var(--muted)" }}
+            >
               {newLanguageColor.toUpperCase()}
             </span>
           </div>
@@ -674,8 +770,8 @@ export default function LanguageWorldMap() {
           <button
             type="button"
             onClick={addLanguage}
-            className="mt-4 rounded-xl px-4 py-2 text-sm font-medium text-white"
-            style={{ backgroundColor: newLanguageColor }}
+            className="mt-4 rounded-xl px-4 py-2 text-sm font-medium text-white transition"
+            style={{ backgroundColor: "var(--anki-theme-color)" }}
           >
             この言語を追加
           </button>
@@ -685,12 +781,24 @@ export default function LanguageWorldMap() {
       {/* 対象国の一括設定 */}
       {selectedLanguage &&
         getAutomaticCountries(selectedLanguage).length > 0 && (
-          <section className="mt-6 rounded-2xl border border-gray-200 bg-gray-50 p-4">
-            <h2 className="text-sm font-semibold text-gray-800">
+          <section
+            className="mt-6 rounded-2xl p-4"
+            style={{
+              border: "1px solid var(--border)",
+              backgroundColor: "var(--anki-theme-light)",
+            }}
+          >
+            <h2
+              className="text-sm font-semibold"
+              style={{ color: "var(--anki-theme-dark)" }}
+            >
               対象国を一括で色付け
             </h2>
 
-            <p className="mt-1 text-sm leading-6 text-gray-500">
+            <p
+              className="mt-1 text-sm leading-6"
+              style={{ color: "var(--muted)" }}
+            >
               {selectedLanguage.name}
               が使われる対象国をまとめて変更できます。
               ほかの言語の記録には影響しません。
@@ -700,11 +808,11 @@ export default function LanguageWorldMap() {
               <button
                 type="button"
                 onClick={() => colorAllStudyCountries(1)}
-                className="rounded-xl border px-3 py-2 text-sm font-medium"
+                className="rounded-xl border px-3 py-2 text-sm font-medium transition"
                 style={{
                   backgroundColor: selectedLanguage.lightColor,
                   borderColor: selectedLanguage.color,
-                  color: "#374151",
+                  color: "var(--foreground)",
                 }}
               >
                 学習中の色にする
@@ -713,7 +821,7 @@ export default function LanguageWorldMap() {
               <button
                 type="button"
                 onClick={() => colorAllStudyCountries(2)}
-                className="rounded-xl border px-3 py-2 text-sm font-medium"
+                className="rounded-xl border px-3 py-2 text-sm font-medium transition"
                 style={{
                   backgroundColor: `${selectedLanguage.color}B3`,
                   borderColor: selectedLanguage.color,
@@ -726,7 +834,7 @@ export default function LanguageWorldMap() {
               <button
                 type="button"
                 onClick={() => colorAllStudyCountries(3)}
-                className="rounded-xl px-3 py-2 text-sm font-medium text-white"
+                className="rounded-xl px-3 py-2 text-sm font-medium text-white transition"
                 style={{
                   backgroundColor: selectedLanguage.color,
                 }}
@@ -745,7 +853,12 @@ export default function LanguageWorldMap() {
                     colorAllStudyCountries(0);
                   }
                 }}
-                className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600"
+                className="rounded-xl border px-3 py-2 text-sm transition"
+                style={{
+                  borderColor: "var(--border)",
+                  backgroundColor: "var(--surface)",
+                  color: "var(--foreground)",
+                }}
               >
                 対象国の色を解除
               </button>
@@ -754,11 +867,17 @@ export default function LanguageWorldMap() {
         )}
 
       {/* 世界地図 */}
-      <h2 className="mt-6 text-sm font-semibold text-gray-700">
+      <h2
+        className="mt-6 text-sm font-semibold"
+        style={{ color: "var(--anki-theme-dark)" }}
+      >
         ② 地図上の国をクリック
       </h2>
 
-      <p className="mt-2 text-xs leading-5 text-gray-500">
+      <p
+        className="mt-2 text-xs leading-5"
+        style={{ color: "var(--muted)" }}
+      >
         1つの国に複数の言語が登録されている場合は、
         それぞれの色を縞模様で表示します。
       </p>
@@ -831,7 +950,9 @@ export default function LanguageWorldMap() {
                     }
                     fill={fill}
                     stroke={
-                      isSelected ? "#303830" : "#FFFFFF"
+                      isSelected
+                        ? "var(--anki-theme-dark)"
+                        : "#FFFFFF"
                     }
                     strokeWidth={isSelected ? 1.8 : 0.6}
                     style={{
@@ -848,19 +969,23 @@ export default function LanguageWorldMap() {
 
       {/* 色の凡例 */}
       {selectedLanguage && (
-        <div className="mt-3 flex flex-wrap gap-3 text-xs text-gray-500">
+        <div
+          className="mt-3 flex flex-wrap gap-3 text-xs"
+          style={{ color: "var(--muted)" }}
+        >
           {levels.map((level) => (
             <div
               key={level.value}
               className="flex items-center gap-2"
             >
               <span
-                className="h-3 w-3 rounded-sm border border-gray-200"
+                className="h-3 w-3 rounded-sm"
                 style={{
                   backgroundColor: getColor(
                     selectedLanguage,
                     level.value
                   ),
+                  border: "1px solid var(--border)",
                 }}
               />
               {level.label}
@@ -871,16 +996,31 @@ export default function LanguageWorldMap() {
 
       {/* 選択した国の編集 */}
       {selectedCountry && (
-        <section className="mt-6 rounded-2xl border border-gray-200 bg-gray-50 p-4">
-          <p className="text-xs text-gray-500">
+        <section
+          className="mt-6 rounded-2xl p-4"
+          style={{
+            border: "1px solid var(--anki-theme-soft)",
+            backgroundColor: "var(--anki-theme-light)",
+          }}
+        >
+          <p
+            className="text-xs"
+            style={{ color: "var(--muted)" }}
+          >
             選択した国
           </p>
 
-          <h2 className="mt-1 text-lg font-semibold text-gray-800">
+          <h2
+            className="mt-1 text-lg font-semibold"
+            style={{ color: "var(--foreground)" }}
+          >
             {selectedCountry.name}
           </h2>
 
-          <p className="mt-1 text-sm text-gray-600">
+          <p
+            className="mt-1 text-sm"
+            style={{ color: "var(--muted)" }}
+          >
             この国に登録されている言語
           </p>
 
@@ -896,7 +1036,7 @@ export default function LanguageWorldMap() {
                 style={{
                   color: entry.color,
                   borderColor: entry.color,
-                  backgroundColor: "#FFFFFF",
+                  backgroundColor: "var(--surface)",
                 }}
               >
                 {entry.name}：{
@@ -912,7 +1052,10 @@ export default function LanguageWorldMap() {
               languageList,
               progress
             ).length === 0 && (
-              <span className="text-xs text-gray-500">
+              <span
+                className="text-xs"
+                style={{ color: "var(--muted)" }}
+              >
                 まだ色が設定されていません。
               </span>
             )}
@@ -920,8 +1063,14 @@ export default function LanguageWorldMap() {
 
           {selectedLanguage && (
             <>
-              <div className="mt-5 border-t border-gray-200 pt-4">
-                <p className="text-sm font-medium text-gray-700">
+              <div
+                className="mt-5 border-t pt-4"
+                style={{ borderColor: "var(--border)" }}
+              >
+                <p
+                  className="text-sm font-medium"
+                  style={{ color: "var(--foreground)" }}
+                >
                   {selectedLanguage.name}の学習状況を変更
                 </p>
 
@@ -940,12 +1089,17 @@ export default function LanguageWorldMap() {
                         onClick={() =>
                           updateLevel(level.value)
                         }
-                        className="rounded-xl border bg-white p-3 text-left transition hover:bg-gray-100"
+                        className="rounded-xl p-3 text-left transition"
                         style={{
+                          backgroundColor: "var(--surface)",
                           borderColor: isActive
-                            ? selectedLanguage.color
-                            : "#E5E7EB",
+                            ? "var(--anki-theme-color)"
+                            : "var(--border)",
                           borderWidth: isActive ? 2 : 1,
+                          borderStyle: "solid",
+                          boxShadow: isActive
+                            ? "0 0 0 2px var(--anki-theme-light)"
+                            : "none",
                         }}
                       >
                         <span
@@ -958,11 +1112,17 @@ export default function LanguageWorldMap() {
                           }}
                         />
 
-                        <span className="block text-sm font-medium text-gray-800">
+                        <span
+                          className="block text-sm font-medium"
+                          style={{ color: "var(--foreground)" }}
+                        >
                           {level.label}
                         </span>
 
-                        <span className="mt-1 block text-xs text-gray-500">
+                        <span
+                          className="mt-1 block text-xs"
+                          style={{ color: "var(--muted)" }}
+                        >
                           {level.description}
                         </span>
                       </button>
@@ -973,7 +1133,10 @@ export default function LanguageWorldMap() {
             </>
           )}
 
-          <p className="mt-3 text-xs leading-5 text-gray-500">
+          <p
+            className="mt-3 text-xs leading-5"
+            style={{ color: "var(--muted)" }}
+          >
             変更は自動保存されます。
             未学習に戻しても、ほかの言語の記録は消えません。
           </p>
@@ -981,14 +1144,22 @@ export default function LanguageWorldMap() {
           <button
             type="button"
             onClick={() => setSelectedCountry(null)}
-            className="mt-3 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm text-gray-600 hover:bg-gray-100"
+            className="mt-3 rounded-xl border px-4 py-2 text-sm transition"
+            style={{
+              borderColor: "var(--border)",
+              backgroundColor: "var(--surface)",
+              color: "var(--anki-theme-color)",
+            }}
           >
             閉じる
           </button>
         </section>
       )}
 
-      <p className="mt-5 text-xs leading-5 text-gray-400">
+      <p
+        className="mt-5 text-xs leading-5"
+        style={{ color: "var(--muted)" }}
+      >
         記録はこのブラウザに自動保存されます。
         言語ごとに記録を管理し、複数言語の色を同時に表示します。
       </p>

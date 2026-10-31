@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
@@ -28,13 +27,13 @@ type ReadingLog = {
 };
 
 const linkClass =
-  "text-sm font-medium text-black underline-offset-4 transition hover:text-[#52664D] hover:underline";
+  "text-sm font-medium text-[var(--anki-theme-dark)] underline-offset-4 transition hover:text-[var(--anki-theme-color)] hover:underline";
 
 const buttonClass =
-  "w-full rounded-xl border border-[#D5D8D0] bg-[#E0E7DC] px-4 py-3 text-sm font-semibold text-black transition hover:bg-[#D5DFD0]";
+  "w-full rounded-xl border border-[var(--anki-theme-color)] bg-[var(--anki-theme-light)] px-4 py-3 text-sm font-semibold text-[var(--anki-theme-dark)] transition hover:bg-[var(--anki-theme-soft)]";
 
 const inputClass =
-  "mt-2 block w-full rounded-xl border border-[#D5D8D0] bg-white px-3 py-3 text-black outline-none placeholder:text-[#858980] focus:border-[#718675]";
+  "mt-2 block w-full rounded-xl border border-[#D5D8D0] bg-white px-3 py-3 text-black outline-none placeholder:text-[#858980] focus:border-[var(--anki-theme-color)] focus:ring-2 focus:ring-[var(--anki-theme-light)]";
 
 function ReadContent() {
   const searchParams = useSearchParams();
@@ -160,7 +159,7 @@ function ReadContent() {
 
             <Link
               href="/library/books"
-              className="mt-5 inline-flex rounded-xl border border-[#D5D8D0] bg-[#E0E7DC] px-5 py-3 text-sm font-semibold text-black transition hover:bg-[#D5DFD0]"
+              className="mt-5 inline-flex rounded-xl border border-[var(--anki-theme-color)] bg-[var(--anki-theme-light)] px-5 py-3 text-sm font-semibold text-[var(--anki-theme-dark)] transition hover:bg-[var(--anki-theme-soft)]"
             >
               本棚から本を選ぶ →
             </Link>
@@ -207,7 +206,7 @@ function ReadContent() {
           <div className="mt-5 grid grid-cols-3 gap-3">
             <div className="rounded-2xl border border-[#E6E7E1] bg-white p-3 sm:p-4">
               <p className="text-xs text-[#858980]">読書時間</p>
-              <p className="mt-2 text-xl font-semibold text-[#52664D]">
+              <p className="mt-2 text-xl font-semibold text-[var(--anki-theme-dark)]">
                 {totalMinutes}
                 <span className="ml-1 text-xs font-normal">分</span>
               </p>
@@ -215,7 +214,7 @@ function ReadContent() {
 
             <div className="rounded-2xl border border-[#E6E7E1] bg-white p-3 sm:p-4">
               <p className="text-xs text-[#858980]">読んだページ</p>
-              <p className="mt-2 text-xl font-semibold text-[#52664D]">
+              <p className="mt-2 text-xl font-semibold text-[var(--anki-theme-dark)]">
                 {totalPagesRead}
                 <span className="ml-1 text-xs font-normal">ページ</span>
               </p>
@@ -223,7 +222,7 @@ function ReadContent() {
 
             <div className="rounded-2xl border border-[#E6E7E1] bg-white p-3 sm:p-4">
               <p className="text-xs text-[#858980]">記録回数</p>
-              <p className="mt-2 text-xl font-semibold text-[#52664D]">
+              <p className="mt-2 text-xl font-semibold text-[var(--anki-theme-dark)]">
                 {bookLogs.length}
                 <span className="ml-1 text-xs font-normal">回</span>
               </p>
@@ -299,7 +298,7 @@ function ReadContent() {
               role="status"
               className={`mt-3 text-sm ${
                 message.includes("保存しました")
-                  ? "text-[#52664D]"
+                  ? "text-[var(--anki-theme-dark)]"
                   : "text-red-600"
               }`}
             >
@@ -334,7 +333,7 @@ function ReadContent() {
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <time className="text-sm font-medium">{log.date}</time>
-                    <span className="rounded-lg bg-[#F0F2ED] px-3 py-1.5 text-xs text-black">
+                    <span className="rounded-lg bg-[var(--anki-theme-light)] px-3 py-1.5 text-xs text-[var(--anki-theme-dark)]">
                       {log.minutes} 分
                     </span>
                   </div>

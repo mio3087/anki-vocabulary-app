@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -269,18 +268,24 @@ export default function TodayHeader({
               <div
                 className="relative flex h-[76px] w-[76px] shrink-0 items-center justify-center rounded-full"
                 style={{
-                  background: `conic-gradient(#4385c8 ${progress}%, #dce7f3 ${progress}% 100%)`,
+                  background: `conic-gradient(var(--anki-theme-color) ${progress}%, var(--anki-theme-light) ${progress}% 100%)`,
                 }}
                 role="img"
                 aria-label={`達成率 ${progress}%`}
               >
-                <div className="flex h-[62px] w-[62px] items-center justify-center rounded-full bg-white text-lg font-semibold text-[#244f7d]">
+                <div
+                  className="flex h-[62px] w-[62px] items-center justify-center rounded-full bg-white text-lg font-semibold"
+                  style={{ color: "var(--anki-theme-dark)" }}
+                >
                   {progress}%
                 </div>
               </div>
 
               <div>
-                <p className="text-sm font-semibold text-[#244f7d]">
+                <p
+                  className="text-sm font-semibold"
+                  style={{ color: "var(--anki-theme-dark)" }}
+                >
                   今日の達成率
                 </p>
                 <p className="mt-1 text-sm text-slate-500">
@@ -295,7 +300,10 @@ export default function TodayHeader({
               <p className="text-sm text-slate-500">
                 ◎　今日の学習目標
               </p>
-              <p className="mt-2 text-2xl font-semibold tracking-tight text-[#244f7d]">
+              <p
+                className="mt-2 text-2xl font-semibold tracking-tight"
+                style={{ color: "var(--anki-theme-dark)" }}
+              >
                 {safeTotalTarget.toLocaleString("ja-JP")}
                 <span className="ml-2 text-sm font-normal text-slate-500">
                   目標単語数
@@ -305,7 +313,10 @@ export default function TodayHeader({
           </div>
 
           <div className="mt-5 border-t border-slate-200/80 pt-4 text-right">
-            <p className="font-serif text-sm italic tracking-wide text-[#6083a9]">
+            <p
+              className="font-serif text-sm italic tracking-wide"
+              style={{ color: "var(--anki-theme-color)" }}
+            >
               Small steps, big changes.
             </p>
           </div>

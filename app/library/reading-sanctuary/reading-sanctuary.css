@@ -1589,3 +1589,262 @@
   .lgrowth-illustrated-library__glow {
   opacity: 0.65;
 }
+
+
+/* ========================================
+   Anki Theme Color
+   設定画面のテーマカラーを反映
+======================================== */
+
+.lgrowth-page {
+  --gold: var(--anki-theme-color);
+  --line: color-mix(in srgb, var(--anki-theme-color) 16%, white);
+}
+
+/* 小見出し・アクセント */
+.lgrowth-eyebrow,
+.lgrowth-footer > span {
+  color: var(--anki-theme-color);
+}
+
+/* レベルバッジ */
+.lgrowth-level-badge {
+  border-color: var(--anki-theme-color);
+  background: var(--anki-theme-light);
+  color: var(--anki-theme-dark);
+}
+
+/* XP・進捗 */
+.lgrowth-xp,
+.lgrowth-stat-icon,
+.lgrowth-empty-symbol,
+.lgrowth-book-meta strong {
+  color: var(--anki-theme-color);
+}
+
+.lgrowth-progress-fill,
+.lgrowth-book-progress-fill {
+  background: linear-gradient(
+    90deg,
+    var(--anki-theme-color),
+    var(--anki-theme-dark)
+  );
+}
+
+/* パネルの上部アクセント */
+.lgrowth-panel--book {
+  border-top-color: var(--anki-theme-color);
+}
+
+.lgrowth-panel--reading {
+  border-top-color: var(--anki-theme-dark);
+}
+
+.lgrowth-panel--editing {
+  border-color: var(--anki-theme-color);
+  box-shadow: 0 0 0 3px var(--anki-theme-light);
+}
+
+/* パネルアイコン */
+.lgrowth-panel-symbol,
+.lgrowth-panel--reading .lgrowth-panel-symbol {
+  border-color: var(--anki-theme-color);
+  background: var(--anki-theme-light);
+  color: var(--anki-theme-dark);
+}
+
+/* 入力欄 */
+.lgrowth-form input:focus,
+.lgrowth-form select:focus {
+  border-color: var(--anki-theme-color);
+  box-shadow: 0 0 0 3px var(--anki-theme-soft);
+}
+
+.lgrowth-form input:hover,
+.lgrowth-form select:hover {
+  border-color: var(--anki-theme-color);
+}
+
+/* ボタン */
+.lgrowth-button--primary {
+  border-color: var(--anki-theme-color);
+  background: var(--anki-theme-light);
+  color: var(--anki-theme-dark);
+}
+
+.lgrowth-button--primary:hover {
+  border-color: var(--anki-theme-color);
+  background: var(--anki-theme-soft);
+}
+
+.lgrowth-button--dark {
+  border-color: var(--anki-theme-color);
+  background: var(--anki-theme-color);
+  color: white;
+}
+
+.lgrowth-button--dark:hover {
+  background: var(--anki-theme-dark);
+}
+
+.lgrowth-button--secondary:hover {
+  border-color: var(--anki-theme-color);
+  background: var(--anki-theme-light);
+}
+
+.lgrowth-button:focus-visible,
+.lgrowth-small-button:focus-visible,
+.lgrowth-filter:focus-visible {
+  outline-color: var(--anki-theme-color);
+}
+
+/* 選択中の本・読書状態 */
+.lgrowth-selected-note {
+  border-left-color: var(--anki-theme-color);
+  background: var(--anki-theme-light);
+  color: var(--anki-theme-dark);
+}
+
+.lgrowth-input--selected {
+  border-color: var(--anki-theme-color) !important;
+  background-color: var(--anki-theme-light) !important;
+}
+
+/* フィルター */
+.lgrowth-filter:hover {
+  border-color: var(--anki-theme-color);
+  background: var(--anki-theme-light);
+}
+
+.lgrowth-filter--active,
+.lgrowth-filter--active:hover {
+  border-color: var(--anki-theme-color);
+  background: var(--anki-theme-color);
+  color: white;
+}
+
+/* 本の冊数 */
+.lgrowth-book-count {
+  border-color: var(--anki-theme-color);
+  background: var(--anki-theme-light);
+  color: var(--anki-theme-dark);
+}
+
+/* 本のカード */
+.lgrowth-book-card:hover {
+  border-color: var(--anki-theme-color);
+}
+
+.lgrowth-book-card--active {
+  border-color: var(--anki-theme-color);
+  background: var(--anki-theme-light);
+  box-shadow: 0 0 0 2px var(--anki-theme-soft);
+}
+
+/* 読書アクション */
+.lgrowth-small-button--read {
+  border-color: var(--anki-theme-color);
+  background: var(--anki-theme-light);
+  color: var(--anki-theme-dark);
+}
+
+.lgrowth-small-button--read:hover {
+  background: var(--anki-theme-soft);
+}
+
+.lgrowth-small-button--selected,
+.lgrowth-small-button--selected:hover {
+  border-color: var(--anki-theme-color);
+  background: var(--anki-theme-color);
+  color: white;
+}
+
+.lgrowth-small-button--edit:hover {
+  border-color: var(--anki-theme-color);
+  background: var(--anki-theme-light);
+  color: var(--anki-theme-dark);
+}
+
+/* メッセージ */
+.lgrowth-message {
+  border-left-color: var(--anki-theme-color);
+  background: var(--anki-theme-light);
+  color: var(--anki-theme-dark);
+}
+
+.lgrowth-message > span {
+  color: var(--anki-theme-color);
+}
+
+/* 空の状態 */
+.lgrowth-action-empty > span {
+  color: var(--anki-theme-color);
+}
+
+.lgrowth-action-empty {
+  border-color: var(--anki-theme-color);
+  background: var(--anki-theme-light);
+}
+
+/* Living Library：本棚の成長エリア */
+.lgrowth-illustrated-library__frame {
+  border-color: color-mix(
+    in srgb,
+    var(--anki-theme-color) 35%,
+    transparent
+  );
+}
+
+.lgrowth-illustrated-library__caption {
+  color: var(--anki-theme-dark);
+}
+
+.lgrowth-illustrated-library__caption span {
+  color: var(--anki-theme-color);
+}
+
+/* 本棚の成長に合わせた光 */
+.lgrowth-illustrated-library__frame--2 {
+  box-shadow: 0 12px 36px
+    color-mix(in srgb, var(--anki-theme-color) 13%, transparent);
+}
+
+.lgrowth-illustrated-library__frame--3 {
+  box-shadow: 0 12px 40px
+    color-mix(in srgb, var(--anki-theme-color) 20%, transparent);
+}
+
+.lgrowth-illustrated-library__frame--4 {
+  box-shadow:
+    0 12px 44px
+      color-mix(in srgb, var(--anki-theme-color) 25%, transparent),
+    inset 0 0 30px
+      color-mix(in srgb, var(--anki-theme-color) 12%, white);
+}
+
+.lgrowth-illustrated-library__frame--2
+  .lgrowth-illustrated-library__glow {
+  background: radial-gradient(
+    ellipse at 50% 40%,
+    color-mix(in srgb, var(--anki-theme-color) 55%, white),
+    transparent 68%
+  );
+}
+
+.lgrowth-illustrated-library__frame--3
+  .lgrowth-illustrated-library__glow {
+  background: radial-gradient(
+    ellipse at 50% 40%,
+    color-mix(in srgb, var(--anki-theme-color) 65%, white),
+    transparent 68%
+  );
+}
+
+.lgrowth-illustrated-library__frame--4
+  .lgrowth-illustrated-library__glow {
+  background: radial-gradient(
+    ellipse at 50% 40%,
+    color-mix(in srgb, var(--anki-theme-color) 75%, white),
+    transparent 68%
+  );
+}

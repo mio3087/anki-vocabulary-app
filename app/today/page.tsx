@@ -44,10 +44,11 @@ type StudyTask = {
 
 const PLAN_STORAGE_KEY = "anki-study-plans-v1";
 
-const ink = "#20231F";
 const muted = "#777C74";
 const line = "#DCDDD6";
-const accent = "#425D4B";
+const accent = "var(--anki-theme-color)";
+const accentLight = "var(--anki-theme-light)";
+const accentDark = "var(--anki-theme-dark)";
 
 function dateString(date = new Date()) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
@@ -119,7 +120,10 @@ function normalizeTask(
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#777C74]">
+    <p
+      className="text-[10px] font-semibold uppercase tracking-[0.2em]"
+      style={{ color: muted }}
+    >
       {children}
     </p>
   );
@@ -453,7 +457,8 @@ export default function TodayPage() {
             </div>
             <Link
               href="/tasks"
-              className="text-xs text-[#425D4B] hover:underline"
+              className="text-xs hover:underline"
+              style={{ color: accentDark }}
             >
               すべてのタスク ↗
             </Link>
@@ -503,12 +508,19 @@ export default function TodayPage() {
                     aria-label={`「${task.title}」を${
                       task.status === "完了" ? "未完了に戻す" : "完了にする"
                     }`}
-                    className={`mt-0.5 flex h-6 w-6 items-center justify-center border text-xs transition disabled:opacity-50 ${
+                    className="mt-0.5 flex h-6 w-6 items-center justify-center border text-xs transition disabled:opacity-50"
+                    style={
                       task.status === "完了"
-                        ? "border-[#425D4B] bg-[#425D4B] text-white"
-                        : "border-[#BFC4BB] text-transparent hover:border-[#425D4B]"
-                    }`}
-                    style={{ borderColor: task.status === "完了" ? accent : undefined }}
+                        ? {
+                            borderColor: accent,
+                            backgroundColor: accent,
+                            color: "#FFFFFF",
+                          }
+                        : {
+                            borderColor: "#BFC4BB",
+                            color: "transparent",
+                          }
+                    }
                   >
                     ✓
                   </button>
@@ -528,7 +540,10 @@ export default function TodayPage() {
                       {task.material ? ` / ${task.material}` : ""}
                     </p>
                     {task.target > 0 && (
-                      <p className="mt-2 font-mono text-xs text-[#425D4B]">
+                      <p
+                        className="mt-2 font-mono text-xs"
+                        style={{ color: accentDark }}
+                      >
                         TARGET · {task.target.toLocaleString("ja-JP")}{" "}
                         {task.unit}
                       </p>
@@ -537,12 +552,17 @@ export default function TodayPage() {
 
                   <span
                     className={`whitespace-nowrap pt-1 text-[10px] ${
-                      task.status === "完了"
-                        ? "text-[#425D4B]"
-                        : task.status === "進行中"
-                          ? "text-[#92783F]"
-                          : "text-[#777C74]"
+                      task.status === "進行中"
+                        ? "text-[#92783F]"
+                        : task.status === "未着手"
+                          ? "text-[#777C74]"
+                          : ""
                     }`}
+                    style={
+                      task.status === "完了"
+                        ? { color: accentDark }
+                        : undefined
+                    }
                   >
                     {task.status}
                   </span>
@@ -565,7 +585,8 @@ export default function TodayPage() {
             </div>
             <Link
               href="/plan"
-              className="text-xs text-[#425D4B] hover:underline"
+              className="text-xs hover:underline"
+              style={{ color: accentDark }}
             >
               学習計画を管理 ↗
             </Link>
@@ -631,7 +652,10 @@ export default function TodayPage() {
                     >
                       <div>
                         <p className="text-xs text-[#777C74]">本日の目標</p>
-                        <p className="mt-2 font-mono text-3xl font-medium tracking-[-0.05em] text-[#425D4B]">
+                        <p
+                          className="mt-2 font-mono text-3xl font-medium tracking-[-0.05em]"
+                          style={{ color: accentDark }}
+                        >
                           {dailyTarget.toLocaleString("ja-JP")}
                           <span className="ml-2 font-sans text-xs tracking-normal text-[#777C74]">
                             項目

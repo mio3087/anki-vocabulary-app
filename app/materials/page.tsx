@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -171,11 +170,13 @@ export default function MaterialsPage() {
               return [];
             }
 
-            return [{
-              start: range.start,
-              end: range.end,
-              date: range.date,
-            }];
+            return [
+              {
+                start: range.start,
+                end: range.end,
+                date: range.date,
+              },
+            ];
           });
 
           return {
@@ -354,19 +355,17 @@ export default function MaterialsPage() {
       return;
     }
 
-    
-if (
-  !Number.isSafeInteger(start) ||
-  !Number.isSafeInteger(end) ||
-  start < 1 ||
-  end < start
-) {
-  setError(
-    "開始番号は1以上、終了番号は開始番号以上の整数で入力してください。"
-  );
-  return;
-}
-
+    if (
+      !Number.isSafeInteger(start) ||
+      !Number.isSafeInteger(end) ||
+      start < 1 ||
+      end < start
+    ) {
+      setError(
+        "開始番号は1以上、終了番号は開始番号以上の整数で入力してください。"
+      );
+      return;
+    }
 
     const newRange: StudyRange = {
       start,
@@ -381,10 +380,7 @@ if (
       await updateDoc(
         doc(db, "users", user.uid, "materials", material.id),
         {
-          studyRanges: [
-            ...material.studyRanges,
-            newRange,
-          ],
+          studyRanges: [...material.studyRanges, newRange],
         }
       );
 
@@ -398,8 +394,6 @@ if (
             : item
         )
       );
-
-    
     } catch (err) {
       console.error(err);
       setError(
@@ -482,6 +476,7 @@ if (
               本も単語帳も、進み具合を見える化しよう。
             </p>
           </div>
+
           <Link href="/today" style={styles.primaryLink}>
             今日の学習へ →
           </Link>
@@ -569,7 +564,11 @@ if (
               <button
                 type="submit"
                 disabled={saving}
-                style={styles.primaryButton}
+                style={{
+                  ...styles.primaryButton,
+                  opacity: saving ? 0.65 : 1,
+                  cursor: saving ? "not-allowed" : "pointer",
+                }}
               >
                 {saving
                   ? "保存中..."
@@ -645,35 +644,35 @@ if (
                 return (
                   <>
                     <div style={styles.twoColumns}>
-                      
-<label style={styles.label}>
-  開始番号
-  <input
-    style={styles.input}
-    type="number"
-    min="1"
-    step="1"
-    value={rangeStart}
-    onChange={(event) => setRangeStart(event.target.value)}
-    required
-  />
-</label>
+                      <label style={styles.label}>
+                        開始番号
+                        <input
+                          style={styles.input}
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={rangeStart}
+                          onChange={(event) =>
+                            setRangeStart(event.target.value)
+                          }
+                          required
+                        />
+                      </label>
 
-
-                    
-<label style={styles.label}>
-  終了番号
-  <input
-    style={styles.input}
-    type="number"
-    min="1"
-    step="1"
-    value={rangeEnd}
-    onChange={(event) => setRangeEnd(event.target.value)}
-    required
-  />
-</label>
-
+                      <label style={styles.label}>
+                        終了番号
+                        <input
+                          style={styles.input}
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={rangeEnd}
+                          onChange={(event) =>
+                            setRangeEnd(event.target.value)
+                          }
+                          required
+                        />
+                      </label>
                     </div>
 
                     <p style={styles.description}>
@@ -687,7 +686,12 @@ if (
               <button
                 type="submit"
                 disabled={saving || !selectedId}
-                style={styles.primaryButton}
+                style={{
+                  ...styles.primaryButton,
+                  opacity: saving || !selectedId ? 0.65 : 1,
+                  cursor:
+                    saving || !selectedId ? "not-allowed" : "pointer",
+                }}
               >
                 {saving ? "記録中..." : "学習記録を保存"}
               </button>
@@ -724,7 +728,9 @@ if (
                             ? "📕 本・問題集"
                             : "🗂️ 暗記デッキ"}
                         </span>
+
                         <h3 style={styles.cardTitle}>{material.name}</h3>
+
                         <p style={styles.description}>
                           学習済み {covered.toLocaleString()} /{" "}
                           {material.total.toLocaleString()}
@@ -764,7 +770,9 @@ if (
                           {[...material.studyRanges]
                             .reverse()
                             .map((range, index) => (
-                              <li key={`${range.date}-${range.start}-${range.end}-${index}`}>
+                              <li
+                                key={`${range.date}-${range.start}-${range.end}-${index}`}
+                              >
                                 {range.date}：{range.start}〜{range.end}
                                 {unit}
                               </li>
@@ -781,6 +789,7 @@ if (
                       >
                         編集
                       </button>
+
                       <button
                         type="button"
                         onClick={() => void handleDelete(material)}
@@ -818,11 +827,13 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#302a22",
     boxSizing: "border-box",
   },
+
   container: {
     width: "100%",
     maxWidth: 850,
     margin: "0 auto",
   },
+
   header: {
     display: "flex",
     justifyContent: "space-between",
@@ -831,118 +842,136 @@ const styles: Record<string, React.CSSProperties> = {
     flexWrap: "wrap",
     marginBottom: 24,
   },
+
   eyebrow: {
     fontSize: 12,
     fontWeight: 800,
     letterSpacing: 3,
     margin: "0 0 8px",
-    color: "#8a6b45",
+    color: "var(--anki-theme-dark)",
   },
+
   title: {
     fontSize: "clamp(28px, 5vw, 40px)",
     lineHeight: 1.2,
     margin: "0 0 10px",
     fontWeight: 900,
   },
+
   subtitle: {
     margin: 0,
     color: "#675d50",
     lineHeight: 1.7,
   },
+
   primaryLink: {
     display: "inline-block",
     padding: "12px 16px",
     borderRadius: 14,
-    background: "#302a22",
-    color: "#fffdf6",
+    background: "var(--anki-theme-color)",
+    color: "#ffffff",
     textDecoration: "none",
     fontWeight: 800,
   },
+
   nav: {
     display: "flex",
     flexWrap: "wrap",
     gap: 10,
     marginBottom: 24,
   },
+
   navLink: {
     display: "inline-block",
     padding: "9px 14px",
-    border: "1px solid #b9a98f",
+    border: "1px solid var(--anki-theme-soft)",
     borderRadius: 12,
-    color: "#302a22",
+    color: "var(--anki-theme-dark)",
     textDecoration: "none",
     fontWeight: 700,
     background: "#fffdf6",
   },
+
   panel: {
     padding: 22,
     marginBottom: 24,
-    border: "2px solid #302a22",
+    border: "2px solid var(--anki-theme-soft)",
     borderRadius: 22,
     background: "#fffdf6",
-    boxShadow: "4px 5px 0 #302a22",
+    boxShadow: "4px 5px 0 var(--anki-theme-light)",
   },
+
   heading: {
     fontSize: 22,
     lineHeight: 1.4,
     margin: "0 0 18px",
     fontWeight: 900,
   },
+
   description: {
     color: "#675d50",
     lineHeight: 1.7,
     fontSize: 14,
   },
+
   form: {
     display: "grid",
     gap: 16,
   },
+
   label: {
     display: "grid",
     gap: 8,
     fontWeight: 800,
     fontSize: 14,
   },
+
   input: {
     width: "100%",
     boxSizing: "border-box",
     padding: "12px 13px",
-    border: "1px solid #b9a98f",
+    border: "1px solid var(--anki-theme-soft)",
     borderRadius: 12,
     background: "#ffffff",
     color: "#302a22",
     fontSize: 16,
+    accentColor: "var(--anki-theme-color)",
   },
+
   twoColumns: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
     gap: 14,
   },
+
   buttonRow: {
     display: "flex",
     flexWrap: "wrap",
     gap: 10,
     marginTop: 12,
   },
+
   primaryButton: {
     padding: "12px 17px",
-    border: "2px solid #302a22",
+    border: "2px solid var(--anki-theme-color)",
     borderRadius: 12,
-    background: "#302a22",
-    color: "#fffdf6",
+    background: "var(--anki-theme-color)",
+    color: "#ffffff",
     fontWeight: 800,
     fontSize: 14,
     cursor: "pointer",
   },
+
   secondaryButton: {
     padding: "10px 14px",
-    border: "1px solid #8c7c64",
+    border: "1px solid var(--anki-theme-soft)",
     borderRadius: 12,
     background: "#fffdf6",
-    color: "#302a22",
+    color: "var(--anki-theme-dark)",
     fontWeight: 800,
     cursor: "pointer",
   },
+
   deleteButton: {
     padding: "10px 14px",
     border: "1px solid #b64c43",
@@ -952,6 +981,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 800,
     cursor: "pointer",
   },
+
   error: {
     padding: 14,
     marginBottom: 20,
@@ -961,86 +991,101 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#922e25",
     lineHeight: 1.6,
   },
+
   empty: {
     padding: 30,
-    border: "1px dashed #b9a98f",
+    border: "1px dashed var(--anki-theme-soft)",
     borderRadius: 18,
     textAlign: "center",
     background: "#fffdf6",
     lineHeight: 1.7,
   },
+
   materialList: {
     display: "grid",
     gap: 18,
   },
+
   materialCard: {
     padding: 20,
-    border: "2px solid #302a22",
+    border: "2px solid var(--anki-theme-soft)",
     borderRadius: 20,
     background: "#fffdf6",
-    boxShadow: "3px 4px 0 #302a22",
+    boxShadow: "3px 4px 0 var(--anki-theme-light)",
     minWidth: 0,
   },
+
   cardTop: {
     display: "flex",
     alignItems: "flex-start",
     justifyContent: "space-between",
     gap: 12,
   },
+
   tag: {
     display: "inline-block",
     margin: "0 6px 8px 0",
     padding: "5px 9px",
     borderRadius: 999,
-    background: "#eee3ce",
-    color: "#594630",
+    background: "var(--anki-theme-light)",
+    color: "var(--anki-theme-dark)",
     fontSize: 12,
     fontWeight: 800,
   },
+
   cardTitle: {
     margin: "5px 0 8px",
     fontSize: 20,
     lineHeight: 1.5,
     overflowWrap: "anywhere",
   },
+
   percentage: {
     fontSize: 25,
     whiteSpace: "nowrap",
+    color: "var(--anki-theme-dark)",
   },
+
   progressTrack: {
     width: "100%",
     height: 13,
     marginTop: 14,
     overflow: "hidden",
     borderRadius: 999,
-    background: "#e4dccd",
+    background: "var(--anki-theme-light)",
   },
+
   progressBar: {
     height: "100%",
     borderRadius: 999,
-    background: "#64876a",
+    background: "var(--anki-theme-color)",
     transition: "width 0.25s ease",
   },
+
   smallText: {
     margin: "10px 0",
     fontSize: 12,
     color: "#756b5d",
   },
+
   details: {
     marginTop: 12,
     lineHeight: 1.8,
     fontSize: 14,
   },
+
   rangeList: {
     paddingLeft: 22,
   },
+
   footer: {
     marginTop: 30,
     textAlign: "center",
     fontSize: 14,
   },
+
   textLink: {
-    color: "#594630",
+    color: "var(--anki-theme-dark)",
     fontWeight: 800,
   },
 };

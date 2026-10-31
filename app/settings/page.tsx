@@ -1,7 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { ChangeEvent } from "react";
+import { onAuthStateChanged, type User } from "firebase/auth";
+import { auth } from "@/lib/firebase";
+import { exportBackup, restoreBackup, type RestoreResult } from "@/lib/backup";
 
 const presets = [
   { name: "セージ", color: "#718675" },
@@ -13,8 +17,8 @@ const appLanguages = [
   { value: "ja", label: "日本語" },
   { value: "de", label: "Deutsch" },
   { value: "en", label: "English" },
-  { value: "zh-CN", label: "简体中文（中国語・簡体字）" },
-  { value: "zh-TW", label: "繁體中文（中国語・繁体字）" },
+  { value: "zh-CN", label: "简体中文" },
+  { value: "zh-TW", label: "繁體中文" },
   { value: "es", label: "Español" },
 ];
 const studyLanguages = [
@@ -35,6 +39,102 @@ export default function SettingsPage() {
   const [appLanguage, setAppLanguage] = useState("ja");
   const [studyLanguage, setStudyLanguage] = useState("de-DE");
   const [saved, setSaved] = useState(false);
+    // バックアップ・復元用の状態
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [backupLoading, setBackupLoading] = useState(false);
+  const [backupMessage, setBackupMessage] = useState("");
+  const [backupError, setBackupError] = useState("");
+  const [restoreResult, setRestoreResult] = useState<RestoreResult | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ログイン状態を確認
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setAuthLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // JSONバックアップをダウンロード
+  async function handleExportBackup() {
+    if (!user) {
+      setBackupError("バックアップにはログインが必要です。");
+      return;
+    }
+
+    setBackupLoading(true);
+    setBackupMessage("");
+    setBackupError("");
+    setRestoreResult(null);
+
+    try {
+      await exportBackup(user);
+      setBackupMessage("バックアップファイルをダウンロードしました。");
+    } catch (error) {
+      console.error(error);
+      setBackupError("バックアップに失敗しました。もう一度お試しください。");
+    } finally {
+      setBackupLoading(false);
+    }
+  }
+
+  // ファイル選択画面を開く
+  function handleSelectRestore() {
+    fileInputRef.current?.click();
+  }
+
+  // JSONファイルから復元
+  async function handleRestoreFile(
+    event: ChangeEvent<HTMLInputElement>
+  ) {
+    const file = event.target.files?.[0];
+
+    // 同じファイルを再選択できるようにする
+    event.target.value = "";
+
+    if (!file) return;
+
+    if (!user) {
+      setBackupError("復元にはログインが必要です。");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "このバックアップファイルのデータを復元しますか？\n\n" +
+      "同じIDのデータは更新されます。\n" +
+      "バックアップに含まれない既存データは削除されません。\n\n" +
+      "復元前に、現在のデータもバックアップしておくことをおすすめします。"
+    );
+
+    if (!confirmed) return;
+
+    setBackupLoading(true);
+    setBackupMessage("");
+    setBackupError("");
+    setRestoreResult(null);
+
+    try {
+      const result = await restoreBackup(file, user);
+
+      setRestoreResult(result);
+      setBackupMessage(
+        "復元が完了しました。保存データを画面に反映するため、ページを再読み込みしてください。"
+      );
+    } catch (error) {
+      console.error(error);
+      setBackupError(
+        error instanceof Error
+          ? error.message
+          : "復元に失敗しました。"
+      );
+    } finally {
+      setBackupLoading(false);
+    }
+  }
 
   useEffect(() => {
     const read = (key: string, fallback: string) => {
@@ -104,13 +204,11 @@ export default function SettingsPage() {
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
     }}>
       <div style={{ maxWidth: "760px", margin: "0 auto" }}>
-        <Link href="/" style={{ display: "inline-flex", textDecoration: "none", color: "#68756A", fontSize: "13px", fontWeight: 600, marginBottom: "24px" }}>
-          ← ホームに戻る
-        </Link>
+        
         <header style={{ marginBottom: "26px" }}>
           <p style={{ color: "#718675", fontSize: "11px", fontWeight: 700, letterSpacing: "2px", margin: "0 0 8px" }}>PERSONALIZE YOUR STUDY</p>
           <h1 style={{ fontSize: "clamp(28px, 5vw, 36px)", letterSpacing: "-1.2px", margin: 0 }}>設定</h1>
-          <p style={{ color: "#858780", fontSize: "14px", lineHeight: 1.7, marginTop: "10px" }}>学習環境を、自分に合うかたちに整えましょう。</p>
+    
         </header>
 
         <div style={{ display: "grid", gap: "16px" }}>
@@ -183,6 +281,156 @@ export default function SettingsPage() {
           </section>
 
           <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "14px", flexWrap: "wrap" }}>
+                      {/* データ管理 */}
+          <section style={cardStyle}>
+            <h2 style={{ fontSize: "16px", margin: "0 0 5px" }}>
+              データ管理
+            </h2>
+
+            <p style={{
+              color: "#858780",
+              fontSize: "13px",
+              lineHeight: 1.7,
+              margin: "0 0 20px"
+            }}>
+              学習データやアプリの設定をJSONファイルに保存できます。
+              別の端末への移行や、大切なデータの保管に利用できます。
+            </p>
+
+            <div style={{
+              display: "grid",
+              gap: "12px",
+              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))"
+            }}>
+              <button
+                type="button"
+                onClick={handleExportBackup}
+                disabled={backupLoading || authLoading || !user}
+                style={{
+                  padding: "13px 16px",
+                  border: "1px solid #DDE3DA",
+                  borderRadius: "11px",
+                  background: "#F3F6F1",
+                  color: "#435747",
+                  fontSize: "14px",
+                  fontWeight: 650,
+                  cursor: backupLoading || !user ? "not-allowed" : "pointer",
+                  opacity: backupLoading || !user ? 0.5 : 1
+                }}
+              >
+                JSONバックアップを保存
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSelectRestore}
+                disabled={backupLoading || authLoading || !user}
+                style={{
+                  padding: "13px 16px",
+                  border: "1px solid #DADDD6",
+                  borderRadius: "11px",
+                  background: "#FFFFFF",
+                  color: "#30352F",
+                  fontSize: "14px",
+                  fontWeight: 650,
+                  cursor: backupLoading || !user ? "not-allowed" : "pointer",
+                  opacity: backupLoading || !user ? 0.5 : 1
+                }}
+              >
+                JSONファイルから復元
+              </button>
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json,application/json"
+              onChange={handleRestoreFile}
+              style={{ display: "none" }}
+            />
+
+            <p style={{
+              color: "#858780",
+              fontSize: "12px",
+              lineHeight: 1.7,
+              margin: "16px 0 0"
+            }}>
+              ※ 復元は既存データをすべて消去する操作ではありません。
+              同じIDのデータを更新し、バックアップに含まれないデータは残します。
+            </p>
+
+            {authLoading && (
+              <p style={{ fontSize: "13px", color: "#858780" }}>
+                ログイン状態を確認しています……
+              </p>
+            )}
+
+            {!authLoading && !user && (
+              <p style={{ fontSize: "13px", color: "#A45B50" }}>
+                バックアップ・復元にはログインが必要です。
+              </p>
+            )}
+
+            {backupLoading && (
+              <p style={{ fontSize: "13px", color: "#68756A" }}>
+                データを処理しています。しばらくお待ちください……
+              </p>
+            )}
+
+            {backupMessage && (
+              <p role="status" style={{
+                color: "#52735A",
+                fontSize: "13px",
+                lineHeight: 1.7,
+                marginTop: "16px"
+              }}>
+                {backupMessage}
+              </p>
+            )}
+
+            {backupError && (
+              <p role="alert" style={{
+                color: "#B04D43",
+                fontSize: "13px",
+                lineHeight: 1.7,
+                marginTop: "16px"
+              }}>
+                {backupError}
+              </p>
+            )}
+
+            {restoreResult && (
+              <div style={{
+                marginTop: "16px",
+                padding: "14px",
+                borderRadius: "10px",
+                background: "#F7F8F5",
+                fontSize: "13px",
+                lineHeight: 1.9
+              }}>
+                <strong>復元結果</strong>
+                <div>デッキ：{restoreResult.decks}件</div>
+                <div>フォルダ：{restoreResult.folders}件</div>
+                <div>単語：{restoreResult.words}件</div>
+                <div>教材：{restoreResult.materials}件</div>
+                <div>タスク：{restoreResult.tasks}件</div>
+                <div>カレンダー：{restoreResult.calendarData ? "復元済み" : "対象データなし"}</div>
+                <div>Little Moments：{restoreResult.littleMoments ? "復元済み" : "対象データなし・未復元"}</div>
+                <div>ブラウザ保存データ：{restoreResult.localStorage}件</div>
+
+                {restoreResult.warnings.length > 0 && (
+                  <div style={{ marginTop: "10px", color: "#A45B50" }}>
+                    <strong>注意事項</strong>
+                    {restoreResult.warnings.map((warning, index) => (
+                      <p key={index} style={{ margin: "5px 0" }}>
+                        ・{warning}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
             {saved && <span role="status" style={{ color: "#52735A", fontSize: "13px", fontWeight: 600 }}>設定を保存しました</span>}
             <button type="button" onClick={saveSettings} style={{ padding: "12px 20px", border: 0, borderRadius: "11px", background: "#252824", color: "#FFFFFF", fontSize: "14px", fontWeight: 650, cursor: "pointer" }}>設定を保存</button>
           </div>

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -163,7 +164,7 @@ export default function StudyDataPage() {
                 <small>問</small>
               </div>
 
-              <div className="study-data-stat">
+              <div className="study-data-stat study-data-rate">
                 <span>正答率</span>
                 <strong>{overallRate}</strong>
                 <small>%</small>
@@ -233,7 +234,9 @@ export default function StudyDataPage() {
 
                       <div className="study-data-record-stats">
                         <span>回答 {record.answered}問</span>
-                        <span>正答率 {rate}%</span>
+                        <span className="study-data-record-rate">
+                          正答率 {rate}%
+                        </span>
                         <span>正解 {record.correct}問</span>
                         <span>不正解 {record.incorrect}問</span>
                         <span>
@@ -272,7 +275,7 @@ export default function StudyDataPage() {
 
         .study-data-eyebrow {
           margin: 0 0 8px;
-          color: #829084;
+          color: var(--anki-theme-dark);
           font-size: 10px;
           font-weight: 700;
           letter-spacing: 0.16em;
@@ -341,7 +344,7 @@ export default function StudyDataPage() {
         .study-data-stat-wide {
           grid-column: 1 / -1;
           min-height: 132px;
-          background: #edf2ec;
+          background: var(--anki-theme-light);
         }
 
         .study-data-stat span {
@@ -354,6 +357,11 @@ export default function StudyDataPage() {
           font-size: 29px;
           font-weight: 600;
           letter-spacing: -0.04em;
+        }
+
+        .study-data-stat-wide strong,
+        .study-data-rate strong {
+          color: var(--anki-theme-dark);
         }
 
         .study-data-stat small {
@@ -396,7 +404,7 @@ export default function StudyDataPage() {
         }
 
         .study-data-record:hover {
-          border-color: #c8d4c9;
+          border-color: var(--anki-theme-color);
         }
 
         .study-data-record-top {
@@ -438,6 +446,11 @@ export default function StudyDataPage() {
           gap: 10px 18px;
           color: #69736b;
           font-size: 12px;
+        }
+
+        .study-data-record-rate {
+          color: var(--anki-theme-dark);
+          font-weight: 600;
         }
 
         @media (min-width: 600px) {

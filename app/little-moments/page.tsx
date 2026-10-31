@@ -1,5 +1,3 @@
-
-
 "use client";
 
 import Link from "next/link";
@@ -98,12 +96,10 @@ function mergeEntries(remote: Moment[], local: Moment[]): Moment[] {
   );
 }
 
-
-    export default function LittleMomentsPage() {
+export default function LittleMomentsPage() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const today = formatDate(new Date());
-
 
   const [currentMonth, setCurrentMonth] = useState(
     () => new Date(new Date().getFullYear(), new Date().getMonth(), 1)
@@ -132,11 +128,9 @@ function mergeEntries(remote: Moment[], local: Moment[]): Moment[] {
       setMessage("");
 
       try {
-        // まずブラウザにあるバックアップを読み込む
         const localEntries = loadLocal();
         let remoteEntries: Moment[] = [];
 
-        // ログイン中ならFirestoreからも読み込む
         if (currentUser) {
           const ref = doc(db, "littleMoments", currentUser.uid);
           const snapshot = await getDoc(ref);
@@ -160,15 +154,12 @@ function mergeEntries(remote: Moment[], local: Moment[]): Moment[] {
 
         if (!active) return;
 
-        // 両方の記録を統合する
         const merged = mergeEntries(remoteEntries, localEntries);
 
         setEntries(merged);
 
-        // 統合した記録をブラウザにバックアップ
         localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
 
-        // Firestoreが空で、ブラウザに記録がある場合は復元を試みる
         if (
           currentUser &&
           remoteEntries.length === 0 &&
@@ -188,7 +179,6 @@ function mergeEntries(remote: Moment[], local: Moment[]): Moment[] {
 
         if (!active) return;
 
-        // Firestoreが読めなくてもブラウザの記録を表示する
         setEntries(loadLocal());
         setMessage(
           "クラウドの記録を読み込めませんでした。ブラウザのバックアップを表示しています。"
@@ -237,11 +227,9 @@ function mergeEntries(remote: Moment[], local: Moment[]): Moment[] {
     setMessage("");
 
     try {
-      // 先にブラウザに保存する
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newEntries));
       setEntries(newEntries);
 
-      // ログイン中ならFirestoreにも保存する
       if (user) {
         await setDoc(
           doc(db, "littleMoments", user.uid),
@@ -357,28 +345,21 @@ function mergeEntries(remote: Moment[], local: Moment[]): Moment[] {
     "rounded-[1.6rem] border border-[#e8e4d9] bg-[#fffefa] p-5 shadow-[0_8px_28px_rgba(65,76,57,0.045)] sm:p-7";
 
   const secondaryButton =
-    "rounded-xl border border-[#e3dfd3] bg-white px-4 py-2.5 text-sm font-medium text-[#5b6557] transition hover:bg-[#f5f5ed]";
+    "rounded-xl border border-[var(--anki-theme-soft)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--anki-theme-dark)] transition hover:bg-[var(--anki-theme-light)]";
 
   const primaryButton =
-    "rounded-xl bg-[#536e59] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#425b48] disabled:cursor-not-allowed disabled:opacity-50";
+    "rounded-xl bg-[var(--anki-theme-color)] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--anki-theme-dark)] disabled:cursor-not-allowed disabled:opacity-50";
 
   return (
     <main className="min-h-screen bg-[#f7f6ef] px-4 pb-12 pt-7 text-[#373e35] sm:px-7 sm:pt-10">
       <div className="mx-auto max-w-5xl">
         <header className="mb-8">
-
-
-
-        
-
-
-
           <div className="mt-7 flex items-start justify-between gap-4">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#9b9a85]">
                 A collection of little joys
               </p>
-              <h1 className="mt-2 text-4xl font-medium tracking-tight text-[#425344] sm:text-5xl">
+              <h1 className="mt-2 text-4xl font-medium tracking-tight text-[var(--anki-theme-dark)] sm:text-5xl">
                 Little Moments
               </h1>
               <p className="mt-4 max-w-xl text-sm leading-7 text-[#777b6d] sm:text-base">
@@ -388,17 +369,19 @@ function mergeEntries(remote: Moment[], local: Moment[]): Moment[] {
               </p>
             </div>
 
-            <div className="hidden h-20 w-20 shrink-0 items-center justify-center rounded-full bg-[#e9eee3] text-4xl sm:flex">
+            <div
+              className="hidden h-20 w-20 shrink-0 items-center justify-center rounded-full text-4xl sm:flex"
+              style={{ background: "var(--anki-theme-light)" }}
+            >
               🌿
             </div>
           </div>
-
         </header>
 
         {message && (
           <p
             role="status"
-            className="mb-5 rounded-xl border border-[#dce5d7] bg-[#f0f5ed] p-4 text-sm leading-6 text-[#526b56]"
+            className="mb-5 rounded-xl border border-[var(--anki-theme-soft)] bg-[var(--anki-theme-light)] p-4 text-sm leading-6 text-[var(--anki-theme-dark)]"
           >
             {message}
           </p>
@@ -416,7 +399,7 @@ function mergeEntries(remote: Moment[], local: Moment[]): Moment[] {
               <p className="text-xs font-medium tracking-widest text-[#a09c88]">
                 A MOMENT FOR YOURSELF
               </p>
-              <h2 className="mt-2 text-xl font-medium text-[#425344]">
+              <h2 className="mt-2 text-xl font-medium text-[var(--anki-theme-dark)]">
                 {formatLongDate(today)}
               </h2>
               <p className="mt-2 text-sm leading-6 text-[#858577]">
@@ -434,7 +417,7 @@ function mergeEntries(remote: Moment[], local: Moment[]): Moment[] {
                   new Date(new Date().getFullYear(), new Date().getMonth(), 1)
                 );
               }}
-              className="self-start rounded-full bg-[#eaf0e5] px-4 py-2.5 text-sm font-medium text-[#526b56] transition hover:bg-[#dfe9d9] sm:self-center"
+              className="self-start rounded-full bg-[var(--anki-theme-light)] px-4 py-2.5 text-sm font-medium text-[var(--anki-theme-dark)] transition hover:bg-[var(--anki-theme-soft)] sm:self-center"
             >
               今日を記録する ↗
             </button>
@@ -447,7 +430,7 @@ function mergeEntries(remote: Moment[], local: Moment[]): Moment[] {
               <p className="text-[11px] font-semibold tracking-[0.2em] text-[#a09c88]">
                 YOUR MONTH
               </p>
-              <h2 className="mt-1 text-2xl font-medium tracking-tight text-[#425344]">
+              <h2 className="mt-1 text-2xl font-medium tracking-tight text-[var(--anki-theme-dark)]">
                 {year}年 {month + 1}月
               </h2>
             </div>
@@ -515,10 +498,10 @@ function mergeEntries(remote: Moment[], local: Moment[]): Moment[] {
                     !date
                       ? "border-transparent bg-transparent"
                       : isSelected
-                        ? "border-[#708873] bg-[#eaf0e5] text-[#425344] shadow-sm"
+                        ? "border-[var(--anki-theme-color)] bg-[var(--anki-theme-light)] text-[var(--anki-theme-dark)] shadow-sm"
                         : isToday
                           ? "border-[#d8b4a9] bg-[#fcf1ed] text-[#6c5b50]"
-                          : "border-transparent bg-[#faf9f3] text-[#62675c] hover:border-[#e0e4d8] hover:bg-[#f1f3eb]"
+                          : "border-transparent bg-[#faf9f3] text-[#62675c] hover:border-[var(--anki-theme-soft)] hover:bg-[var(--anki-theme-light)]"
                   }`}
                 >
                   {date && (
@@ -547,7 +530,7 @@ function mergeEntries(remote: Moment[], local: Moment[]): Moment[] {
             <p className="text-[11px] font-semibold tracking-[0.2em] text-[#a09c88]">
               YOUR LITTLE JOURNAL
             </p>
-            <h2 className="mt-2 text-xl font-medium text-[#425344]">
+            <h2 className="mt-2 text-xl font-medium text-[var(--anki-theme-dark)]">
               {formatLongDate(selectedDate)}
             </h2>
             <p className="mt-2 text-sm text-[#89897b]">
@@ -556,7 +539,7 @@ function mergeEntries(remote: Moment[], local: Moment[]): Moment[] {
           </div>
 
           <div className="mt-7">
-            <label className="mb-3 block text-sm font-medium text-[#596454]">
+            <label className="mb-3 block text-sm font-medium text-[var(--anki-theme-dark)]">
               今日の気分
             </label>
             <div className="grid grid-cols-5 gap-2">
@@ -568,7 +551,7 @@ function mergeEntries(remote: Moment[], local: Moment[]): Moment[] {
                   aria-pressed={mood === item.id}
                   className={`flex flex-col items-center gap-2 rounded-2xl border p-2 py-4 transition sm:py-5 ${
                     mood === item.id
-                      ? "border-[#829783] shadow-sm"
+                      ? "border-[var(--anki-theme-color)] shadow-sm"
                       : "border-[#ebe8dd] bg-white hover:bg-[#faf9f3]"
                   }`}
                   style={{
@@ -590,7 +573,10 @@ function mergeEntries(remote: Moment[], local: Moment[]): Moment[] {
           </div>
 
           <div className="mt-7">
-            <label htmlFor="highlights" className="block text-sm font-medium text-[#596454]">
+            <label
+              htmlFor="highlights"
+              className="block text-sm font-medium text-[var(--anki-theme-dark)]"
+            >
               ✿ 今日の小さな幸せ
             </label>
             <p className="mt-1 text-xs leading-5 text-[#999787]">
@@ -602,12 +588,15 @@ function mergeEntries(remote: Moment[], local: Moment[]): Moment[] {
               onChange={(event) => setHighlights(event.target.value)}
               placeholder="今日、心がちょっと嬉しくなったことは？"
               rows={3}
-              className="mt-3 w-full resize-y rounded-2xl border border-[#e7e4d8] bg-[#fdfcf7] p-4 text-sm leading-7 text-[#424a40] outline-none transition placeholder:text-[#b0ad9e] focus:border-[#94a592] focus:ring-2 focus:ring-[#eaf0e5]"
+              className="little-moments-field mt-3 w-full resize-y rounded-2xl border border-[#e7e4d8] bg-[#fdfcf7] p-4 text-sm leading-7 text-[#424a40] outline-none transition placeholder:text-[#b0ad9e] focus:border-[var(--anki-theme-color)] focus:ring-2 focus:ring-[var(--anki-theme-light)]"
             />
           </div>
 
           <div className="mt-6">
-            <label htmlFor="note" className="block text-sm font-medium text-[#596454]">
+            <label
+              htmlFor="note"
+              className="block text-sm font-medium text-[var(--anki-theme-dark)]"
+            >
               今日のこと、自由に書こう
             </label>
             <p className="mt-1 text-xs leading-5 text-[#999787]">
@@ -619,7 +608,7 @@ function mergeEntries(remote: Moment[], local: Moment[]): Moment[] {
               onChange={(event) => setNote(event.target.value)}
               placeholder="Dear diary..."
               rows={5}
-              className="mt-3 w-full resize-y rounded-2xl border border-[#e7e4d8] bg-[#fdfcf7] p-4 text-sm leading-7 text-[#424a40] outline-none transition placeholder:text-[#b0ad9e] focus:border-[#94a592] focus:ring-2 focus:ring-[#eaf0e5]"
+              className="little-moments-field mt-3 w-full resize-y rounded-2xl border border-[#e7e4d8] bg-[#fdfcf7] p-4 text-sm leading-7 text-[#424a40] outline-none transition placeholder:text-[#b0ad9e] focus:border-[var(--anki-theme-color)] focus:ring-2 focus:ring-[var(--anki-theme-light)]"
             />
           </div>
 
@@ -679,7 +668,7 @@ function mergeEntries(remote: Moment[], local: Moment[]): Moment[] {
           <p className="text-[11px] font-semibold tracking-[0.2em] text-[#a09c88]">
             A MONTH TO REMEMBER
           </p>
-          <h2 className="mt-2 text-xl font-medium text-[#425344]">
+          <h2 className="mt-2 text-xl font-medium text-[var(--anki-theme-dark)]">
             {month + 1}月の振り返り
           </h2>
           <p className="mt-2 text-sm leading-6 text-[#89897b]">
@@ -687,9 +676,9 @@ function mergeEntries(remote: Moment[], local: Moment[]): Moment[] {
           </p>
 
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl bg-[#edf1e7] p-4">
-              <p className="text-xs text-[#78866f]">記録した日</p>
-              <p className="mt-2 text-3xl font-medium text-[#506650]">
+            <div className="rounded-2xl bg-[var(--anki-theme-light)] p-4">
+              <p className="text-xs text-[var(--anki-theme-dark)]">記録した日</p>
+              <p className="mt-2 text-3xl font-medium text-[var(--anki-theme-dark)]">
                 {monthEntries.length}<span className="ml-1 text-sm">日</span>
               </p>
             </div>
@@ -712,17 +701,24 @@ function mergeEntries(remote: Moment[], local: Moment[]): Moment[] {
 
           {monthEntries.length > 0 && (
             <div className="mt-5 border-t border-[#eeeadd] pt-5">
-              <h3 className="text-sm font-medium text-[#596454]">今月の気分</h3>
+              <h3 className="text-sm font-medium text-[var(--anki-theme-dark)]">
+                今月の気分
+              </h3>
               <div className="mt-3 flex flex-wrap gap-2">
-                {moodCounts.filter((item) => item.count > 0).map((item) => (
-                  <span
-                    key={item.id}
-                    className="rounded-full px-3 py-2 text-xs"
-                    style={{ color: item.color, background: item.background }}
-                  >
-                    {item.emoji} {item.label} · {item.count}
-                  </span>
-                ))}
+                {moodCounts
+                  .filter((item) => item.count > 0)
+                  .map((item) => (
+                    <span
+                      key={item.id}
+                      className="rounded-full px-3 py-2 text-xs"
+                      style={{
+                        color: item.color,
+                        background: item.background,
+                      }}
+                    >
+                      {item.emoji} {item.label} · {item.count}
+                    </span>
+                  ))}
               </div>
             </div>
           )}
@@ -734,7 +730,7 @@ function mergeEntries(remote: Moment[], local: Moment[]): Moment[] {
               <p className="text-[11px] font-semibold tracking-[0.2em] text-[#a09c88]">
                 LITTLE MEMORIES
               </p>
-              <h2 className="mt-2 text-xl font-medium text-[#425344]">
+              <h2 className="mt-2 text-xl font-medium text-[var(--anki-theme-dark)]">
                 最近の記録
               </h2>
             </div>
@@ -743,7 +739,7 @@ function mergeEntries(remote: Moment[], local: Moment[]): Moment[] {
               <button
                 type="button"
                 onClick={() => setShowAllEntries((current) => !current)}
-                className="text-sm text-[#71806c] hover:text-[#425344]"
+                className="text-sm text-[var(--anki-theme-color)] hover:text-[var(--anki-theme-dark)]"
               >
                 {showAllEntries ? "閉じる ↑" : "もっと見る ↓"}
               </button>
@@ -762,7 +758,10 @@ function mergeEntries(remote: Moment[], local: Moment[]): Moment[] {
             </div>
           ) : (
             <div className="mt-5 divide-y divide-[#eeeadd]">
-              {(showAllEntries ? monthEntries : monthEntries.slice(0, 3)).map((entry) => {
+              {(showAllEntries
+                ? monthEntries
+                : monthEntries.slice(0, 3)
+              ).map((entry) => {
                 const entryMood = getMood(entry.mood);
 
                 return (
@@ -782,7 +781,7 @@ function mergeEntries(remote: Moment[], local: Moment[]): Moment[] {
                       <span className="block text-xs text-[#9b9a89]">
                         {formatLongDate(entry.date)}
                       </span>
-                      <span className="mt-1 block truncate text-sm font-medium text-[#52604f]">
+                      <span className="mt-1 block truncate text-sm font-medium text-[var(--anki-theme-dark)]">
                         {entry.highlights || entry.note || "気分を記録した日"}
                       </span>
                       {entry.highlights && entry.note && (
@@ -800,7 +799,9 @@ function mergeEntries(remote: Moment[], local: Moment[]): Moment[] {
         </section>
 
         <footer className="pb-5 text-center">
-          <p className="text-sm text-[#87907d]">Every little moment matters.</p>
+          <p className="text-sm text-[#87907d]">
+            Every little moment matters.
+          </p>
           <p className="mt-3 text-xs text-[#aaa895]">
             {!loaded
               ? "記録を読み込み中..."
@@ -812,7 +813,7 @@ function mergeEntries(remote: Moment[], local: Moment[]): Moment[] {
           </p>
           <Link
             href="/"
-            className="mt-5 inline-block text-xs text-[#8b9282] hover:text-[#52604f]"
+            className="mt-5 inline-block text-xs text-[var(--anki-theme-color)] hover:text-[var(--anki-theme-dark)]"
           >
             ← Anki home
           </Link>

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -325,20 +326,21 @@ export default function TasksPage() {
     width: "100%",
     boxSizing: "border-box",
     padding: 10,
-    border: "1px solid #e5ded3",
+    border: "1px solid #e5e9e5",
     borderRadius: 10,
     background: "#fffdf9",
     color: "#332d25",
     fontSize: 14,
     marginTop: 6,
+    accentColor: "var(--anki-theme-color)",
   };
 
   const buttonStyle: React.CSSProperties = {
     padding: "9px 14px",
-    border: "1px solid #ded5c8",
+    border: "1px solid var(--anki-theme-soft)",
     borderRadius: 10,
-    background: "#f5efe5",
-    color: "#332d25",
+    background: "var(--anki-theme-light)",
+    color: "var(--anki-theme-dark)",
     cursor: "pointer",
     fontSize: 13,
     transition: "background 0.2s ease",
@@ -353,6 +355,22 @@ export default function TasksPage() {
     boxShadow: "0 4px 20px rgba(55, 43, 29, 0.025)",
   };
 
+  const eyebrowStyle: React.CSSProperties = {
+    color: "var(--anki-theme-dark)",
+    fontSize: 10,
+    letterSpacing: 2,
+    margin: "0 0 7px",
+    fontWeight: 600,
+  };
+
+  const primaryButtonStyle: React.CSSProperties = {
+    ...buttonStyle,
+    padding: "11px 20px",
+    background: "var(--anki-theme-color)",
+    color: "#ffffff",
+    borderColor: "var(--anki-theme-color)",
+  };
+
   return (
     <main style={pageStyle}>
       <header
@@ -363,10 +381,8 @@ export default function TasksPage() {
       >
         <p
           style={{
-            color: "#a08b70",
+            ...eyebrowStyle,
             fontSize: 11,
-            letterSpacing: 2,
-            marginBottom: 7,
           }}
         >
           ANKI / STUDY
@@ -434,16 +450,7 @@ export default function TasksPage() {
 
       <section style={sectionStyle}>
         <div style={{ marginBottom: 22 }}>
-          <p
-            style={{
-              color: "#a08b70",
-              fontSize: 10,
-              letterSpacing: 2,
-              margin: "0 0 7px",
-            }}
-          >
-            CREATE & ORGANIZE
-          </p>
+          <p style={eyebrowStyle}>CREATE & ORGANIZE</p>
 
           <h2 style={{ fontSize: 20, letterSpacing: -0.5, margin: 0 }}>
             {editingId ? "タスクを編集" : "新しいタスクを登録"}
@@ -593,7 +600,7 @@ export default function TasksPage() {
               style={{
                 marginTop: 20,
                 padding: 14,
-                border: "1px solid #e8e0d5",
+                border: "1px solid var(--anki-theme-soft)",
                 borderRadius: 12,
               }}
             >
@@ -605,7 +612,11 @@ export default function TasksPage() {
                 {weekdays.map((day, index) => (
                   <label
                     key={day}
-                    style={{ fontSize: 13, cursor: "pointer" }}
+                    style={{
+                      fontSize: 13,
+                      cursor: "pointer",
+                      accentColor: "var(--anki-theme-color)",
+                    }}
                   >
                     <input
                       type="checkbox"
@@ -640,11 +651,7 @@ export default function TasksPage() {
                 (form.repeat === "毎週" && form.repeatDays.length === 0)
               }
               style={{
-                ...buttonStyle,
-                padding: "11px 20px",
-                background: "#655947",
-                color: "#fff",
-                borderColor: "#655947",
+                ...primaryButtonStyle,
                 opacity: !user || saving ? 0.6 : 1,
               }}
             >
@@ -666,16 +673,7 @@ export default function TasksPage() {
 
       <section>
         <div style={{ marginBottom: 20 }}>
-          <p
-            style={{
-              color: "#a08b70",
-              fontSize: 10,
-              letterSpacing: 2,
-              margin: "0 0 7px",
-            }}
-          >
-            YOUR STUDY LIST
-          </p>
+          <p style={eyebrowStyle}>YOUR STUDY LIST</p>
 
           <h2 style={{ fontSize: 22, letterSpacing: -0.7, margin: "0 0 6px" }}>
             タスク一覧
@@ -741,13 +739,27 @@ export default function TasksPage() {
             style={{
               padding: "40px 20px",
               textAlign: "center",
-              background: "#f8f5ef",
+              background: "var(--anki-theme-light)",
               borderRadius: 16,
-              border: "1px solid #eee8df",
+              border: "1px solid var(--anki-theme-soft)",
             }}
           >
-            <p style={{ fontSize: 26, margin: "0 0 10px" }}>✳</p>
-            <p style={{ fontSize: 14, color: "#655947", margin: "0 0 6px" }}>
+            <p
+              style={{
+                fontSize: 26,
+                margin: "0 0 10px",
+                color: "var(--anki-theme-dark)",
+              }}
+            >
+              ✳
+            </p>
+            <p
+              style={{
+                fontSize: 14,
+                color: "var(--anki-theme-dark)",
+                margin: "0 0 6px",
+              }}
+            >
               該当するタスクはありません
             </p>
             <p style={{ fontSize: 12, color: "#8b8175", margin: 0 }}>
@@ -795,7 +807,10 @@ export default function TasksPage() {
                             e.target.checked ? "完了" : "未着手"
                           )
                         }
-                        style={{ marginTop: 4 }}
+                        style={{
+                          marginTop: 4,
+                          accentColor: "var(--anki-theme-color)",
+                        }}
                       />
 
                       <strong

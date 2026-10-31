@@ -12,6 +12,15 @@ type Book = {
   author?: string;
 };
 
+const linkClass =
+  "text-sm font-medium text-[var(--anki-theme-dark)] transition hover:text-[var(--anki-theme-color)] hover:underline underline-offset-4";
+
+const buttonClass =
+  "inline-flex rounded-xl bg-[var(--anki-theme-color)] px-5 py-3 text-sm font-medium text-white transition hover:opacity-90";
+
+const selectClass =
+  "mt-1.5 block w-full rounded-xl border border-[#E1E3DC] bg-white px-3 py-3 text-sm text-[#30332F] outline-none focus:border-[var(--anki-theme-color)] focus:ring-2 focus:ring-[var(--anki-theme-light)]";
+
 export default function PdfReaderPage() {
   const [fileUrl, setFileUrl] = useState("");
   const [fileName, setFileName] = useState("");
@@ -81,22 +90,13 @@ export default function PdfReaderPage() {
       <div className="mx-auto max-w-6xl">
         {/* ページ間ナビゲーション */}
         <nav className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
-          <Link
-            href="/library"
-            className="text-[#718675] transition hover:text-[#52664D]"
-          >
+          <Link href="/library" className={linkClass}>
             ← Library
           </Link>
-          <Link
-            href="/library/books"
-            className="text-[#777D75] transition hover:text-[#52664D]"
-          >
+          <Link href="/library/books" className={linkClass}>
             本棚
           </Link>
-          <Link
-            href="/library/scan"
-            className="text-[#777D75] transition hover:text-[#52664D]"
-          >
+          <Link href="/library/scan" className={linkClass}>
             本をスキャン
           </Link>
         </nav>
@@ -127,7 +127,7 @@ export default function PdfReaderPage() {
               type="file"
               accept=".pdf,application/pdf"
               onChange={handleFileChange}
-              className="mt-2 block w-full text-sm file:mr-3 file:rounded-xl file:border-0 file:bg-[#F0F2ED] file:px-4 file:py-3 file:text-sm file:font-medium file:text-[#30332F] hover:file:bg-[#E6EAE2]"
+              className="mt-2 block w-full text-sm file:mr-3 file:rounded-xl file:border-0 file:bg-[var(--anki-theme-light)] file:px-4 file:py-3 file:text-sm file:font-medium file:text-[var(--anki-theme-dark)] hover:file:bg-[var(--anki-theme-soft)]"
             />
           </label>
 
@@ -139,13 +139,13 @@ export default function PdfReaderPage() {
 
           {fileName && (
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[#F7F7F5] p-3">
-              <p className="break-all text-sm text-[#52664D]">
+              <p className="break-all text-sm text-[var(--anki-theme-dark)]">
                 {fileName}
               </p>
               <button
                 type="button"
                 onClick={closePdf}
-                className="shrink-0 text-xs text-[#858980] hover:text-red-600"
+                className="shrink-0 text-xs text-[#858980] transition hover:text-red-600"
               >
                 PDFを閉じる
               </button>
@@ -164,8 +164,8 @@ export default function PdfReaderPage() {
             />
           ) : (
             <div className="flex min-h-[360px] flex-col items-center justify-center px-6 text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#F0F2ED]">
-                <span className="text-xl font-medium text-[#718675]">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--anki-theme-light)]">
+                <span className="text-xl font-medium text-[var(--anki-theme-dark)]">
                   PDF
                 </span>
               </div>
@@ -194,7 +194,7 @@ export default function PdfReaderPage() {
                 <select
                   value={selectedBookId}
                   onChange={(e) => setSelectedBookId(e.target.value)}
-                  className="mt-1.5 block w-full rounded-xl border border-[#E1E3DC] bg-white px-3 py-3 text-sm text-[#30332F]"
+                  className={selectClass}
                 >
                   <option value="">本を選択してください</option>
                   {books.map((book) => (
@@ -219,7 +219,7 @@ export default function PdfReaderPage() {
                     setError("");
                   }
                 }}
-                className="mt-4 inline-flex rounded-xl bg-[#718675] px-5 py-3 text-sm font-medium text-white transition hover:bg-[#5E7563]"
+                className={`mt-4 ${buttonClass}`}
               >
                 選んだ本の読書記録へ →
               </Link>
@@ -231,7 +231,7 @@ export default function PdfReaderPage() {
               </p>
               <Link
                 href="/library/books"
-                className="mt-3 inline-flex rounded-xl bg-[#718675] px-4 py-3 text-sm font-medium text-white hover:bg-[#5E7563]"
+                className={`mt-3 ${buttonClass}`}
               >
                 本棚で本を登録する →
               </Link>
@@ -245,10 +245,7 @@ export default function PdfReaderPage() {
         </p>
 
         <footer className="mt-8 border-t border-[#E6E7E1] pt-5">
-          <Link
-            href="/library"
-            className="text-sm text-[#718675] transition hover:text-[#52664D]"
-          >
+          <Link href="/library" className={linkClass}>
             ← Little Library トップへ戻る
           </Link>
         </footer>

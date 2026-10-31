@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -220,12 +219,18 @@ export default function StudyPlanPage() {
 
   const today = todayString();
 
+  const inputClass =
+    "w-full rounded-xl border border-[#e1e5dc] bg-[#fbfcfa] px-4 py-3 outline-none focus:border-[var(--anki-theme-color)] focus:ring-2 focus:ring-[var(--anki-theme-light)]";
+
+  const secondaryButtonClass =
+    "rounded-xl border border-[var(--anki-theme-soft)] bg-[var(--anki-theme-light)] px-4 py-3 text-sm text-[var(--anki-theme-dark)] transition hover:bg-[var(--anki-theme-soft)]";
+
   return (
     <main className="min-h-screen bg-[#f6f7f4] text-[#20251f]">
       <div className="mx-auto max-w-6xl px-5 py-8 md:px-8 md:py-12">
         <header className="mb-10 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#71806c]">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--anki-theme-dark)]">
               Your Anki · Planning
             </p>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight md:text-4xl">
@@ -237,7 +242,7 @@ export default function StudyPlanPage() {
           </div>
           <Link
             href="/today"
-            className="rounded-full border border-[#dfe4da] bg-white px-5 py-3 text-sm transition hover:bg-[#edf1e9]"
+            className={secondaryButtonClass}
           >
             今日のノルマ →
           </Link>
@@ -252,7 +257,7 @@ export default function StudyPlanPage() {
           </div>
           <div className="border-l border-[#dfe3da] pl-4">
             <p className="text-xs text-[#858b81]">完了</p>
-            <p className="mt-1 text-3xl font-semibold tabular-nums">
+            <p className="mt-1 text-3xl font-semibold tabular-nums text-[var(--anki-theme-dark)]">
               {completedCount}
             </p>
           </div>
@@ -266,7 +271,7 @@ export default function StudyPlanPage() {
 
         <div className="grid gap-8 lg:grid-cols-[0.85fr_1.15fr]">
           <section className="h-fit rounded-3xl border border-[#e5e8e0] bg-white p-6 md:p-7">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#829079]">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--anki-theme-dark)]">
               New plan
             </p>
             <h2 className="mt-2 text-xl font-semibold">計画を作成</h2>
@@ -281,7 +286,7 @@ export default function StudyPlanPage() {
                   value={deckName}
                   onChange={(e) => setDeckName(e.target.value)}
                   placeholder="例：ドイツ語 C1 単語"
-                  className="w-full rounded-xl border border-[#e1e5dc] bg-[#fbfcfa] px-4 py-3 outline-none focus:border-[#819477]"
+                  className={inputClass}
                   required
                 />
               </label>
@@ -294,7 +299,7 @@ export default function StudyPlanPage() {
                     min="1"
                     value={totalItems}
                     onChange={(e) => setTotalItems(e.target.value)}
-                    className="w-full rounded-xl border border-[#e1e5dc] bg-[#fbfcfa] px-4 py-3 outline-none focus:border-[#819477]"
+                    className={inputClass}
                     required
                   />
                   <span className="mt-1 block text-xs text-[#92978f]">
@@ -308,7 +313,7 @@ export default function StudyPlanPage() {
                     min="1"
                     value={rounds}
                     onChange={(e) => setRounds(e.target.value)}
-                    className="w-full rounded-xl border border-[#e1e5dc] bg-[#fbfcfa] px-4 py-3 outline-none focus:border-[#819477]"
+                    className={inputClass}
                     required
                   />
                 </label>
@@ -321,7 +326,7 @@ export default function StudyPlanPage() {
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full rounded-xl border border-[#e1e5dc] bg-[#fbfcfa] px-3 py-3 text-sm outline-none focus:border-[#819477]"
+                    className={`${inputClass} px-3 text-sm`}
                     required
                   />
                 </label>
@@ -332,7 +337,7 @@ export default function StudyPlanPage() {
                     value={deadline}
                     min={startDate}
                     onChange={(e) => setDeadline(e.target.value)}
-                    className="w-full rounded-xl border border-[#e1e5dc] bg-[#fbfcfa] px-3 py-3 text-sm outline-none focus:border-[#819477]"
+                    className={`${inputClass} px-3 text-sm`}
                     required
                   />
                 </label>
@@ -343,26 +348,31 @@ export default function StudyPlanPage() {
                   学習する曜日
                 </span>
                 <div className="grid grid-cols-7 gap-1.5">
-                  {weekdayLabels.map((label, index) => (
-                    <button
-                      key={label}
-                      type="button"
-                      onClick={() => toggleWeekday(index)}
-                      className={`rounded-lg py-3 text-sm transition ${
-                        weekdays.includes(index)
-                          ? "bg-[#52684d] text-white"
-                          : "bg-[#f1f3ee] text-[#81877d] hover:bg-[#e7ebe2]"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
+                  {weekdayLabels.map((label, index) => {
+                    const selected = weekdays.includes(index);
+
+                    return (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={() => toggleWeekday(index)}
+                        aria-pressed={selected}
+                        className={`rounded-lg py-3 text-sm transition ${
+                          selected
+                            ? "bg-[var(--anki-theme-color)] text-white"
+                            : "bg-[#f1f3ee] text-[#81877d] hover:bg-[var(--anki-theme-light)]"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
               <button
                 type="submit"
-                className="w-full rounded-xl bg-[#52684d] px-4 py-3.5 text-sm font-medium text-white transition hover:bg-[#40563b]"
+                className="w-full rounded-xl bg-[var(--anki-theme-color)] px-4 py-3.5 text-sm font-medium text-white transition hover:brightness-90"
               >
                 ＋ 学習計画を追加
               </button>
@@ -372,7 +382,7 @@ export default function StudyPlanPage() {
           <section>
             <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#829079]">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--anki-theme-dark)]">
                   Overview
                 </p>
                 <h2 className="mt-2 text-xl font-semibold">登録済みの計画</h2>
@@ -384,11 +394,11 @@ export default function StudyPlanPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="教材名で検索..."
-              className="mb-4 w-full rounded-xl border border-[#e5e8e0] bg-white px-4 py-3 outline-none focus:border-[#819477]"
+              className={`mb-4 ${inputClass} bg-white`}
             />
 
             {filteredPlans.length === 0 ? (
-              <div className="rounded-3xl border border-dashed border-[#d9dfd3] bg-white/60 px-6 py-16 text-center">
+              <div className="rounded-3xl border border-dashed border-[var(--anki-theme-soft)] bg-white/60 px-6 py-16 text-center">
                 <p className="text-base font-medium text-[#5d6658]">
                   {search ? "該当する計画がありません" : "まだ計画がありません"}
                 </p>
@@ -415,7 +425,7 @@ export default function StudyPlanPage() {
                       key={plan.id}
                       className={`rounded-3xl border bg-white p-5 md:p-6 ${
                         status === "completed"
-                          ? "border-[#cbd8c4]"
+                          ? "border-[var(--anki-theme-soft)]"
                           : "border-[#e5e8e0]"
                       }`}
                     >
@@ -425,11 +435,11 @@ export default function StudyPlanPage() {
                             <span
                               className={`rounded-full px-2.5 py-1 text-xs ${
                                 status === "completed"
-                                  ? "bg-[#e3eee0] text-[#42613d]"
+                                  ? "bg-[var(--anki-theme-light)] text-[var(--anki-theme-dark)]"
                                   : status === "postponed"
                                   ? "bg-[#f7edda] text-[#8b6a2d]"
                                   : isActive
-                                  ? "bg-[#e8efe4] text-[#52684d]"
+                                  ? "bg-[var(--anki-theme-light)] text-[var(--anki-theme-dark)]"
                                   : daysLeft < 0
                                   ? "bg-[#f7e9e5] text-[#9b5a4c]"
                                   : "bg-[#f0f1ed] text-[#7b8176]"
@@ -488,9 +498,11 @@ export default function StudyPlanPage() {
                             <span className="ml-1 text-xs font-normal">日</span>
                           </p>
                         </div>
-                        <div className="rounded-2xl bg-[#edf2e9] p-3">
-                          <p className="text-xs text-[#687961]">1日あたり</p>
-                          <p className="mt-1 text-lg font-semibold text-[#52684d]">
+                        <div className="rounded-2xl bg-[var(--anki-theme-light)] p-3">
+                          <p className="text-xs text-[var(--anki-theme-dark)]">
+                            1日あたり
+                          </p>
+                          <p className="mt-1 text-lg font-semibold text-[var(--anki-theme-dark)]">
                             {perDay.toLocaleString()}
                           </p>
                         </div>
@@ -523,7 +535,7 @@ export default function StudyPlanPage() {
                             aria-pressed={status === "pending"}
                             className={`rounded-xl border px-2 py-3 text-sm transition ${
                               status === "pending"
-                                ? "border-[#52684d] bg-[#edf2e9] font-semibold text-[#40563b]"
+                                ? "border-[var(--anki-theme-color)] bg-[var(--anki-theme-light)] font-semibold text-[var(--anki-theme-dark)]"
                                 : "border-[#e1e5dc] bg-white text-[#777f72] hover:bg-[#f6f7f4]"
                             }`}
                           >
@@ -535,7 +547,7 @@ export default function StudyPlanPage() {
                             aria-pressed={status === "completed"}
                             className={`rounded-xl border px-2 py-3 text-sm transition ${
                               status === "completed"
-                                ? "border-[#52684d] bg-[#52684d] font-semibold text-white"
+                                ? "border-[var(--anki-theme-color)] bg-[var(--anki-theme-color)] font-semibold text-white"
                                 : "border-[#e1e5dc] bg-white text-[#777f72] hover:bg-[#f6f7f4]"
                             }`}
                           >
@@ -563,13 +575,13 @@ export default function StudyPlanPage() {
         </div>
 
         <footer className="mt-12 flex flex-wrap gap-3 border-t border-[#e2e6dd] pt-6 text-sm text-[#81877d]">
-          <Link href="/today" className="hover:text-[#52684d]">
+          <Link href="/today" className="transition hover:text-[var(--anki-theme-dark)]">
             今日のノルマ
           </Link>
-          <Link href="/tasks" className="hover:text-[#52684d]">
+          <Link href="/tasks" className="transition hover:text-[var(--anki-theme-dark)]">
             タスク管理
           </Link>
-          <Link href="/calendar" className="hover:text-[#52684d]">
+          <Link href="/calendar" className="transition hover:text-[var(--anki-theme-dark)]">
             学習カレンダー
           </Link>
         </footer>
