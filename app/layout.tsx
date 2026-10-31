@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import AnkiSidebar from "@/app/component/AnkiSidebar";
-
+import { AppLanguageProvider } from "@/app/component/AppLanguage";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,9 +32,10 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-
-        <AnkiSidebar />
-        {children}
+        <AppLanguageProvider>
+          <AnkiSidebar />
+          {children}
+        </AppLanguageProvider>
       </body>
     </html>
   );

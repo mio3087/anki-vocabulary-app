@@ -4,6 +4,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAppLanguage } from "@/app/component/AppLanguage";
+
 import {
   X,
   Menu,
@@ -26,55 +28,6 @@ import {
   Brain,
 } from "lucide-react";
 
-const sections = [
-  {
-    title: "YOUR STUDY",
-    items: [
-      { label: "今日のノルマ", href: "/today", icon: Sun },
-      { label: "学習記録", href: "/study-data", icon: ChartNoAxesColumn },
-      {
-        label: "Reality Check",
-        href: "/understanding-analytics",
-        icon: Brain,
-      },
-      { label: "学習カレンダー", href: "/calendar", icon: CalendarDays },
-      { label: "暗記デッキ", href: "/", icon: Layers3 },
-      { label: "教材", href: "/materials", icon: BookOpen },
-      { label: "学習計画", href: "/plan", icon: Route },
-      { label: "タスク", href: "/tasks", icon: ListChecks },
-      { label: "世界地図", href: "/language-world", icon: Map },
-      { label: "Little Library", href: "/library", icon: Library },
-    ],
-  },
-  {
-    title: "GAMES & STORIES",
-    items: [
-      { label: "Language Quest", href: "/game", icon: Swords },
-      {
-        label: "無敵艦隊 · スペイン語",
-        href: "/armada",
-        icon: Sailboat,
-      },
-      {
-        label: "戦国策 · 中国語",
-        href: "/story1",
-        icon: Castle,
-      },
-      {
-        label: "Little Moments",
-        href: "/little-moments",
-        icon: PawPrint,
-      },
-    ],
-  },
-  {
-    title: "PREFERENCES",
-    items: [
-      { label: "設定", href: "/settings", icon: Settings2 },
-    ],
-  },
-];
-
 const squareButtonStyle = {
   width: "48px",
   height: "48px",
@@ -91,17 +44,84 @@ const squareButtonStyle = {
 export default function AnkiSidebar() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const { t } = useAppLanguage();
 
-  
-  
+  // メニュー項目
+  const sections = [
+    {
+      title: t("nav.study"),
+      items: [
+        { label: t("nav.today"), href: "/today", icon: Sun },
+        {
+          label: t("nav.studyData"),
+          href: "/study-data",
+          icon: ChartNoAxesColumn,
+        },
+        {
+          label: t("nav.realityCheck"),
+          href: "/understanding-analytics",
+          icon: Brain,
+        },
+        {
+          label: t("nav.calendar"),
+          href: "/calendar",
+          icon: CalendarDays,
+        },
+        { label: t("nav.decks"), href: "/", icon: Layers3 },
+        {
+          label: t("nav.materials"),
+          href: "/materials",
+          icon: BookOpen,
+        },
+        { label: t("nav.plan"), href: "/plan", icon: Route },
+        { label: t("nav.tasks"), href: "/tasks", icon: ListChecks },
+        { label: t("nav.world"), href: "/language-world", icon: Map },
+        {
+          label: t("nav.library"),
+          href: "/library",
+          icon: Library,
+        },
+      ],
+    },
+    {
+      title: t("nav.games"),
+      items: [
+        { label: t("nav.quest"), href: "/game", icon: Swords },
+        {
+          label: t("nav.armada"),
+          href: "/armada",
+          icon: Sailboat,
+        },
+        {
+          label: t("nav.story"),
+          href: "/story1",
+          icon: Castle,
+        },
+        {
+          label: t("nav.moments"),
+          href: "/little-moments",
+          icon: PawPrint,
+        },
+      ],
+    },
+    {
+      title: t("nav.preferences"),
+      items: [
+        {
+          label: t("nav.settings"),
+          href: "/settings",
+          icon: Settings2,
+        },
+      ],
+    },
+  ];
 
+  // ページ移動時にメニューを閉じる
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
 
-
-
-    // 保存済みのテーマカラーを全ページに適用
+  // 保存済みのテーマカラーを全ページに適用
   useEffect(() => {
     const applyTheme = () => {
       const savedColor = localStorage.getItem("anki-theme-color");
@@ -126,6 +146,7 @@ export default function AnkiSidebar() {
     };
   }, []);
 
+  // メニュー表示中のスクロール制御とESCキー
   useEffect(() => {
     if (!open) return;
 
@@ -153,7 +174,7 @@ export default function AnkiSidebar() {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          aria-label="メニューを開く"
+          aria-label={t("nav.open")}
           aria-expanded={open}
           aria-controls="anki-sidebar"
           style={squareButtonStyle}
@@ -171,7 +192,7 @@ export default function AnkiSidebar() {
       {open && (
         <button
           type="button"
-          aria-label="メニューを閉じる"
+          aria-label={t("nav.close")}
           onClick={() => setOpen(false)}
           className="fixed inset-0 z-[70] bg-stone-950/30
             backdrop-blur-[2px]"
@@ -181,7 +202,7 @@ export default function AnkiSidebar() {
       {/* サイドメニュー */}
       <aside
         id="anki-sidebar"
-        aria-label="メインメニュー"
+        aria-label="Main menu"
         aria-hidden={!open}
         className={`fixed inset-y-0 left-0 z-[80]
           flex w-[min(340px,88vw)] flex-col
@@ -232,7 +253,7 @@ export default function AnkiSidebar() {
           <button
             type="button"
             onClick={() => setOpen(false)}
-            aria-label="メニューを閉じる"
+            aria-label={t("nav.close")}
             style={squareButtonStyle}
             className="ml-2 rounded-2xl border
               border-stone-200/80 text-stone-500
@@ -244,7 +265,10 @@ export default function AnkiSidebar() {
         </div>
 
         {/* メニュー項目 */}
-        <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-6">
+        <nav
+          className="flex-1 space-y-6 overflow-y-auto px-3 py-6"
+          aria-label="Navigation"
+        >
           {sections.map((section) => (
             <section key={section.title}>
               <h2
@@ -334,10 +358,10 @@ export default function AnkiSidebar() {
 
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-medium">
-                ログイン・新規登録
+                {t("nav.login")}
               </span>
               <span className="mt-0.5 block text-xs text-stone-300">
-                学習データを管理する
+                {t("nav.loginDescription")}
               </span>
             </span>
 
@@ -355,3 +379,5 @@ export default function AnkiSidebar() {
     </>
   );
 }
+
+

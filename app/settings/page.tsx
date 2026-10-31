@@ -153,21 +153,35 @@ export default function SettingsPage() {
     setStudyLanguage(read("anki-study-language", "de-DE"));
   }, []);
 
-  function saveSettings() {
-    try {
-      localStorage.setItem("anki-theme-color", themeColor);
-      localStorage.setItem("anki-custom-color", themeColor);
-      localStorage.setItem("anki-auto-read", String(autoRead));
-      localStorage.setItem("anki-speech-rate", String(speechRate));
-      localStorage.setItem("anki-app-language", appLanguage);
-      localStorage.setItem("anki-study-language", studyLanguage);
-      document.documentElement.style.setProperty("--anki-theme-color", themeColor);
-      setSaved(true);
-    } catch {
-      setSaved(false);
-      alert("設定を保存できませんでした。ブラウザーの保存設定をご確認ください。");
-    }
+  
+
+  
+function saveSettings() {
+  try {
+    localStorage.setItem("anki-theme-color", themeColor);
+    localStorage.setItem("anki-custom-color", themeColor);
+    localStorage.setItem("anki-auto-read", String(autoRead));
+    localStorage.setItem("anki-speech-rate", String(speechRate));
+    localStorage.setItem("anki-app-language", appLanguage);
+    localStorage.setItem("anki-study-language", studyLanguage);
+
+    document.documentElement.style.setProperty(
+      "--anki-theme-color",
+      themeColor
+    );
+
+    // アプリ全体に言語変更を通知
+    window.dispatchEvent(new Event("anki-language-change"));
+
+    setSaved(true);
+  } catch {
+    setSaved(false);
+    alert(
+      "設定を保存できませんでした。ブラウザーの保存設定をご確認ください。"
+    );
   }
+}
+
 
   function previewVoice() {
     if (!("speechSynthesis" in window)) {
