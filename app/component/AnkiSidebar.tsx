@@ -46,7 +46,6 @@ export default function AnkiSidebar() {
   const pathname = usePathname();
   const { t } = useAppLanguage();
 
-  // メニュー項目
   const sections = [
     {
       title: t("nav.study"),
@@ -116,12 +115,10 @@ export default function AnkiSidebar() {
     },
   ];
 
-  // ページ移動時にメニューを閉じる
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
 
-  // 保存済みのテーマカラーを全ページに適用
   useEffect(() => {
     const applyTheme = () => {
       const savedColor = localStorage.getItem("anki-theme-color");
@@ -146,7 +143,6 @@ export default function AnkiSidebar() {
     };
   }, []);
 
-  // メニュー表示中のスクロール制御とESCキー
   useEffect(() => {
     if (!open) return;
 
@@ -169,7 +165,6 @@ export default function AnkiSidebar() {
 
   return (
     <>
-      {/* 共通メニューボタン */}
       <div className="fixed left-4 top-4 z-[60]">
         <button
           type="button"
@@ -188,7 +183,6 @@ export default function AnkiSidebar() {
         </button>
       </div>
 
-      {/* 背景 */}
       {open && (
         <button
           type="button"
@@ -199,10 +193,9 @@ export default function AnkiSidebar() {
         />
       )}
 
-      {/* サイドメニュー */}
       <aside
         id="anki-sidebar"
-        aria-label="Main menu"
+        aria-label={t("sidebar.mainMenu")}
         aria-hidden={!open}
         className={`fixed inset-y-0 left-0 z-[80]
           flex w-[min(340px,88vw)] flex-col
@@ -215,7 +208,6 @@ export default function AnkiSidebar() {
               : "-translate-x-full pointer-events-none"
           }`}
       >
-        {/* ヘッダー */}
         <div
           className="flex items-center justify-between border-b
             border-stone-200/80 px-5 py-5"
@@ -264,10 +256,9 @@ export default function AnkiSidebar() {
           </button>
         </div>
 
-        {/* メニュー項目 */}
         <nav
           className="flex-1 space-y-6 overflow-y-auto px-3 py-6"
-          aria-label="Navigation"
+          aria-label={t("sidebar.navigation")}
         >
           {sections.map((section) => (
             <section key={section.title}>
@@ -345,7 +336,6 @@ export default function AnkiSidebar() {
           ))}
         </nav>
 
-        {/* 下部 */}
         <div className="border-t border-stone-200/80 p-4">
           <Link
             href="/login"
@@ -372,12 +362,10 @@ export default function AnkiSidebar() {
             className="mt-4 text-center text-[10px]
               tracking-wide text-stone-400"
           >
-            A quiet space to keep learning.
+            {t("sidebar.tagline")}
           </p>
         </div>
       </aside>
     </>
   );
 }
-
-

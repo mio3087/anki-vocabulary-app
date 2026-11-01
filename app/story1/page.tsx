@@ -1,16 +1,11 @@
 
-
 "use client";
 
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
+import { useAppLanguage } from "@/app/component/AppLanguage";
 
-type Language = "ja" | "zh-CN" | "zh-TW" | "en" | "de" | "es" | "it";
+type Language = "ja" | "zh-CN" | "zh-TW" | "en" | "de" | "es";
 type Screen = "title" | "intro" | "guide";
-
-
-
-
-
 
 const translations: Record<Language, Record<string, string>> = {
   ja: {
@@ -35,7 +30,20 @@ const translations: Record<Language, Record<string, string>> = {
     guide2: "登場人物の発言から、相手の意図や本音を考えよう。",
     guide3: "外交方針を選び、あなたの判断で物語を進めよう。",
     guide4: "表示言語はいつでも変更できます。",
+    chooseStory: "50の物語から選ぶ",
+    menu: "メニュー",
+    menuOpen: "メニューを開く",
+    menuClose: "メニューを閉じる",
+    home: "ホーム",
+    today: "今日のノルマ",
+    plan: "学習計画",
+    tasks: "タスク管理",
+    materials: "教材管理",
+    calendar: "カレンダー",
+    stories: "50の物語",
+    story1: "戦国策",
   },
+
   "zh-CN": {
     language: "显示语言",
     eyebrow: "故事 01 · 中国战国时代",
@@ -58,7 +66,20 @@ const translations: Record<Language, Record<string, string>> = {
     guide2: "根据人物的发言，推测对方的意图。",
     guide3: "选择外交策略，用你的决定推动故事发展。",
     guide4: "随时可以更改显示语言。",
+    chooseStory: "从50个故事中选择",
+    menu: "菜单",
+    menuOpen: "打开菜单",
+    menuClose: "关闭菜单",
+    home: "首页",
+    today: "今日任务",
+    plan: "学习计划",
+    tasks: "任务管理",
+    materials: "教材管理",
+    calendar: "学习日历",
+    stories: "50个故事",
+    story1: "战国策",
   },
+
   "zh-TW": {
     language: "顯示語言",
     eyebrow: "故事 01 · 中國戰國時代",
@@ -81,9 +102,22 @@ const translations: Record<Language, Record<string, string>> = {
     guide2: "根據人物的發言，推測對方的意圖。",
     guide3: "選擇外交策略，用你的決定推動故事發展。",
     guide4: "隨時可以更改顯示語言。",
+    chooseStory: "從50個故事中選擇",
+    menu: "選單",
+    menuOpen: "開啟選單",
+    menuClose: "關閉選單",
+    home: "首頁",
+    today: "今日任務",
+    plan: "學習計畫",
+    tasks: "任務管理",
+    materials: "教材管理",
+    calendar: "學習日曆",
+    stories: "50個故事",
+    story1: "戰國策",
   },
+
   en: {
-    language: "Display language",
+    language: "Display Language",
     eyebrow: "STORY 01 · WARRING STATES CHINA",
     title: "Strategies of the Warring States",
     subtitle: "― The Road to Unification ―",
@@ -104,7 +138,20 @@ const translations: Record<Language, Record<string, string>> = {
     guide2: "Infer each character's intentions from what they say.",
     guide3: "Choose diplomatic strategies to shape the story.",
     guide4: "You can change the display language at any time.",
+    chooseStory: "Choose from 50 Stories",
+    menu: "MENU",
+    menuOpen: "Open menu",
+    menuClose: "Close menu",
+    home: "Home",
+    today: "Today's Goals",
+    plan: "Study Plan",
+    tasks: "Task Manager",
+    materials: "Study Materials",
+    calendar: "Calendar",
+    stories: "50 Stories",
+    story1: "Strategies of the Warring States",
   },
+
   de: {
     language: "Anzeigesprache",
     eyebrow: "STORY 01 · CHINA IN DER ZEIT DER STREITENDEN REICHE",
@@ -127,7 +174,20 @@ const translations: Record<Language, Record<string, string>> = {
     guide2: "Deute die Absichten der Figuren anhand ihrer Aussagen.",
     guide3: "Wähle diplomatische Strategien und beeinflusse den Verlauf der Geschichte.",
     guide4: "Du kannst die Anzeigesprache jederzeit ändern.",
+    chooseStory: "Aus 50 Geschichten wählen",
+    menu: "MENÜ",
+    menuOpen: "Menü öffnen",
+    menuClose: "Menü schließen",
+    home: "Startseite",
+    today: "Tagesziele",
+    plan: "Lernplan",
+    tasks: "Aufgabenverwaltung",
+    materials: "Lernmaterialien",
+    calendar: "Lernkalender",
+    stories: "50 Geschichten",
+    story1: "Die Strategien der Streitenden Reiche",
   },
+
   es: {
     language: "Idioma de visualización",
     eyebrow: "HISTORIA 01 · CHINA EN LOS REINOS COMBATIENTES",
@@ -150,29 +210,18 @@ const translations: Record<Language, Record<string, string>> = {
     guide2: "Deduce las intenciones de los personajes a partir de sus palabras.",
     guide3: "Elige estrategias diplomáticas para cambiar el rumbo de la historia.",
     guide4: "Puedes cambiar el idioma de visualización en cualquier momento.",
-  },
-  it: {
-    language: "Lingua dell'interfaccia",
-    eyebrow: "STORIA 01 · CINA DEGLI STATI COMBATTENTI",
-    title: "Le strategie degli Stati Combattenti",
-    subtitle: "― La via verso l'unificazione ―",
-    tagline: "Sopravvivi a un'epoca turbolenta usando le parole come arma.",
-    description: "Impara il cinese e cambia la storia nei panni di un diplomatico.",
-    start: "Inizia la storia",
-    guide: "Come si gioca",
-    back: "← Torna ai mazzi",
-    chapter: "CAPITOLO 01",
-    chapterTitle: "Una lettera segreta da Qin",
-    intro: "Sei un giovane diplomatico al servizio di un piccolo stato. Una mattina ricevi una lettera segreta dal potente stato di Qin, che propone un'alleanza.",
-    letter: "若贵国愿与秦国结盟，我国愿意提供援助。",
-    question: "Che cosa propone Qin in questa lettera?",
-    placeholder: "Le opzioni e la verifica delle risposte saranno aggiunte in un aggiornamento futuro.",
-    titleBack: "Torna al titolo",
-    guideTitle: "Come si gioca",
-    guide1: "Leggi la storia ed esplora dialoghi e lettere in cinese.",
-    guide2: "Deduce le intenzioni dei personaggi dalle loro parole.",
-    guide3: "Scegli strategie diplomatiche per influenzare la storia.",
-    guide4: "Puoi cambiare la lingua dell'interfaccia in qualsiasi momento.",
+    chooseStory: "Elegir entre 50 historias",
+    menu: "MENÚ",
+    menuOpen: "Abrir menú",
+    menuClose: "Cerrar menú",
+    home: "Inicio",
+    today: "Objetivos de hoy",
+    plan: "Plan de estudio",
+    tasks: "Gestión de tareas",
+    materials: "Materiales de estudio",
+    calendar: "Calendario",
+    stories: "50 historias",
+    story1: "Las estrategias de los Reinos Combatientes",
   },
 };
 
@@ -183,21 +232,21 @@ const languageNames: Record<Language, string> = {
   en: "English",
   de: "Deutsch",
   es: "Español",
-  it: "Italiano",
 };
 
-
-
-
-
 export default function Story1Page() {
-  const [language, setLanguage] = useState<Language>("ja");
+  const { language } = useAppLanguage();
+
+  const currentLanguage = (
+    language in translations ? language : "ja"
+  ) as Language;
+
+  const t = translations[currentLanguage];
+
   const [screen, setScreen] = useState<Screen>("title");
   const [menuOpen, setMenuOpen] = useState(false);
-  
-  const t = translations[language];
 
-  const buttonStyle: React.CSSProperties = {
+  const buttonStyle: CSSProperties = {
     display: "block",
     width: "100%",
     maxWidth: "340px",
@@ -213,14 +262,14 @@ export default function Story1Page() {
     boxSizing: "border-box",
   };
 
-  const secondaryButtonStyle: React.CSSProperties = {
+  const secondaryButtonStyle: CSSProperties = {
     ...buttonStyle,
     background: "#20372d",
     color: "#ffffff",
     border: "2px solid #e4c879",
   };
 
-  const panelStyle: React.CSSProperties = {
+  const panelStyle: CSSProperties = {
     marginTop: "28px",
     padding: "24px",
     border: "2px solid #d8b968",
@@ -231,21 +280,33 @@ export default function Story1Page() {
     boxShadow: "0 8px 24px rgba(0,0,0,0.22)",
   };
 
+  const navigationItems = [
+    { href: "/", icon: "⌂", label: t.home },
+    { href: "/today", icon: "✓", label: t.today },
+    { href: "/plan", icon: "▦", label: t.plan },
+    { href: "/tasks", icon: "☷", label: t.tasks },
+    { href: "/materials", icon: "▤", label: t.materials },
+    { href: "/calendar", icon: "▦", label: t.calendar },
+    { href: "/stories", icon: "📖", label: t.stories },
+    { href: "/story1", icon: "🏯", label: t.story1 },
+  ];
+
   return (
     <main
       style={{
         minHeight: "100vh",
         padding: "24px 18px 48px",
         boxSizing: "border-box",
-        background: "linear-gradient(160deg, #14251f, #30483a 55%, #101b18)",
+        background:
+          "linear-gradient(160deg, #14251f, #30483a 55%, #101b18)",
         color: "#fff8e8",
         fontFamily: "serif",
       }}
     >
-
-            <button
+      {/* ハンバーガーメニュー */}
+      <button
         type="button"
-        aria-label={menuOpen ? "メニューを閉じる" : "メニューを開く"}
+        aria-label={menuOpen ? t.menuClose : t.menuOpen}
         aria-expanded={menuOpen}
         onClick={() => setMenuOpen((open) => !open)}
         style={{
@@ -270,16 +331,37 @@ export default function Story1Page() {
           backdropFilter: "blur(14px)",
         }}
       >
-        <span style={{ width: "17px", height: "2px", background: "currentColor", borderRadius: "2px" }} />
-        <span style={{ width: "17px", height: "2px", background: "currentColor", borderRadius: "2px" }} />
-        <span style={{ width: "17px", height: "2px", background: "currentColor", borderRadius: "2px" }} />
+        <span
+          style={{
+            width: "17px",
+            height: "2px",
+            background: "currentColor",
+            borderRadius: "2px",
+          }}
+        />
+        <span
+          style={{
+            width: "17px",
+            height: "2px",
+            background: "currentColor",
+            borderRadius: "2px",
+          }}
+        />
+        <span
+          style={{
+            width: "17px",
+            height: "2px",
+            background: "currentColor",
+            borderRadius: "2px",
+          }}
+        />
       </button>
 
       {menuOpen && (
         <>
           <button
             type="button"
-            aria-label="メニューを閉じる"
+            aria-label={t.menuClose}
             onClick={() => setMenuOpen(false)}
             style={{
               position: "fixed",
@@ -291,7 +373,7 @@ export default function Story1Page() {
           />
 
           <nav
-            aria-label="サイトナビゲーション"
+            aria-label={t.menu}
             style={{
               position: "fixed",
               top: "74px",
@@ -307,20 +389,19 @@ export default function Story1Page() {
               fontFamily: "sans-serif",
             }}
           >
-            <p style={{ margin: "4px 12px 12px", color: "#7b857b", fontSize: "11px", fontWeight: 800, letterSpacing: "2px" }}>
-              MENU
+            <p
+              style={{
+                margin: "4px 12px 12px",
+                color: "#7b857b",
+                fontSize: "11px",
+                fontWeight: 800,
+                letterSpacing: "2px",
+              }}
+            >
+              {t.menu}
             </p>
 
-            {[
-              { href: "/", icon: "⌂", label: "ホーム" },
-              { href: "/today", icon: "✓", label: "今日のノルマ" },
-              { href: "/plan", icon: "▦", label: "学習計画" },
-              { href: "/tasks", icon: "☷", label: "タスク管理" },
-              { href: "/materials", icon: "▤", label: "教材管理" },
-              { href: "/calendar", icon: "▦", label: "カレンダー" },
-              { href: "/stories", icon: "📖", label: "50の物語" },
-              { href: "/story1", icon: "🏯", label: "戦国策" },
-            ].map((item) => (
+            {navigationItems.map((item) => (
               <a
                 key={item.href}
                 href={item.href}
@@ -357,44 +438,28 @@ export default function Story1Page() {
           </nav>
         </>
       )}
+
       <div style={{ maxWidth: "720px", margin: "0 auto" }}>
-        <div style={{ textAlign: "right", marginBottom: "24px" }}>
-          <label
-            htmlFor="story-language"
+        {/* 言語はAnki全体の設定と連動 */}
+        <div
+          style={{
+            textAlign: "right",
+            marginBottom: "24px",
+            minHeight: "24px",
+          }}
+        >
+          <span
             style={{
-              display: "block",
               color: "#ffffff",
-              fontSize: "14px",
-              fontWeight: 700,
-              marginBottom: "8px",
-            }}
-          >
-            🌐 {t.language}
-          </label>
-          <select
-            id="story-language"
-            value={language}
-            onChange={(event) =>
-              setLanguage(event.target.value as Language)
-            }
-            style={{
-              padding: "10px 12px",
-              borderRadius: "8px",
-              border: "2px solid #e4c879",
-              background: "#ffffff",
-              color: "#17251e",
-              fontSize: "15px",
+              fontSize: "13px",
               fontWeight: 700,
             }}
           >
-            {(Object.keys(languageNames) as Language[]).map((code) => (
-              <option key={code} value={code}>
-                {languageNames[code]}
-              </option>
-            ))}
-          </select>
+            🌐 {t.language}: {languageNames[currentLanguage]}
+          </span>
         </div>
 
+        {/* タイトル */}
         <header style={{ textAlign: "center", paddingTop: "3vh" }}>
           <p
             style={{
@@ -408,7 +473,9 @@ export default function Story1Page() {
             {t.eyebrow}
           </p>
 
-          <div style={{ fontSize: "64px", margin: "20px 0" }}>🏯</div>
+          <div style={{ fontSize: "64px", margin: "20px 0" }}>
+            🏯
+          </div>
 
           <h1
             style={{
@@ -432,37 +499,47 @@ export default function Story1Page() {
             {t.subtitle}
           </p>
 
-          <p style={{ fontSize: "18px", lineHeight: 1.9, color: "#ffffff" }}>
+          <p
+            style={{
+              fontSize: "18px",
+              lineHeight: 1.9,
+              color: "#ffffff",
+            }}
+          >
             {t.tagline}
           </p>
 
-          <p style={{ fontSize: "15px", lineHeight: 1.9, color: "#f4f0e6" }}>
+          <p
+            style={{
+              fontSize: "15px",
+              lineHeight: 1.9,
+              color: "#f4f0e6",
+            }}
+          >
             {t.description}
           </p>
         </header>
 
+        {/* タイトル画面 */}
         {screen === "title" && (
           <div style={{ marginTop: "30px", textAlign: "center" }}>
-            
-            
-<button
-  onClick={() => {
-    window.location.href = "/story1/1";
-  }}
-  style={{
-    ...buttonStyle,
-    maxWidth: "360px",
-    padding: "18px 24px",
-    fontSize: "18px",
-    background: "#f0d58c",
-    color: "#17251e",
-    border: "2px solid #fff0b5",
-    boxShadow: "0 4px 14px rgba(0,0,0,0.3)",
-  }}
->
-  ⚔️ {t.start}　➜
-</button>
-
+            <button
+              onClick={() => {
+                window.location.href = "/story1/1";
+              }}
+              style={{
+                ...buttonStyle,
+                maxWidth: "360px",
+                padding: "18px 24px",
+                fontSize: "18px",
+                background: "#f0d58c",
+                color: "#17251e",
+                border: "2px solid #fff0b5",
+                boxShadow: "0 4px 14px rgba(0,0,0,0.3)",
+              }}
+            >
+              ⚔️ {t.start}　➜
+            </button>
 
             <button
               onClick={() => setScreen("guide")}
@@ -471,8 +548,7 @@ export default function Story1Page() {
               📜 {t.guide}
             </button>
 
-
-                        <button
+            <button
               onClick={() => {
                 window.location.href = "/stories";
               }}
@@ -481,7 +557,7 @@ export default function Story1Page() {
                 maxWidth: "360px",
               }}
             >
-              📚 50の物語から選ぶ ➜
+              📚 {t.chooseStory} ➜
             </button>
 
             <a
@@ -500,6 +576,7 @@ export default function Story1Page() {
           </div>
         )}
 
+        {/* イントロ画面 */}
         {screen === "intro" && (
           <section style={panelStyle}>
             <p
@@ -523,10 +600,12 @@ export default function Story1Page() {
               {t.chapterTitle}
             </h2>
 
-            <p style={{ lineHeight: 2, fontSize: "16px" }}>{t.intro}</p>
+            <p style={{ lineHeight: 2, fontSize: "16px" }}>
+              {t.intro}
+            </p>
 
             <blockquote
-              lang={language.startsWith("zh") ? language : "zh-CN"}
+              lang={currentLanguage.startsWith("zh") ? currentLanguage : "zh-CN"}
               style={{
                 margin: "20px 0",
                 padding: "18px",
@@ -541,11 +620,23 @@ export default function Story1Page() {
               {t.letter}
             </blockquote>
 
-            <p style={{ color: "#3d2b10", fontWeight: 800, lineHeight: 1.8 }}>
+            <p
+              style={{
+                color: "#3d2b10",
+                fontWeight: 800,
+                lineHeight: 1.8,
+              }}
+            >
               {t.question}
             </p>
 
-            <p style={{ color: "#514b40", fontSize: "13px", lineHeight: 1.8 }}>
+            <p
+              style={{
+                color: "#514b40",
+                fontSize: "13px",
+                lineHeight: 1.8,
+              }}
+            >
               {t.placeholder}
             </p>
 
@@ -563,6 +654,7 @@ export default function Story1Page() {
           </section>
         )}
 
+        {/* 遊び方画面 */}
         {screen === "guide" && (
           <section style={panelStyle}>
             <h2

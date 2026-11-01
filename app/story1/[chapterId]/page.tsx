@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import StoryGame from "../../components/story1/StoryGame";
 import { chapters } from "../../../lib/story1/chapters";
 
-
 type PageProps = {
   params: Promise<{
     chapterId: string;
@@ -14,7 +13,7 @@ export default async function ChapterPage({ params }: PageProps) {
   const { chapterId } = await params;
   const id = Number(chapterId);
 
-  if (!Number.isInteger(id)) {
+  if (!Number.isInteger(id) || id < 1) {
     notFound();
   }
 

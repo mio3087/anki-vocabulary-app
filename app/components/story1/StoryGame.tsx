@@ -2,13 +2,231 @@
 "use client";
 
 import { useState } from "react";
+import type { CSSProperties } from "react";
 import type { StoryChapter } from "../../../lib/story1/chapters";
+import { useAppLanguage } from "@/app/component/AppLanguage";
+
+type AppLanguage = "ja" | "de" | "en" | "zh-CN" | "zh-TW" | "es";
 
 type StoryGameProps = {
   chapter: StoryChapter;
 };
 
+const translations: Record<AppLanguage, Record<string, string>> = {
+  ja: {
+    empty: "この章には、まだ場面が登録されていません。",
+    record: "DIPLOMATIC RECORD · COMPLETE",
+    finished: "此章完了",
+    chapterEnd: "第{n}章 終了",
+    ending: "あなたの決断が、この物語の一頁となった。",
+    points: "ポイント",
+    chapterList: "章一覧へ戻る",
+    replay: "もう一度プレイ",
+    chapter: "第{n}章",
+    diplomatRecord: "外交官の記録",
+    subtitle: "言葉を読み解き、知略を巡らせ、歴史を動かせ。",
+    progress: "物語の進行",
+    conversation: "会話記録",
+    messenger: "使者の言葉",
+    listen: "音声を聞く",
+    pinyin: "拼音",
+    japanese: "日本語訳",
+    speakingTitle: "声に出してみよう",
+    speakingText: "使者の言葉をまねして、中国語で話してみよう。",
+    speak: "話す",
+    speakAria: "中国語のスピーキング練習を開始",
+    unsupported: "このブラウザでは音声認識を利用できません。Chromeで試してください。",
+    recognized: "🎙️ 認識結果：{text}",
+    recognitionError: "音声を認識できませんでした。もう一度試してください。",
+    correct: "正解！外交官として一歩前進した。",
+    incorrect: "まだ別の道がある。相手の言葉をもう一度考えよう。",
+    question: "問 {n}",
+    decision: "使者の提案を理解できましたか？",
+    hint: "あなたなら、どう判断する？",
+    result: "結果を確認する",
+    next: "次の場面へ進む",
+    fame: "名声",
+  },
+  de: {
+    empty: "In diesem Kapitel wurden noch keine Szenen hinzugefügt.",
+    record: "DIPLOMATIC RECORD · COMPLETE",
+    finished: "Kapitel abgeschlossen",
+    chapterEnd: "Kapitel {n} abgeschlossen",
+    ending: "Deine Entscheidung wurde zu einer Seite dieser Geschichte.",
+    points: "Punkte",
+    chapterList: "Zur Kapitelübersicht",
+    replay: "Noch einmal spielen",
+    chapter: "Kapitel {n}",
+    diplomatRecord: "Aufzeichnungen eines Diplomaten",
+    subtitle: "Entschlüssle die Worte, entwickle Strategien und verändere die Geschichte.",
+    progress: "Fortschritt der Geschichte",
+    conversation: "Gesprächsprotokoll",
+    messenger: "Worte des Gesandten",
+    listen: "Audio anhören",
+    pinyin: "Pinyin",
+    japanese: "Japanische Übersetzung",
+    speakingTitle: "Sprich laut",
+    speakingText: "Sprich die Worte des Gesandten auf Chinesisch nach.",
+    speak: "Sprechen",
+    speakAria: "Chinesische Sprechübung starten",
+    unsupported: "Die Spracherkennung wird von diesem Browser nicht unterstützt. Bitte versuche es mit Chrome.",
+    recognized: "🎙️ Erkanntes Ergebnis: {text}",
+    recognitionError: "Die Sprache konnte nicht erkannt werden. Bitte versuche es erneut.",
+    correct: "Richtig! Du bist als Diplomat einen Schritt weitergekommen.",
+    incorrect: "Es gibt noch einen anderen Weg. Überlege noch einmal, was dein Gegenüber gesagt hat.",
+    question: "Frage {n}",
+    decision: "Hast du den Vorschlag des Gesandten verstanden?",
+    hint: "Wie würdest du entscheiden?",
+    result: "Ergebnis anzeigen",
+    next: "Zur nächsten Szene",
+    fame: "Ruhm",
+  },
+  en: {
+    empty: "No scenes have been added to this chapter yet.",
+    record: "DIPLOMATIC RECORD · COMPLETE",
+    finished: "Chapter Complete",
+    chapterEnd: "Chapter {n} Completed",
+    ending: "Your decision has become a page in this story.",
+    points: "points",
+    chapterList: "Back to Chapters",
+    replay: "Play Again",
+    chapter: "Chapter {n}",
+    diplomatRecord: "A Diplomat's Record",
+    subtitle: "Decipher words, devise strategies, and shape history.",
+    progress: "Story Progress",
+    conversation: "Conversation Record",
+    messenger: "The Messenger's Words",
+    listen: "Listen to Audio",
+    pinyin: "Pinyin",
+    japanese: "Japanese Translation",
+    speakingTitle: "Speak Out Loud",
+    speakingText: "Try speaking Chinese by imitating the messenger.",
+    speak: "Speak",
+    speakAria: "Start Chinese speaking practice",
+    unsupported: "Speech recognition is not available in this browser. Please try Chrome.",
+    recognized: "🎙️ Recognized: {text}",
+    recognitionError: "Could not recognize your speech. Please try again.",
+    correct: "Correct! You've taken another step forward as a diplomat.",
+    incorrect: "There may be another way. Think again about what the other person said.",
+    question: "Question {n}",
+    decision: "Did you understand the messenger's proposal?",
+    hint: "What would your decision be?",
+    result: "View Results",
+    next: "Next Scene",
+    fame: "Fame",
+  },
+  "zh-CN": {
+    empty: "本章暂时还没有添加任何场景。",
+    record: "DIPLOMATIC RECORD · COMPLETE",
+    finished: "本章完成",
+    chapterEnd: "第{n}章结束",
+    ending: "你的决定，成为了这个故事的一页。",
+    points: "分",
+    chapterList: "返回章节列表",
+    replay: "再玩一次",
+    chapter: "第{n}章",
+    diplomatRecord: "外交官的记录",
+    subtitle: "读懂语言，运筹帷幄，推动历史。",
+    progress: "故事进度",
+    conversation: "对话记录",
+    messenger: "使者的话",
+    listen: "收听语音",
+    pinyin: "拼音",
+    japanese: "日语翻译",
+    speakingTitle: "试着大声说出来",
+    speakingText: "模仿使者的话，试着用中文说出来吧。",
+    speak: "开始说话",
+    speakAria: "开始中文口语练习",
+    unsupported: "此浏览器不支持语音识别。请尝试使用 Chrome。",
+    recognized: "🎙️ 识别结果：{text}",
+    recognitionError: "无法识别语音，请再试一次。",
+    correct: "回答正确！你作为外交官又向前迈进了一步。",
+    incorrect: "也许还有其他方法。再仔细想想对方说的话吧。",
+    question: "问题 {n}",
+    decision: "你理解使者的提议了吗？",
+    hint: "如果是你，会如何判断？",
+    result: "查看结果",
+    next: "进入下一个场景",
+    fame: "声望",
+  },
+  "zh-TW": {
+    empty: "本章目前還沒有新增任何場景。",
+    record: "DIPLOMATIC RECORD · COMPLETE",
+    finished: "本章完成",
+    chapterEnd: "第{n}章結束",
+    ending: "你的決定，成為了這個故事的一頁。",
+    points: "分",
+    chapterList: "返回章節列表",
+    replay: "再玩一次",
+    chapter: "第{n}章",
+    diplomatRecord: "外交官的紀錄",
+    subtitle: "讀懂語言，運籌帷幄，推動歷史。",
+    progress: "故事進度",
+    conversation: "對話紀錄",
+    messenger: "使者的話",
+    listen: "收聽語音",
+    pinyin: "拼音",
+    japanese: "日文翻譯",
+    speakingTitle: "試著大聲說出來",
+    speakingText: "模仿使者的話，試著用中文說出來吧。",
+    speak: "開始說話",
+    speakAria: "開始中文口說練習",
+    unsupported: "此瀏覽器不支援語音辨識。請試著使用 Chrome。",
+    recognized: "🎙️ 辨識結果：{text}",
+    recognitionError: "無法辨識語音，請再試一次。",
+    correct: "回答正確！你作為外交官又向前邁進了一步。",
+    incorrect: "或許還有其他方法。再仔細想想對方說的話吧。",
+    question: "問題 {n}",
+    decision: "你理解使者的提議了嗎？",
+    hint: "如果是你，會如何判斷？",
+    result: "查看結果",
+    next: "進入下一個場景",
+    fame: "聲望",
+  },
+  es: {
+    empty: "Todavía no se han añadido escenas a este capítulo.",
+    record: "DIPLOMATIC RECORD · COMPLETE",
+    finished: "Capítulo completado",
+    chapterEnd: "Capítulo {n} finalizado",
+    ending: "Tu decisión se ha convertido en una página de esta historia.",
+    points: "puntos",
+    chapterList: "Volver a los capítulos",
+    replay: "Volver a jugar",
+    chapter: "Capítulo {n}",
+    diplomatRecord: "Registro de un diplomático",
+    subtitle: "Descifra las palabras, desarrolla estrategias y cambia la historia.",
+    progress: "Progreso de la historia",
+    conversation: "Registro de conversación",
+    messenger: "Las palabras del mensajero",
+    listen: "Escuchar audio",
+    pinyin: "Pinyin",
+    japanese: "Traducción al japonés",
+    speakingTitle: "Habla en voz alta",
+    speakingText: "Imita las palabras del mensajero e intenta hablar en chino.",
+    speak: "Hablar",
+    speakAria: "Iniciar práctica oral de chino",
+    unsupported: "Este navegador no admite el reconocimiento de voz. Prueba con Chrome.",
+    recognized: "🎙️ Resultado del reconocimiento: {text}",
+    recognitionError: "No se ha podido reconocer tu voz. Inténtalo de nuevo.",
+    correct: "¡Correcto! Has dado un paso más como diplomático.",
+    incorrect: "Quizás exista otro camino. Piensa de nuevo en las palabras de la otra persona.",
+    question: "Pregunta {n}",
+    decision: "¿Has entendido la propuesta del mensajero?",
+    hint: "¿Qué decidirías tú?",
+    result: "Ver resultado",
+    next: "Continuar a la siguiente escena",
+    fame: "Prestigio",
+  },
+};
+
 export default function StoryGame({ chapter }: StoryGameProps) {
+  const { language } = useAppLanguage();
+
+  const currentLanguage: AppLanguage =
+    language in translations ? (language as AppLanguage) : "ja";
+
+  const t = translations[currentLanguage];
+
   const [sceneIndex, setSceneIndex] = useState(0);
   const [score, setScore] = useState(0);
   const [finished, setFinished] = useState(false);
@@ -41,9 +259,7 @@ export default function StoryGame({ chapter }: StoryGameProps) {
       browserWindow.webkitSpeechRecognition;
 
     if (!Recognition) {
-      setFeedback(
-        "このブラウザでは音声認識を利用できません。Chromeで試してください。"
-      );
+      setFeedback(t.unsupported);
       return;
     }
 
@@ -52,11 +268,16 @@ export default function StoryGame({ chapter }: StoryGameProps) {
     recognition.interimResults = false;
 
     recognition.onresult = (event: any) => {
-      setFeedback(`🎙️ 認識結果：${event.results[0][0].transcript}`);
+      setFeedback(
+        t.recognized.replace(
+          "{text}",
+          event.results[0][0].transcript
+        )
+      );
     };
 
     recognition.onerror = () => {
-      setFeedback("音声を認識できませんでした。もう一度試してください。");
+      setFeedback(t.recognitionError);
     };
 
     recognition.start();
@@ -69,11 +290,7 @@ export default function StoryGame({ chapter }: StoryGameProps) {
 
     setAnswered(true);
     setScore((previous) => previous + choice.score);
-    setFeedback(
-      choice.score > 0
-        ? "正解！外交官として一歩前進した。"
-        : "まだ別の道がある。相手の言葉をもう一度考えよう。"
-    );
+    setFeedback(choice.score > 0 ? t.correct : t.incorrect);
   }
 
   function nextScene() {
@@ -94,7 +311,7 @@ export default function StoryGame({ chapter }: StoryGameProps) {
   if (scenes.length === 0) {
     return (
       <main style={ui.page}>
-        <p>この章には、まだ場面が登録されていません。</p>
+        <p>{t.empty}</p>
       </main>
     );
   }
@@ -103,29 +320,31 @@ export default function StoryGame({ chapter }: StoryGameProps) {
     return (
       <main style={ui.page}>
         <div style={ui.shell}>
-          <p style={ui.kicker}>DIPLOMATIC RECORD · COMPLETE</p>
-          <h1 style={ui.title}>此章完了</h1>
+          <p style={ui.kicker}>{t.record}</p>
+          <h1 style={ui.title}>{t.finished}</h1>
           <div style={ui.paper}>
-            <p style={ui.redLabel}>第{chapter.id}章 終了</p>
-            <h2 style={ui.paperTitle}>{chapter.title}</h2>
-            <p style={ui.bodyText}>
-              あなたの決断が、この物語の一頁となった。
+            <p style={ui.redLabel}>
+              {t.chapterEnd.replace("{n}", String(chapter.id))}
             </p>
+            <h2 style={ui.paperTitle}>{chapter.title}</h2>
+            <p style={ui.bodyText}>{t.ending}</p>
             <div style={ui.scoreBox}>
               <span style={ui.scoreNumber}>{score}</span>
-              <span style={ui.mutedText}> / {scenes.length} ポイント</span>
+              <span style={ui.mutedText}>
+                {" / "}{scenes.length} {t.points}
+              </span>
             </div>
             <button
               style={ui.primaryButton}
               onClick={() => (window.location.href = "/story1")}
             >
-              章一覧へ戻る　→
+              {t.chapterList}　→
             </button>
             <button
               style={ui.secondaryButton}
               onClick={() => window.location.reload()}
             >
-              もう一度プレイ
+              {t.replay}
             </button>
           </div>
         </div>
@@ -140,21 +359,21 @@ export default function StoryGame({ chapter }: StoryGameProps) {
       <div style={ui.shell}>
         <header style={ui.topbar}>
           <a href="/story1" style={ui.backLink}>
-            ← 章一覧
+            ← {t.chapterList}
           </a>
           <span style={ui.kicker}>ANCIENT CHINA · STORY 01</span>
-          <span style={ui.chapterBadge}>第{chapter.id}章</span>
+          <span style={ui.chapterBadge}>
+            {t.chapter.replace("{n}", String(chapter.id))}
+          </span>
         </header>
 
         <section style={ui.hero}>
-          <p style={ui.redLabel}>外交官の記録</p>
+          <p style={ui.redLabel}>{t.diplomatRecord}</p>
           <h1 style={ui.title}>{chapter.title}</h1>
-          <p style={ui.heroSubtitle}>
-            言葉を読み解き、知略を巡らせ、歴史を動かせ。
-          </p>
+          <p style={ui.heroSubtitle}>{t.subtitle}</p>
 
           <div style={ui.progressHeader}>
-            <span>物語の進行</span>
+            <span>{t.progress}</span>
             <span>
               {sceneIndex + 1} / {scenes.length}
             </span>
@@ -171,14 +390,16 @@ export default function StoryGame({ chapter }: StoryGameProps) {
 
         <section style={ui.paper}>
           <div style={ui.sceneLabel}>
-            <span>SCENE {String(sceneIndex + 1).padStart(2, "0")}</span>
-            <span>会話記録</span>
+            <span>
+              SCENE {String(sceneIndex + 1).padStart(2, "0")}
+            </span>
+            <span>{t.conversation}</span>
           </div>
 
           <div style={ui.speakerRow}>
             <div style={ui.seal}>使</div>
             <div>
-              <p style={ui.redLabel}>使者の言葉</p>
+              <p style={ui.redLabel}>{t.messenger}</p>
               <h2 style={ui.speakerName}>{scene.speaker}</h2>
             </div>
           </div>
@@ -193,7 +414,7 @@ export default function StoryGame({ chapter }: StoryGameProps) {
 
           <div style={ui.toolRow}>
             <button style={ui.toolButton} onClick={speakChinese}>
-              <span>▶</span> 音声を聞く
+              <span>▶</span> {t.listen}
             </button>
             <button
               style={{
@@ -202,7 +423,7 @@ export default function StoryGame({ chapter }: StoryGameProps) {
               }}
               onClick={() => setShowPinyin((value) => !value)}
             >
-              拼音 {showPinyin ? "−" : "+"}
+              {t.pinyin} {showPinyin ? "−" : "+"}
             </button>
             <button
               style={{
@@ -211,7 +432,7 @@ export default function StoryGame({ chapter }: StoryGameProps) {
               }}
               onClick={() => setShowJapanese((value) => !value)}
             >
-              日本語訳 {showJapanese ? "−" : "+"}
+              {t.japanese} {showJapanese ? "−" : "+"}
             </button>
           </div>
         </section>
@@ -219,31 +440,28 @@ export default function StoryGame({ chapter }: StoryGameProps) {
         <section style={ui.practice}>
           <div style={ui.practiceIcon}>声</div>
           <div style={ui.practiceContent}>
-            <h2 style={{ ...ui.practiceTitle, color: "#000000" }}>声に出してみよう</h2>
-            <p style={ui.practiceText}>
-              使者の言葉をまねして、中国語で話してみよう。
-            </p>
+            <h2 style={ui.practiceTitle}>{t.speakingTitle}</h2>
+            <p style={ui.practiceText}>{t.speakingText}</p>
           </div>
           <button
             style={ui.speakButton}
             onClick={startSpeakingPractice}
-            aria-label="中国語のスピーキング練習を開始"
+            aria-label={t.speakAria}
           >
-            🎙 話す
+            🎙 {t.speak}
           </button>
         </section>
 
         <section style={ui.questionSection}>
           <div style={ui.questionHeader}>
-            <span style={ui.questionNumber}>問 {sceneIndex + 1}</span>
+            <span style={ui.questionNumber}>
+              {t.question.replace("{n}", String(sceneIndex + 1))}
+            </span>
             <span style={ui.kicker}>YOUR DECISION</span>
           </div>
 
-        
-          <h2 style={{ ...ui.questionTitle, color: "#000000" }}>使者の提案を理解できましたか？</h2>
-          <p style={ui.questionHint}>
-            あなたなら、どう判断する？
-          </p>
+          <h2 style={ui.questionTitle}>{t.decision}</h2>
+          <p style={ui.questionHint}>{t.hint}</p>
 
           <div style={ui.choices}>
             {scene.choices.map((choice, index) => {
@@ -286,23 +504,25 @@ export default function StoryGame({ chapter }: StoryGameProps) {
           {answered && (
             <button style={ui.primaryButton} onClick={nextScene}>
               {sceneIndex + 1 >= scenes.length
-                ? "結果を確認する　→"
-                : "次の場面へ進む　→"}
+                ? `${t.result}　→`
+                : `${t.next}　→`}
             </button>
           )}
         </section>
 
         <footer style={ui.footer}>
           <span>ANCIENT CHINA</span>
-          <span>名声　{score}</span>
-          <span>外交記録 #{String(sceneIndex + 1).padStart(3, "0")}</span>
+          <span>{t.fame}　{score}</span>
+          <span>
+            RECORD #{String(sceneIndex + 1).padStart(3, "0")}
+          </span>
         </footer>
       </div>
     </main>
   );
 }
 
-const ui: Record<string, React.CSSProperties> = {
+const ui: Record<string, CSSProperties> = {
   page: {
     minHeight: "100vh",
     background:
@@ -497,17 +717,12 @@ const ui: Record<string, React.CSSProperties> = {
     margin: "0 0 6px",
     color: "#F1D8A5",
   },
-  
-
-
-practiceText: {
-  color: "#F3E9D5",
-  // ほかの設定はそのまま残す
-},
-
-
-
-
+  practiceText: {
+    color: "#F3E9D5",
+    fontSize: "13px",
+    lineHeight: 1.8,
+    margin: 0,
+  },
   speakButton: {
     background: "#D8C49A",
     color: "#29261F",

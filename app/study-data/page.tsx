@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
+import { useAppLanguage } from "@/app/component/AppLanguage";
 import {
   collection,
   deleteDoc,
@@ -22,19 +23,241 @@ type StudyRecord = {
   duration: number;
 };
 
-function formatDuration(seconds: number) {
-  const minutes = Math.floor(seconds / 60);
-  const remaining = seconds % 60;
+type AppLanguage = "ja" | "de" | "en" | "zh-CN" | "zh-TW" | "es";
 
-  if (minutes === 0) return `${remaining}秒`;
-  if (remaining === 0) return `${minutes}分`;
-  return `${minutes}分${remaining}秒`;
-}
+const translations: Record<AppLanguage, Record<string, string>> = {
+  ja: {
+    eyebrow: "YOUR PROGRESS",
+    title: "学習記録",
+    subtitle: "積み重ねた学習を、振り返る。",
+    loading: "学習記録を読み込み中...",
+    loadError: "学習記録を読み込めませんでした。",
+    overview: "OVERVIEW",
+    total: "累計",
+    sessions: "セッション",
+    answered: "回答数",
+    questions: "問",
+    correct: "正解",
+    incorrect: "不正解",
+    accuracy: "正答率",
+    studyTime: "学習時間",
+    history: "HISTORY",
+    historyTitle: "学習履歴",
+    records: "件",
+    emptyTitle: "ここから始めよう。",
+    emptyDescription: "まだ学習記録がありません。\n単語を学習すると、ここに記録されます。",
+    noDeckName: "デッキ名なし",
+    delete: "削除",
+    deleteConfirm: "この学習記録を削除しますか？",
+    deleteError: "学習記録の削除に失敗しました。",
+    minutes: "分",
+    seconds: "秒",
+    time: "時間",
+  },
+
+  de: {
+    eyebrow: "YOUR PROGRESS",
+    title: "Lernverlauf",
+    subtitle: "Blicke auf deine bisherigen Lernfortschritte zurück.",
+    loading: "Lernaufzeichnungen werden geladen...",
+    loadError: "Die Lernaufzeichnungen konnten nicht geladen werden.",
+    overview: "OVERVIEW",
+    total: "Gesamt",
+    sessions: "Sitzungen",
+    answered: "Beantwortet",
+    questions: " Fragen",
+    correct: "Richtig",
+    incorrect: "Falsch",
+    accuracy: "Trefferquote",
+    studyTime: "Lernzeit",
+    history: "HISTORY",
+    historyTitle: "Lernhistorie",
+    records: "Einträge",
+    emptyTitle: "Hier beginnt deine Lernreise.",
+    emptyDescription: "Noch keine Lernaufzeichnungen vorhanden.\nSobald du mit dem Lernen beginnst, erscheinen deine Einträge hier.",
+    noDeckName: "Unbenanntes Deck",
+    delete: "Löschen",
+    deleteConfirm: "Möchtest du diesen Lerneintrag wirklich löschen?",
+    deleteError: "Der Lerneintrag konnte nicht gelöscht werden.",
+    minutes: "Min.",
+    seconds: "Sek.",
+    time: "Zeit",
+  },
+
+  en: {
+    eyebrow: "YOUR PROGRESS",
+    title: "Study Records",
+    subtitle: "Look back on everything you've learned.",
+    loading: "Loading study records...",
+    loadError: "Failed to load study records.",
+    overview: "OVERVIEW",
+    total: "Total",
+    sessions: "sessions",
+    answered: "Answered",
+    questions: " questions",
+    correct: "Correct",
+    incorrect: "Incorrect",
+    accuracy: "Accuracy",
+    studyTime: "Study Time",
+    history: "HISTORY",
+    historyTitle: "Study History",
+    records: "records",
+    emptyTitle: "Your journey starts here.",
+    emptyDescription: "No study records yet.\nYour records will appear here once you start studying.",
+    noDeckName: "Untitled Deck",
+    delete: "Delete",
+    deleteConfirm: "Are you sure you want to delete this study record?",
+    deleteError: "Failed to delete the study record.",
+    minutes: "min",
+    seconds: "sec",
+    time: "Time",
+  },
+
+  "zh-CN": {
+    eyebrow: "YOUR PROGRESS",
+    title: "学习记录",
+    subtitle: "回顾每一次积累的学习成果。",
+    loading: "正在加载学习记录...",
+    loadError: "无法加载学习记录。",
+    overview: "OVERVIEW",
+    total: "累计",
+    sessions: "次学习",
+    answered: "答题数",
+    questions: "题",
+    correct: "正确",
+    incorrect: "错误",
+    accuracy: "正确率",
+    studyTime: "学习时间",
+    history: "HISTORY",
+    historyTitle: "学习历史",
+    records: "条记录",
+    emptyTitle: "从这里开始吧。",
+    emptyDescription: "目前还没有学习记录。\n开始学习单词后，记录就会显示在这里。",
+    noDeckName: "未命名牌组",
+    delete: "删除",
+    deleteConfirm: "确定要删除这条学习记录吗？",
+    deleteError: "删除学习记录失败。",
+    minutes: "分钟",
+    seconds: "秒",
+    time: "用时",
+  },
+
+  "zh-TW": {
+    eyebrow: "YOUR PROGRESS",
+    title: "學習紀錄",
+    subtitle: "回顧每一次累積的學習成果。",
+    loading: "正在載入學習紀錄...",
+    loadError: "無法載入學習紀錄。",
+    overview: "OVERVIEW",
+    total: "累計",
+    sessions: "次學習",
+    answered: "作答數",
+    questions: "題",
+    correct: "答對",
+    incorrect: "答錯",
+    accuracy: "答對率",
+    studyTime: "學習時間",
+    history: "HISTORY",
+    historyTitle: "學習歷史",
+    records: "筆紀錄",
+    emptyTitle: "從這裡開始吧。",
+    emptyDescription: "目前還沒有學習紀錄。\n開始學習單字後，紀錄就會顯示在這裡。",
+    noDeckName: "未命名牌組",
+    delete: "刪除",
+    deleteConfirm: "確定要刪除這筆學習紀錄嗎？",
+    deleteError: "刪除學習紀錄失敗。",
+    minutes: "分鐘",
+    seconds: "秒",
+    time: "用時",
+  },
+
+  es: {
+    eyebrow: "YOUR PROGRESS",
+    title: "Registro de estudio",
+    subtitle: "Repasa todo lo que has aprendido.",
+    loading: "Cargando registros de estudio...",
+    loadError: "No se pudieron cargar los registros de estudio.",
+    overview: "OVERVIEW",
+    total: "Total",
+    sessions: "sesiones",
+    answered: "Respondidas",
+    questions: " preguntas",
+    correct: "Correctas",
+    incorrect: "Incorrectas",
+    accuracy: "Porcentaje de aciertos",
+    studyTime: "Tiempo de estudio",
+    history: "HISTORY",
+    historyTitle: "Historial de estudio",
+    records: "registros",
+    emptyTitle: "Tu camino comienza aquí.",
+    emptyDescription: "Todavía no hay registros de estudio.\nTus registros aparecerán aquí cuando empieces a estudiar vocabulario.",
+    noDeckName: "Mazo sin nombre",
+    delete: "Eliminar",
+    deleteConfirm: "¿Seguro que quieres eliminar este registro de estudio?",
+    deleteError: "No se pudo eliminar el registro de estudio.",
+    minutes: "min",
+    seconds: "s",
+    time: "Tiempo",
+  },
+};
+
+const localeMap: Record<AppLanguage, string> = {
+  ja: "ja-JP",
+  de: "de-DE",
+  en: "en-GB",
+  "zh-CN": "zh-CN",
+  "zh-TW": "zh-TW",
+  es: "es-ES",
+};
 
 export default function StudyDataPage() {
+  const { language } = useAppLanguage();
+
+  const currentLanguage = (
+    language in translations ? language : "ja"
+  ) as AppLanguage;
+
+  const text = translations[currentLanguage];
+  const locale = localeMap[currentLanguage];
+
   const [studyRecords, setStudyRecords] = useState<StudyRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  function formatDuration(seconds: number) {
+    const minutes = Math.floor(seconds / 60);
+    const remaining = seconds % 60;
+
+    if (minutes === 0) {
+      return `${remaining}${text.seconds}`;
+    }
+
+    if (remaining === 0) {
+      return `${minutes}${text.minutes}`;
+    }
+
+    return `${minutes}${text.minutes} ${remaining}${text.seconds}`;
+  }
+
+  function formatNumber(value: number) {
+    return value.toLocaleString(locale);
+  }
+
+  function formatDate(dateString: string) {
+    if (!dateString) return "";
+
+    const date = new Date(`${dateString}T12:00:00`);
+
+    if (Number.isNaN(date.getTime())) {
+      return dateString;
+    }
+
+    return new Intl.DateTimeFormat(locale, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    }).format(date);
+  }
 
   useEffect(() => {
     async function loadRecords() {
@@ -61,13 +284,14 @@ export default function StudyDataPage() {
           if (a.startedAt && b.startedAt) {
             return b.startedAt - a.startedAt;
           }
+
           return b.date.localeCompare(a.date);
         });
 
         setStudyRecords(records);
       } catch (err) {
-        console.error("学習記録の読み込みエラー:", err);
-        setError("学習記録を読み込めませんでした。");
+        console.error("Study record loading error:", err);
+        setError("loadError");
       } finally {
         setLoading(false);
       }
@@ -77,7 +301,7 @@ export default function StudyDataPage() {
   }, []);
 
   const deleteStudyRecord = async (recordId: string) => {
-    if (!window.confirm("この学習記録を削除しますか？")) {
+    if (!window.confirm(text.deleteConfirm)) {
       return;
     }
 
@@ -88,8 +312,8 @@ export default function StudyDataPage() {
         records.filter((record) => record.id !== recordId)
       );
     } catch (err) {
-      console.error("学習記録の削除エラー:", err);
-      window.alert("学習記録の削除に失敗しました。");
+      console.error("Study record deletion error:", err);
+      window.alert(text.deleteError);
     }
   };
 
@@ -121,57 +345,58 @@ export default function StudyDataPage() {
   return (
     <main className="study-data-page">
       <header className="study-data-header">
-        <p className="study-data-eyebrow">YOUR PROGRESS</p>
-        <h1>学習記録</h1>
-        <p className="study-data-subtitle">
-          積み重ねた学習を、振り返る。
-        </p>
+        <p className="study-data-eyebrow">{text.eyebrow}</p>
+
+        <h1>{text.title}</h1>
+
+        <p className="study-data-subtitle">{text.subtitle}</p>
       </header>
 
       {loading ? (
-        <p className="study-data-message">学習記録を読み込み中...</p>
+        <p className="study-data-message">{text.loading}</p>
       ) : error ? (
-        <p className="study-data-message">{error}</p>
+        <p className="study-data-message">{text[error]}</p>
       ) : (
         <>
           <section className="study-data-summary">
             <div className="study-data-section-heading">
               <div>
-                <p className="study-data-eyebrow">OVERVIEW</p>
-                <h2>累計</h2>
+                <p className="study-data-eyebrow">{text.overview}</p>
+                <h2>{text.total}</h2>
               </div>
+
               <span className="study-data-session-count">
-                {studyRecords.length} セッション
+                {formatNumber(studyRecords.length)} {text.sessions}
               </span>
             </div>
 
             <div className="study-data-stats">
               <div className="study-data-stat study-data-stat-wide">
-                <span>回答数</span>
-                <strong>{totalAnswered}</strong>
-                <small>問</small>
+                <span>{text.answered}</span>
+                <strong>{formatNumber(totalAnswered)}</strong>
+                <small>{text.questions}</small>
               </div>
 
               <div className="study-data-stat">
-                <span>正解</span>
-                <strong>{totalCorrect}</strong>
-                <small>問</small>
+                <span>{text.correct}</span>
+                <strong>{formatNumber(totalCorrect)}</strong>
+                <small>{text.questions}</small>
               </div>
 
               <div className="study-data-stat">
-                <span>不正解</span>
-                <strong>{totalIncorrect}</strong>
-                <small>問</small>
+                <span>{text.incorrect}</span>
+                <strong>{formatNumber(totalIncorrect)}</strong>
+                <small>{text.questions}</small>
               </div>
 
               <div className="study-data-stat study-data-rate">
-                <span>正答率</span>
+                <span>{text.accuracy}</span>
                 <strong>{overallRate}</strong>
                 <small>%</small>
               </div>
 
               <div className="study-data-stat">
-                <span>学習時間</span>
+                <span>{text.studyTime}</span>
                 <strong>{formatDuration(totalDuration)}</strong>
               </div>
             </div>
@@ -180,22 +405,19 @@ export default function StudyDataPage() {
           <section className="study-data-history">
             <div className="study-data-section-heading">
               <div>
-                <p className="study-data-eyebrow">HISTORY</p>
-                <h2>学習履歴</h2>
+                <p className="study-data-eyebrow">{text.history}</p>
+                <h2>{text.historyTitle}</h2>
               </div>
+
               <span className="study-data-session-count">
-                {studyRecords.length} 件
+                {formatNumber(studyRecords.length)} {text.records}
               </span>
             </div>
 
             {studyRecords.length === 0 ? (
               <div className="study-data-empty">
-                <h3>ここから始めよう。</h3>
-                <p>
-                  まだ学習記録がありません。
-                  <br />
-                  単語を学習すると、ここに記録されます。
-                </p>
+                <h3>{text.emptyTitle}</h3>
+                <p>{text.emptyDescription}</p>
               </div>
             ) : (
               <div className="study-data-record-list">
@@ -215,11 +437,12 @@ export default function StudyDataPage() {
                       <div className="study-data-record-top">
                         <div>
                           <p className="study-data-record-date">
-                            {record.date}
+                            {formatDate(record.date)}
                             {record.time ? ` · ${record.time}` : ""}
                           </p>
+
                           <h3>
-                            {record.deckName || "デッキ名なし"}
+                            {record.deckName || text.noDeckName}
                           </h3>
                         </div>
 
@@ -228,19 +451,32 @@ export default function StudyDataPage() {
                           className="study-data-delete"
                           onClick={() => deleteStudyRecord(record.id)}
                         >
-                          削除
+                          {text.delete}
                         </button>
                       </div>
 
                       <div className="study-data-record-stats">
-                        <span>回答 {record.answered}問</span>
-                        <span className="study-data-record-rate">
-                          正答率 {rate}%
-                        </span>
-                        <span>正解 {record.correct}問</span>
-                        <span>不正解 {record.incorrect}問</span>
                         <span>
-                          時間 {formatDuration(record.duration)}
+                          {text.answered} {formatNumber(record.answered)}
+                          {text.questions}
+                        </span>
+
+                        <span className="study-data-record-rate">
+                          {text.accuracy} {rate}%
+                        </span>
+
+                        <span>
+                          {text.correct} {formatNumber(record.correct)}
+                          {text.questions}
+                        </span>
+
+                        <span>
+                          {text.incorrect} {formatNumber(record.incorrect)}
+                          {text.questions}
+                        </span>
+
+                        <span>
+                          {text.time} {formatDuration(record.duration)}
                         </span>
                       </div>
                     </article>
@@ -388,6 +624,7 @@ export default function StudyDataPage() {
           color: #818981;
           font-size: 13px;
           line-height: 1.9;
+          white-space: pre-line;
         }
 
         .study-data-record-list {

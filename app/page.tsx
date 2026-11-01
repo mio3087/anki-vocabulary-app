@@ -1,6 +1,7 @@
 
 "use client";
 import Link from "next/link";
+import { useAppLanguage } from "@/app/component/AppLanguage";
 
 
 
@@ -74,19 +75,826 @@ type ThemeColors = {
   dark: string;
 };
 
+
+
+const pageTranslations: Record<string, Record<string, string>> = {
+  "ja": {
+    "color.title": "カラー選択",
+    "color.custom": "カスタムカラーを選択",
+    "color.customDesc": "カラーピッカーで自由に色を選択できます。",
+    "color.choose": "自由に色を選択",
+    "color.change": "色を変更する",
+    "color.clickHint": "色のエリアをクリックすると、色選択ツールが開きます。",
+    "color.hue": "色相（色の種類）",
+    "color.hex": "HEX カラーコード",
+    "color.copy": "コピー",
+    "color.hexError": "#RRGGBB形式で入力してください。",
+    "color.rgb": "RGB カラー値",
+    "color.selected": "選択中のカラー",
+    "color.saved": "保存済みのテーマカラー",
+    "color.current": "現在のテーマカラー",
+    "color.savedHint": "保存するとテーマカラーとして記録されます。",
+    "common.cancel": "キャンセル",
+    "common.save": "保存する",
+    "common.saved": "保存しました ✓",
+    "study.back": "← 戻る",
+    "study.correct": "正解",
+    "study.incorrect": "不正解",
+    "study.answered": "回答",
+    "study.tap": "タップして答えを見る",
+    "study.noReading": "読み方なし",
+    "study.noTranslation": "日本語訳なし",
+    "study.pronunciation": "発音",
+    "study.finished": "学習終了！",
+    "study.accuracy": "正答率",
+    "deck.back": "← デッキ一覧",
+    "deck.cards": "語",
+    "deck.start": "学習開始",
+    "deck.csv": "CSVインポート",
+    "deck.addWord": "単語を追加",
+    "deck.editWord": "単語を編集",
+    "deck.word": "単語 *",
+    "deck.reading": "ピンイン・読み方",
+    "deck.translation": "日本語訳",
+    "deck.example": "例文",
+    "deck.exampleTranslation": "例文の日本語訳",
+    "deck.save": "保存",
+    "deck.list": "単語一覧",
+    "deck.search": "単語を検索",
+    "deck.found": "語が見つかりました",
+    "deck.empty": "まだ単語がありません",
+    "deck.noMatchStart": "「",
+    "deck.noMatchEnd": "」に一致する単語がありません。",
+    "deck.clearSearch": "検索をクリア",
+    "deck.edit": "編集",
+    "deck.delete": "削除",
+    "deck.manage": "暗記デッキ管理",
+    "deck.description": "フォルダや単語デッキを整理して、学習を始めましょう。",
+    "folder.uncategorized": "未分類",
+    "folder.move": "フォルダへ移動",
+    "folder.new": "新しいフォルダ",
+    "folder.example": "例：中国語",
+    "folder.create": "フォルダ作成",
+    "deck.new": "新しいデッキ作成",
+    "deck.exampleName": "例：HSK6",
+    "deck.noFolder": "フォルダなし",
+    "deck.create": "作成",
+    "alert.deckName": "デッキ名を入力してください",
+    "alert.deckDuplicate": "同じ名前のデッキがあります",
+    "alert.deckCreated": "デッキを作成しました",
+    "alert.deckSaveFailed": "デッキの保存に失敗しました",
+    "alert.deckDeleteConfirm": "「{name}」を削除しますか？",
+    "alert.deckDeleteFailed": "デッキの削除に失敗しました",
+    "alert.folderName": "フォルダ名を入力してください",
+    "alert.folderCreated": "フォルダを作成しました",
+    "alert.folderSaveFailed": "フォルダの保存に失敗しました",
+    "alert.folderDeleteConfirm": "このフォルダを削除しますか？",
+    "alert.folderDeleteFailed": "フォルダの削除に失敗しました",
+    "alert.deckMoveFailed": "デッキの移動に失敗しました",
+    "alert.csvReadFailed": "CSVを読み込めませんでした",
+    "alert.csvEmpty": "CSVにデータがありません",
+    "alert.wordReadFailed": "単語を読み込めませんでした",
+    "alert.deckNotFound": "デッキが見つかりません",
+    "alert.csvImported": "{count}語をインポートしました",
+    "alert.csvFileFailed": "CSVファイルを読み込めませんでした",
+    "alert.wordRequired": "単語を入力してください",
+    "alert.currentDeckMissing": "現在のデッキが見つかりません",
+    "alert.duplicateWord": "「{word}」はすでに存在します。\n\nそれでも追加しますか？",
+    "alert.wordSaveFailed": "単語の保存に失敗しました。\n",
+    "alert.wordDeleteConfirm": "「{word}」を削除しますか？",
+    "alert.wordDeleteFailed": "単語の削除に失敗しました",
+    "alert.noWords": "単語がありません",
+    "alert.studyRecordDeleteConfirm": "この学習記録を削除しますか？",
+    "alert.studyRecordDeleteFailed": "学習記録の削除に失敗しました",
+    "alert.studyRecordSaveFailed": "学習記録の保存に失敗しました",
+    "alert.cardRecordSaveFailed": "カードの学習記録を保存できませんでした。\n\n",
+    "duration.seconds": "秒",
+    "duration.minutes": "分",
+    "duration.separator": "",
+    "color.preset.sakura": "さくら",
+    "color.preset.sky": "スカイ",
+    "color.preset.lavender": "ラベンダー",
+    "color.preset.mint": "ミント",
+    "color.preset.lemon": "レモン",
+    "color.preset.peach": "ピーチ",
+    "color.preset.coral": "コーラル",
+    "color.preset.ocean": "オーシャン",
+    "color.preset.grape": "グレープ",
+    "color.preset.rose": "ローズ",
+    "color.preset.forest": "フォレスト",
+    "color.preset.dark": "ダーク",
+    "language.zhCN": "中国語（簡体字）",
+    "language.zhTW": "中国語（繁体字）",
+    "language.de": "ドイツ語",
+    "language.es": "スペイン語",
+    "language.it": "イタリア語",
+    "language.ja": "日本語",
+    "language.ko": "韓国語",
+    "language.nl": "オランダ語",
+    "language.da": "デンマーク語",
+    "language.fr": "フランス語",
+    "language.ptPT": "ポルトガル語（ヨーロッパ）",
+    "language.ptBR": "ポルトガル語（ブラジル）",
+    "language.vi": "ベトナム語",
+    "language.sv": "スウェーデン語",
+    "language.nb": "ノルウェー語（ブークモール）",
+    "language.id": "インドネシア語",
+    "language.tr": "トルコ語",
+    "language.pl": "ポーランド語",
+    "language.ru": "ロシア語",
+    "language.el": "ギリシャ語",
+    "language.th": "タイ語",
+    "language.cs": "チェコ語",
+    "language.ro": "ルーマニア語",
+    "language.hi": "ヒンディー語",
+    "language.ar": "アラビア語",
+    "alert.firestoreLoadFailed": "Firestoreからデータを読み込めませんでした。\n\n",
+    "alert.csvError": "CSVエラー: "
+  },
+  "de": {
+    "color.title": "Farbauswahl",
+    "color.custom": "Benutzerdefinierte Farbe wählen",
+    "color.customDesc": "Wähle eine beliebige Farbe mit dem Farbwähler.",
+    "color.choose": "Farbe frei wählen",
+    "color.change": "Farbe ändern",
+    "color.clickHint": "Klicke auf den Farbbereich, um den Farbwähler zu öffnen.",
+    "color.hue": "Farbton",
+    "color.hex": "HEX-Farbcode",
+    "color.copy": "Kopieren",
+    "color.hexError": "Bitte im Format #RRGGBB eingeben.",
+    "color.rgb": "RGB-Farbwerte",
+    "color.selected": "Ausgewählte Farbe",
+    "color.saved": "Gespeicherte Designfarbe",
+    "color.current": "Aktuelle Designfarbe",
+    "color.savedHint": "Die gespeicherte Farbe wird als Designfarbe übernommen.",
+    "common.cancel": "Abbrechen",
+    "common.save": "Speichern",
+    "common.saved": "Gespeichert ✓",
+    "study.back": "← Zurück",
+    "study.correct": "Richtig",
+    "study.incorrect": "Falsch",
+    "study.answered": "Beantwortet",
+    "study.tap": "Tippe, um die Antwort zu sehen",
+    "study.noReading": "Keine Lesung",
+    "study.noTranslation": "Keine Übersetzung",
+    "study.pronunciation": "Aussprache",
+    "study.finished": "Lernen beendet!",
+    "study.accuracy": "Trefferquote",
+    "deck.back": "← Deckliste",
+    "deck.cards": "Karten",
+    "deck.start": "Lernen starten",
+    "deck.csv": "CSV importieren",
+    "deck.addWord": "Wort hinzufügen",
+    "deck.editWord": "Wort bearbeiten",
+    "deck.word": "Wort *",
+    "deck.reading": "Pinyin / Lesung",
+    "deck.translation": "Japanische Übersetzung",
+    "deck.example": "Beispielsatz",
+    "deck.exampleTranslation": "Japanische Übersetzung des Beispiels",
+    "deck.save": "Speichern",
+    "deck.list": "Wortliste",
+    "deck.search": "Wörter suchen",
+    "deck.found": "Wörter gefunden",
+    "deck.empty": "Noch keine Wörter vorhanden",
+    "deck.noMatchStart": "Keine Wörter stimmen mit „",
+    "deck.noMatchEnd": "“ überein.",
+    "deck.clearSearch": "Suche zurücksetzen",
+    "deck.edit": "Bearbeiten",
+    "deck.delete": "Löschen",
+    "deck.manage": "Karteikarten-Decks verwalten",
+    "deck.description": "Organisiere Ordner und Wortdecks und beginne mit dem Lernen.",
+    "folder.uncategorized": "Nicht zugeordnet",
+    "folder.move": "In Ordner verschieben",
+    "folder.new": "Neuer Ordner",
+    "folder.example": "z. B. Chinesisch",
+    "folder.create": "Ordner erstellen",
+    "deck.new": "Neues Deck erstellen",
+    "deck.exampleName": "z. B. HSK6",
+    "deck.noFolder": "Kein Ordner",
+    "deck.create": "Erstellen",
+    "alert.deckName": "Bitte gib einen Decknamen ein.",
+    "alert.deckDuplicate": "Ein Deck mit diesem Namen existiert bereits.",
+    "alert.deckCreated": "Deck erstellt.",
+    "alert.deckSaveFailed": "Deck konnte nicht gespeichert werden.",
+    "alert.deckDeleteConfirm": "„{name}“ wirklich löschen?",
+    "alert.deckDeleteFailed": "Deck konnte nicht gelöscht werden.",
+    "alert.folderName": "Bitte gib einen Ordnernamen ein.",
+    "alert.folderCreated": "Ordner erstellt.",
+    "alert.folderSaveFailed": "Ordner konnte nicht gespeichert werden.",
+    "alert.folderDeleteConfirm": "Diesen Ordner wirklich löschen?",
+    "alert.folderDeleteFailed": "Ordner konnte nicht gelöscht werden.",
+    "alert.deckMoveFailed": "Deck konnte nicht verschoben werden.",
+    "alert.csvReadFailed": "CSV konnte nicht gelesen werden.",
+    "alert.csvEmpty": "Die CSV-Datei enthält keine Daten.",
+    "alert.wordReadFailed": "Wörter konnten nicht importiert werden.",
+    "alert.deckNotFound": "Deck nicht gefunden.",
+    "alert.csvImported": "{count} Wörter importiert.",
+    "alert.csvFileFailed": "CSV-Datei konnte nicht gelesen werden.",
+    "alert.wordRequired": "Bitte gib ein Wort ein.",
+    "alert.currentDeckMissing": "Das aktuelle Deck wurde nicht gefunden.",
+    "alert.duplicateWord": "„{word}“ ist bereits vorhanden.\n\nTrotzdem hinzufügen?",
+    "alert.wordSaveFailed": "Wort konnte nicht gespeichert werden.\n",
+    "alert.wordDeleteConfirm": "„{word}“ wirklich löschen?",
+    "alert.wordDeleteFailed": "Wort konnte nicht gelöscht werden.",
+    "alert.noWords": "Keine Wörter vorhanden.",
+    "alert.studyRecordDeleteConfirm": "Diesen Lernverlauf wirklich löschen?",
+    "alert.studyRecordDeleteFailed": "Lernverlauf konnte nicht gelöscht werden.",
+    "alert.studyRecordSaveFailed": "Lernverlauf konnte nicht gespeichert werden.",
+    "alert.cardRecordSaveFailed": "Lernfortschritt der Karte konnte nicht gespeichert werden.\n\n",
+    "duration.seconds": "Sek.",
+    "duration.minutes": "Min.",
+    "duration.separator": " ",
+    "color.preset.sakura": "Kirschblüte",
+    "color.preset.sky": "Himmelblau",
+    "color.preset.lavender": "Lavendel",
+    "color.preset.mint": "Minze",
+    "color.preset.lemon": "Zitrone",
+    "color.preset.peach": "Pfirsich",
+    "color.preset.coral": "Koralle",
+    "color.preset.ocean": "Ozean",
+    "color.preset.grape": "Traube",
+    "color.preset.rose": "Rose",
+    "color.preset.forest": "Wald",
+    "color.preset.dark": "Dunkel",
+    "language.zhCN": "Chinesisch (vereinfacht)",
+    "language.zhTW": "Chinesisch (traditionell)",
+    "language.de": "Deutsch",
+    "language.es": "Spanisch",
+    "language.it": "Italienisch",
+    "language.ja": "Japanisch",
+    "language.ko": "Koreanisch",
+    "language.nl": "Niederländisch",
+    "language.da": "Dänisch",
+    "language.fr": "Französisch",
+    "language.ptPT": "Portugiesisch (Europa)",
+    "language.ptBR": "Portugiesisch (Brasilien)",
+    "language.vi": "Vietnamesisch",
+    "language.sv": "Schwedisch",
+    "language.nb": "Norwegisch (Bokmål)",
+    "language.id": "Indonesisch",
+    "language.tr": "Türkisch",
+    "language.pl": "Polnisch",
+    "language.ru": "Russisch",
+    "language.el": "Griechisch",
+    "language.th": "Thailändisch",
+    "language.cs": "Tschechisch",
+    "language.ro": "Rumänisch",
+    "language.hi": "Hindi",
+    "language.ar": "Arabisch",
+    "alert.firestoreLoadFailed": "Daten konnten nicht aus Firestore geladen werden.\n\n",
+    "alert.csvError": "CSV-Fehler: "
+  },
+  "en": {
+    "color.title": "Choose a color",
+    "color.custom": "Choose a custom color",
+    "color.customDesc": "Choose any color using the color picker.",
+    "color.choose": "Choose a color freely",
+    "color.change": "Change color",
+    "color.clickHint": "Click the color area to open the color picker.",
+    "color.hue": "Hue",
+    "color.hex": "HEX color code",
+    "color.copy": "Copy",
+    "color.hexError": "Enter a color in #RRGGBB format.",
+    "color.rgb": "RGB color values",
+    "color.selected": "Selected color",
+    "color.saved": "Saved theme color",
+    "color.current": "Current theme color",
+    "color.savedHint": "Your saved color will be used as the theme color.",
+    "common.cancel": "Cancel",
+    "common.save": "Save",
+    "common.saved": "Saved ✓",
+    "study.back": "← Back",
+    "study.correct": "Correct",
+    "study.incorrect": "Incorrect",
+    "study.answered": "Answered",
+    "study.tap": "Tap to reveal the answer",
+    "study.noReading": "No reading available",
+    "study.noTranslation": "No translation available",
+    "study.pronunciation": "Pronunciation",
+    "study.finished": "Study complete!",
+    "study.accuracy": "Accuracy",
+    "deck.back": "← Deck list",
+    "deck.cards": "cards",
+    "deck.start": "Start studying",
+    "deck.csv": "Import CSV",
+    "deck.addWord": "Add a word",
+    "deck.editWord": "Edit word",
+    "deck.word": "Word *",
+    "deck.reading": "Pinyin / Reading",
+    "deck.translation": "Japanese translation",
+    "deck.example": "Example sentence",
+    "deck.exampleTranslation": "Japanese translation of example",
+    "deck.save": "Save",
+    "deck.list": "Word list",
+    "deck.search": "Search words",
+    "deck.found": "words found",
+    "deck.empty": "No words yet",
+    "deck.noMatchStart": "No words match “",
+    "deck.noMatchEnd": "”.",
+    "deck.clearSearch": "Clear search",
+    "deck.edit": "Edit",
+    "deck.delete": "Delete",
+    "deck.manage": "Flashcard deck management",
+    "deck.description": "Organize folders and word decks, then start learning.",
+    "folder.uncategorized": "Uncategorized",
+    "folder.move": "Move to folder",
+    "folder.new": "New folder",
+    "folder.example": "e.g. Chinese",
+    "folder.create": "Create folder",
+    "deck.new": "Create a new deck",
+    "deck.exampleName": "e.g. HSK6",
+    "deck.noFolder": "No folder",
+    "deck.create": "Create",
+    "alert.deckName": "Please enter a deck name.",
+    "alert.deckDuplicate": "A deck with this name already exists.",
+    "alert.deckCreated": "Deck created.",
+    "alert.deckSaveFailed": "Could not save the deck.",
+    "alert.deckDeleteConfirm": "Delete “{name}”?",
+    "alert.deckDeleteFailed": "Could not delete the deck.",
+    "alert.folderName": "Please enter a folder name.",
+    "alert.folderCreated": "Folder created.",
+    "alert.folderSaveFailed": "Could not save the folder.",
+    "alert.folderDeleteConfirm": "Delete this folder?",
+    "alert.folderDeleteFailed": "Could not delete the folder.",
+    "alert.deckMoveFailed": "Could not move the deck.",
+    "alert.csvReadFailed": "Could not read the CSV.",
+    "alert.csvEmpty": "The CSV contains no data.",
+    "alert.wordReadFailed": "Could not import the words.",
+    "alert.deckNotFound": "Deck not found.",
+    "alert.csvImported": "Imported {count} words.",
+    "alert.csvFileFailed": "Could not read the CSV file.",
+    "alert.wordRequired": "Please enter a word.",
+    "alert.currentDeckMissing": "The current deck could not be found.",
+    "alert.duplicateWord": "“{word}” already exists.\n\nAdd it anyway?",
+    "alert.wordSaveFailed": "Could not save the word.\n",
+    "alert.wordDeleteConfirm": "Delete “{word}”?",
+    "alert.wordDeleteFailed": "Could not delete the word.",
+    "alert.noWords": "There are no words in this deck.",
+    "alert.studyRecordDeleteConfirm": "Delete this study record?",
+    "alert.studyRecordDeleteFailed": "Could not delete the study record.",
+    "alert.studyRecordSaveFailed": "Could not save the study record.",
+    "alert.cardRecordSaveFailed": "Could not save this card’s study record.\n\n",
+    "duration.seconds": "sec",
+    "duration.minutes": "min",
+    "duration.separator": " ",
+    "color.preset.sakura": "Sakura",
+    "color.preset.sky": "Sky",
+    "color.preset.lavender": "Lavender",
+    "color.preset.mint": "Mint",
+    "color.preset.lemon": "Lemon",
+    "color.preset.peach": "Peach",
+    "color.preset.coral": "Coral",
+    "color.preset.ocean": "Ocean",
+    "color.preset.grape": "Grape",
+    "color.preset.rose": "Rose",
+    "color.preset.forest": "Forest",
+    "color.preset.dark": "Dark",
+    "language.zhCN": "Chinese (Simplified)",
+    "language.zhTW": "Chinese (Traditional)",
+    "language.de": "German",
+    "language.es": "Spanish",
+    "language.it": "Italian",
+    "language.ja": "Japanese",
+    "language.ko": "Korean",
+    "language.nl": "Dutch",
+    "language.da": "Danish",
+    "language.fr": "French",
+    "language.ptPT": "Portuguese (European)",
+    "language.ptBR": "Portuguese (Brazilian)",
+    "language.vi": "Vietnamese",
+    "language.sv": "Swedish",
+    "language.nb": "Norwegian (Bokmål)",
+    "language.id": "Indonesian",
+    "language.tr": "Turkish",
+    "language.pl": "Polish",
+    "language.ru": "Russian",
+    "language.el": "Greek",
+    "language.th": "Thai",
+    "language.cs": "Czech",
+    "language.ro": "Romanian",
+    "language.hi": "Hindi",
+    "language.ar": "Arabic",
+    "alert.firestoreLoadFailed": "Could not load data from Firestore.\n\n",
+    "alert.csvError": "CSV error: "
+  },
+  "zh-CN": {
+    "color.title": "选择颜色",
+    "color.custom": "选择自定义颜色",
+    "color.customDesc": "使用取色器自由选择颜色。",
+    "color.choose": "自由选择颜色",
+    "color.change": "更改颜色",
+    "color.clickHint": "点击颜色区域即可打开取色工具。",
+    "color.hue": "色相",
+    "color.hex": "HEX 颜色代码",
+    "color.copy": "复制",
+    "color.hexError": "请使用 #RRGGBB 格式输入。",
+    "color.rgb": "RGB 颜色值",
+    "color.selected": "当前选择的颜色",
+    "color.saved": "已保存的主题颜色",
+    "color.current": "当前主题颜色",
+    "color.savedHint": "保存后将把该颜色设为主题颜色。",
+    "common.cancel": "取消",
+    "common.save": "保存",
+    "common.saved": "已保存 ✓",
+    "study.back": "← 返回",
+    "study.correct": "正确",
+    "study.incorrect": "错误",
+    "study.answered": "已回答",
+    "study.tap": "点击查看答案",
+    "study.noReading": "暂无读音",
+    "study.noTranslation": "暂无翻译",
+    "study.pronunciation": "发音",
+    "study.finished": "学习结束！",
+    "study.accuracy": "正确率",
+    "deck.back": "← 卡组列表",
+    "deck.cards": "个词",
+    "deck.start": "开始学习",
+    "deck.csv": "导入 CSV",
+    "deck.addWord": "添加单词",
+    "deck.editWord": "编辑单词",
+    "deck.word": "单词 *",
+    "deck.reading": "拼音 / 读音",
+    "deck.translation": "日语翻译",
+    "deck.example": "例句",
+    "deck.exampleTranslation": "例句的日语翻译",
+    "deck.save": "保存",
+    "deck.list": "单词列表",
+    "deck.search": "搜索单词",
+    "deck.found": "个单词已找到",
+    "deck.empty": "还没有单词",
+    "deck.noMatchStart": "没有与“",
+    "deck.noMatchEnd": "”匹配的单词。",
+    "deck.clearSearch": "清除搜索",
+    "deck.edit": "编辑",
+    "deck.delete": "删除",
+    "deck.manage": "记忆卡组管理",
+    "deck.description": "整理文件夹和单词卡组，开始学习吧。",
+    "folder.uncategorized": "未分类",
+    "folder.move": "移动到文件夹",
+    "folder.new": "新建文件夹",
+    "folder.example": "例如：中文",
+    "folder.create": "创建文件夹",
+    "deck.new": "新建卡组",
+    "deck.exampleName": "例如：HSK6",
+    "deck.noFolder": "无文件夹",
+    "deck.create": "创建",
+    "alert.deckName": "请输入卡组名称。",
+    "alert.deckDuplicate": "已存在同名卡组。",
+    "alert.deckCreated": "卡组已创建。",
+    "alert.deckSaveFailed": "无法保存卡组。",
+    "alert.deckDeleteConfirm": "确定删除“{name}”吗？",
+    "alert.deckDeleteFailed": "无法删除卡组。",
+    "alert.folderName": "请输入文件夹名称。",
+    "alert.folderCreated": "文件夹已创建。",
+    "alert.folderSaveFailed": "无法保存文件夹。",
+    "alert.folderDeleteConfirm": "确定删除此文件夹吗？",
+    "alert.folderDeleteFailed": "无法删除文件夹。",
+    "alert.deckMoveFailed": "无法移动卡组。",
+    "alert.csvReadFailed": "无法读取 CSV。",
+    "alert.csvEmpty": "CSV 文件中没有数据。",
+    "alert.wordReadFailed": "无法导入单词。",
+    "alert.deckNotFound": "未找到卡组。",
+    "alert.csvImported": "已导入 {count} 个词。",
+    "alert.csvFileFailed": "无法读取 CSV 文件。",
+    "alert.wordRequired": "请输入单词。",
+    "alert.currentDeckMissing": "未找到当前卡组。",
+    "alert.duplicateWord": "“{word}”已存在。\n\n仍要添加吗？",
+    "alert.wordSaveFailed": "无法保存单词。\n",
+    "alert.wordDeleteConfirm": "确定删除“{word}”吗？",
+    "alert.wordDeleteFailed": "无法删除单词。",
+    "alert.noWords": "卡组中没有单词。",
+    "alert.studyRecordDeleteConfirm": "确定删除这条学习记录吗？",
+    "alert.studyRecordDeleteFailed": "无法删除学习记录。",
+    "alert.studyRecordSaveFailed": "无法保存学习记录。",
+    "alert.cardRecordSaveFailed": "无法保存此卡片的学习记录。\n\n",
+    "duration.seconds": "秒",
+    "duration.minutes": "分钟",
+    "duration.separator": "",
+    "color.preset.sakura": "樱花",
+    "color.preset.sky": "天空",
+    "color.preset.lavender": "薰衣草",
+    "color.preset.mint": "薄荷",
+    "color.preset.lemon": "柠檬",
+    "color.preset.peach": "蜜桃",
+    "color.preset.coral": "珊瑚",
+    "color.preset.ocean": "海洋",
+    "color.preset.grape": "葡萄",
+    "color.preset.rose": "玫瑰",
+    "color.preset.forest": "森林",
+    "color.preset.dark": "深色",
+    "language.zhCN": "中文（简体）",
+    "language.zhTW": "中文（繁體）",
+    "language.de": "德语",
+    "language.es": "西班牙语",
+    "language.it": "意大利语",
+    "language.ja": "日语",
+    "language.ko": "韩语",
+    "language.nl": "荷兰语",
+    "language.da": "丹麦语",
+    "language.fr": "法语",
+    "language.ptPT": "葡萄牙语（欧洲）",
+    "language.ptBR": "葡萄牙语（巴西）",
+    "language.vi": "越南语",
+    "language.sv": "瑞典语",
+    "language.nb": "挪威语（书面语）",
+    "language.id": "印度尼西亚语",
+    "language.tr": "土耳其语",
+    "language.pl": "波兰语",
+    "language.ru": "俄语",
+    "language.el": "希腊语",
+    "language.th": "泰语",
+    "language.cs": "捷克语",
+    "language.ro": "罗马尼亚语",
+    "language.hi": "印地语",
+    "language.ar": "阿拉伯语",
+    "alert.firestoreLoadFailed": "无法从 Firestore 加载数据。\n\n",
+    "alert.csvError": "CSV 错误："
+  },
+  "zh-TW": {
+    "color.title": "選擇顏色",
+    "color.custom": "選擇自訂顏色",
+    "color.customDesc": "使用取色器自由選擇顏色。",
+    "color.choose": "自由選擇顏色",
+    "color.change": "變更顏色",
+    "color.clickHint": "點擊顏色區域即可開啟取色工具。",
+    "color.hue": "色相",
+    "color.hex": "HEX 色碼",
+    "color.copy": "複製",
+    "color.hexError": "請使用 #RRGGBB 格式輸入。",
+    "color.rgb": "RGB 色彩數值",
+    "color.selected": "目前選取的顏色",
+    "color.saved": "已儲存的主題顏色",
+    "color.current": "目前的主題顏色",
+    "color.savedHint": "儲存後會將此顏色設為主題顏色。",
+    "common.cancel": "取消",
+    "common.save": "儲存",
+    "common.saved": "已儲存 ✓",
+    "study.back": "← 返回",
+    "study.correct": "正確",
+    "study.incorrect": "錯誤",
+    "study.answered": "已回答",
+    "study.tap": "點擊查看答案",
+    "study.noReading": "沒有讀音",
+    "study.noTranslation": "沒有翻譯",
+    "study.pronunciation": "發音",
+    "study.finished": "學習結束！",
+    "study.accuracy": "正確率",
+    "deck.back": "← 卡組列表",
+    "deck.cards": "個單字",
+    "deck.start": "開始學習",
+    "deck.csv": "匯入 CSV",
+    "deck.addWord": "新增單字",
+    "deck.editWord": "編輯單字",
+    "deck.word": "單字 *",
+    "deck.reading": "拼音／讀音",
+    "deck.translation": "日文翻譯",
+    "deck.example": "例句",
+    "deck.exampleTranslation": "例句的日文翻譯",
+    "deck.save": "儲存",
+    "deck.list": "單字列表",
+    "deck.search": "搜尋單字",
+    "deck.found": "個單字已找到",
+    "deck.empty": "目前還沒有單字",
+    "deck.noMatchStart": "沒有符合「",
+    "deck.noMatchEnd": "」的單字。",
+    "deck.clearSearch": "清除搜尋",
+    "deck.edit": "編輯",
+    "deck.delete": "刪除",
+    "deck.manage": "記憶卡組管理",
+    "deck.description": "整理資料夾與單字卡組，開始學習吧。",
+    "folder.uncategorized": "未分類",
+    "folder.move": "移至資料夾",
+    "folder.new": "新增資料夾",
+    "folder.example": "例如：中文",
+    "folder.create": "建立資料夾",
+    "deck.new": "建立新卡組",
+    "deck.exampleName": "例如：HSK6",
+    "deck.noFolder": "不指定資料夾",
+    "deck.create": "建立",
+    "alert.deckName": "請輸入卡組名稱。",
+    "alert.deckDuplicate": "已經有相同名稱的卡組。",
+    "alert.deckCreated": "卡組已建立。",
+    "alert.deckSaveFailed": "無法儲存卡組。",
+    "alert.deckDeleteConfirm": "確定要刪除「{name}」嗎？",
+    "alert.deckDeleteFailed": "無法刪除卡組。",
+    "alert.folderName": "請輸入資料夾名稱。",
+    "alert.folderCreated": "資料夾已建立。",
+    "alert.folderSaveFailed": "無法儲存資料夾。",
+    "alert.folderDeleteConfirm": "確定要刪除此資料夾嗎？",
+    "alert.folderDeleteFailed": "無法刪除資料夾。",
+    "alert.deckMoveFailed": "無法移動卡組。",
+    "alert.csvReadFailed": "無法讀取 CSV。",
+    "alert.csvEmpty": "CSV 檔案沒有資料。",
+    "alert.wordReadFailed": "無法匯入單字。",
+    "alert.deckNotFound": "找不到卡組。",
+    "alert.csvImported": "已匯入 {count} 個單字。",
+    "alert.csvFileFailed": "無法讀取 CSV 檔案。",
+    "alert.wordRequired": "請輸入單字。",
+    "alert.currentDeckMissing": "找不到目前的卡組。",
+    "alert.duplicateWord": "「{word}」已經存在。\n\n仍要新增嗎？",
+    "alert.wordSaveFailed": "無法儲存單字。\n",
+    "alert.wordDeleteConfirm": "確定要刪除「{word}」嗎？",
+    "alert.wordDeleteFailed": "無法刪除單字。",
+    "alert.noWords": "卡組中沒有單字。",
+    "alert.studyRecordDeleteConfirm": "確定要刪除這筆學習紀錄嗎？",
+    "alert.studyRecordDeleteFailed": "無法刪除學習紀錄。",
+    "alert.studyRecordSaveFailed": "無法儲存學習紀錄。",
+    "alert.cardRecordSaveFailed": "無法儲存此卡片的學習紀錄。\n\n",
+    "duration.seconds": "秒",
+    "duration.minutes": "分鐘",
+    "duration.separator": "",
+    "color.preset.sakura": "櫻花",
+    "color.preset.sky": "天空",
+    "color.preset.lavender": "薰衣草",
+    "color.preset.mint": "薄荷",
+    "color.preset.lemon": "檸檬",
+    "color.preset.peach": "蜜桃",
+    "color.preset.coral": "珊瑚",
+    "color.preset.ocean": "海洋",
+    "color.preset.grape": "葡萄",
+    "color.preset.rose": "玫瑰",
+    "color.preset.forest": "森林",
+    "color.preset.dark": "深色",
+    "language.zhCN": "中文（簡體）",
+    "language.zhTW": "中文（繁體）",
+    "language.de": "德語",
+    "language.es": "西班牙語",
+    "language.it": "義大利語",
+    "language.ja": "日語",
+    "language.ko": "韓語",
+    "language.nl": "荷蘭語",
+    "language.da": "丹麥語",
+    "language.fr": "法語",
+    "language.ptPT": "葡萄牙語（歐洲）",
+    "language.ptBR": "葡萄牙語（巴西）",
+    "language.vi": "越南語",
+    "language.sv": "瑞典語",
+    "language.nb": "挪威語（書面語）",
+    "language.id": "印尼語",
+    "language.tr": "土耳其語",
+    "language.pl": "波蘭語",
+    "language.ru": "俄語",
+    "language.el": "希臘語",
+    "language.th": "泰語",
+    "language.cs": "捷克語",
+    "language.ro": "羅馬尼亞語",
+    "language.hi": "印地語",
+    "language.ar": "阿拉伯語",
+    "alert.firestoreLoadFailed": "無法從 Firestore 載入資料。\n\n",
+    "alert.csvError": "CSV 錯誤："
+  },
+  "es": {
+    "color.title": "Elegir color",
+    "color.custom": "Elegir un color personalizado",
+    "color.customDesc": "Elige libremente un color con el selector.",
+    "color.choose": "Elegir cualquier color",
+    "color.change": "Cambiar color",
+    "color.clickHint": "Haz clic en el área de color para abrir el selector.",
+    "color.hue": "Tono",
+    "color.hex": "Código de color HEX",
+    "color.copy": "Copiar",
+    "color.hexError": "Introduce el color en formato #RRGGBB.",
+    "color.rgb": "Valores de color RGB",
+    "color.selected": "Color seleccionado",
+    "color.saved": "Color del tema guardado",
+    "color.current": "Color del tema actual",
+    "color.savedHint": "El color guardado se aplicará como color del tema.",
+    "common.cancel": "Cancelar",
+    "common.save": "Guardar",
+    "common.saved": "Guardado ✓",
+    "study.back": "← Volver",
+    "study.correct": "Correcto",
+    "study.incorrect": "Incorrecto",
+    "study.answered": "Respondidas",
+    "study.tap": "Toca para ver la respuesta",
+    "study.noReading": "Sin lectura disponible",
+    "study.noTranslation": "Sin traducción disponible",
+    "study.pronunciation": "Pronunciación",
+    "study.finished": "¡Estudio terminado!",
+    "study.accuracy": "Porcentaje de aciertos",
+    "deck.back": "← Lista de mazos",
+    "deck.cards": "tarjetas",
+    "deck.start": "Empezar a estudiar",
+    "deck.csv": "Importar CSV",
+    "deck.addWord": "Añadir palabra",
+    "deck.editWord": "Editar palabra",
+    "deck.word": "Palabra *",
+    "deck.reading": "Pinyin / Lectura",
+    "deck.translation": "Traducción al japonés",
+    "deck.example": "Frase de ejemplo",
+    "deck.exampleTranslation": "Traducción japonesa del ejemplo",
+    "deck.save": "Guardar",
+    "deck.list": "Lista de palabras",
+    "deck.search": "Buscar palabras",
+    "deck.found": "palabras encontradas",
+    "deck.empty": "Todavía no hay palabras",
+    "deck.noMatchStart": "No hay palabras que coincidan con «",
+    "deck.noMatchEnd": "».",
+    "deck.clearSearch": "Borrar búsqueda",
+    "deck.edit": "Editar",
+    "deck.delete": "Eliminar",
+    "deck.manage": "Administrar mazos de tarjetas",
+    "deck.description": "Organiza las carpetas y los mazos de palabras y empieza a estudiar.",
+    "folder.uncategorized": "Sin categoría",
+    "folder.move": "Mover a una carpeta",
+    "folder.new": "Nueva carpeta",
+    "folder.example": "p. ej., chino",
+    "folder.create": "Crear carpeta",
+    "deck.new": "Crear un mazo nuevo",
+    "deck.exampleName": "p. ej., HSK6",
+    "deck.noFolder": "Sin carpeta",
+    "deck.create": "Crear",
+    "alert.deckName": "Introduce un nombre para el mazo.",
+    "alert.deckDuplicate": "Ya existe un mazo con ese nombre.",
+    "alert.deckCreated": "Mazo creado.",
+    "alert.deckSaveFailed": "No se pudo guardar el mazo.",
+    "alert.deckDeleteConfirm": "¿Eliminar «{name}»?",
+    "alert.deckDeleteFailed": "No se pudo eliminar el mazo.",
+    "alert.folderName": "Introduce un nombre para la carpeta.",
+    "alert.folderCreated": "Carpeta creada.",
+    "alert.folderSaveFailed": "No se pudo guardar la carpeta.",
+    "alert.folderDeleteConfirm": "¿Eliminar esta carpeta?",
+    "alert.folderDeleteFailed": "No se pudo eliminar la carpeta.",
+    "alert.deckMoveFailed": "No se pudo mover el mazo.",
+    "alert.csvReadFailed": "No se pudo leer el CSV.",
+    "alert.csvEmpty": "El archivo CSV no contiene datos.",
+    "alert.wordReadFailed": "No se pudieron importar las palabras.",
+    "alert.deckNotFound": "No se encontró el mazo.",
+    "alert.csvImported": "Se importaron {count} palabras.",
+    "alert.csvFileFailed": "No se pudo leer el archivo CSV.",
+    "alert.wordRequired": "Introduce una palabra.",
+    "alert.currentDeckMissing": "No se encontró el mazo actual.",
+    "alert.duplicateWord": "«{word}» ya existe.\n\n¿Quieres añadirla de todos modos?",
+    "alert.wordSaveFailed": "No se pudo guardar la palabra.\n",
+    "alert.wordDeleteConfirm": "¿Eliminar «{word}»?",
+    "alert.wordDeleteFailed": "No se pudo eliminar la palabra.",
+    "alert.noWords": "Este mazo no contiene palabras.",
+    "alert.studyRecordDeleteConfirm": "¿Eliminar este registro de estudio?",
+    "alert.studyRecordDeleteFailed": "No se pudo eliminar el registro de estudio.",
+    "alert.studyRecordSaveFailed": "No se pudo guardar el registro de estudio.",
+    "alert.cardRecordSaveFailed": "No se pudo guardar el registro de estudio de esta tarjeta.\n\n",
+    "duration.seconds": "s",
+    "duration.minutes": "min",
+    "duration.separator": " ",
+    "color.preset.sakura": "Cerezo",
+    "color.preset.sky": "Cielo",
+    "color.preset.lavender": "Lavanda",
+    "color.preset.mint": "Menta",
+    "color.preset.lemon": "Limón",
+    "color.preset.peach": "Melocotón",
+    "color.preset.coral": "Coral",
+    "color.preset.ocean": "Océano",
+    "color.preset.grape": "Uva",
+    "color.preset.rose": "Rosa",
+    "color.preset.forest": "Bosque",
+    "color.preset.dark": "Oscuro",
+    "language.zhCN": "Chino (simplificado)",
+    "language.zhTW": "Chino (tradicional)",
+    "language.de": "Alemán",
+    "language.es": "Español",
+    "language.it": "Italiano",
+    "language.ja": "Japonés",
+    "language.ko": "Coreano",
+    "language.nl": "Neerlandés",
+    "language.da": "Danés",
+    "language.fr": "Francés",
+    "language.ptPT": "Portugués (europeo)",
+    "language.ptBR": "Portugués (Brasil)",
+    "language.vi": "Vietnamita",
+    "language.sv": "Sueco",
+    "language.nb": "Noruego (bokmål)",
+    "language.id": "Indonesio",
+    "language.tr": "Turco",
+    "language.pl": "Polaco",
+    "language.ru": "Ruso",
+    "language.el": "Griego",
+    "language.th": "Tailandés",
+    "language.cs": "Checo",
+    "language.ro": "Rumano",
+    "language.hi": "Hindi",
+    "language.ar": "Árabe",
+    "alert.firestoreLoadFailed": "No se pudieron cargar los datos de Firestore.\n\n",
+    "alert.csvError": "Error de CSV: "
+  }
+};
+
+function pageText(language: string, key: string) {
+  return pageTranslations[language]?.[key] ?? pageTranslations.ja[key] ?? key;
+}
+
 const presets = [
-  { name: "さくら", color: "#FF5A9E" },
-  { name: "スカイ", color: "#78C5FF" },
-  { name: "ラベンダー", color: "#B69AFB" },
-  { name: "ミント", color: "#70D6B5" },
-  { name: "レモン", color: "#FFE16A" },
-  { name: "ピーチ", color: "#FFB477" },
-  { name: "コーラル", color: "#FF7185" },
-  { name: "オーシャン", color: "#36B6C8" },
-  { name: "グレープ", color: "#8A70C8" },
-  { name: "ローズ", color: "#E887B0" },
-  { name: "フォレスト", color: "#59A982" },
-  { name: "ダーク", color: "#46546B" },
+  { name: "color.preset.sakura", color: "#FF5A9E" },
+  { name: "color.preset.sky", color: "#78C5FF" },
+  { name: "color.preset.lavender", color: "#B69AFB" },
+  { name: "color.preset.mint", color: "#70D6B5" },
+  { name: "color.preset.lemon", color: "#FFE16A" },
+  { name: "color.preset.peach", color: "#FFB477" },
+  { name: "color.preset.coral", color: "#FF7185" },
+  { name: "color.preset.ocean", color: "#36B6C8" },
+  { name: "color.preset.grape", color: "#8A70C8" },
+  { name: "color.preset.rose", color: "#E887B0" },
+  { name: "color.preset.forest", color: "#59A982" },
+  { name: "color.preset.dark", color: "#46546B" },
 ];
 
 function normalizeHex(value: string) {
@@ -152,6 +960,8 @@ function makeThemeColors(primary: string): ThemeColors {
 }
 
 export default function Home() {
+  const { language } = useAppLanguage();
+  const tx = (key: string) => pageText(language, key);
   const [themeColor, setThemeColor] = useState("#718675");
   const [showThemeSettings, setShowThemeSettings] = useState(false);
   const [color, setColor] = useState("#718675");
@@ -599,7 +1409,7 @@ export default function Home() {
         );
 
         alert(
-          "Firestoreからデータを読み込めませんでした。\n\n" +
+          tx("alert.firestoreLoadFailed") +
             (error instanceof Error
               ? error.message
               : String(error))
@@ -702,7 +1512,7 @@ export default function Home() {
 
     if (!name) {
       alert(
-        "デッキ名を入力してください"
+        tx("alert.deckName")
       );
       return;
     }
@@ -714,7 +1524,7 @@ export default function Home() {
       )
     ) {
       alert(
-        "同じ名前のデッキがあります"
+        tx("alert.deckDuplicate")
       );
       return;
     }
@@ -746,13 +1556,13 @@ export default function Home() {
       setNewDeckFolderId(null);
 
       alert(
-        "デッキを作成しました"
+        tx("alert.deckCreated")
       );
     } catch (error) {
       console.error(error);
 
       alert(
-        "デッキの保存に失敗しました"
+        tx("alert.deckSaveFailed")
       );
     }
   };
@@ -766,7 +1576,7 @@ export default function Home() {
   ) => {
     if (
       !confirm(
-        `「${deckName}」を削除しますか？`
+        tx("alert.deckDeleteConfirm").replace("{name}", deckName)
       )
     ) {
       return;
@@ -800,7 +1610,7 @@ export default function Home() {
       console.error(error);
 
       alert(
-        "デッキの削除に失敗しました"
+        tx("alert.deckDeleteFailed")
       );
     }
   };
@@ -815,7 +1625,7 @@ export default function Home() {
 
     if (!name) {
       alert(
-        "フォルダ名を入力してください"
+        tx("alert.folderName")
       );
       return;
     }
@@ -845,13 +1655,13 @@ export default function Home() {
       setNewFolderName("");
 
       alert(
-        "フォルダを作成しました"
+        tx("alert.folderCreated")
       );
     } catch (error) {
       console.error(error);
 
       alert(
-        "フォルダの保存に失敗しました"
+        tx("alert.folderSaveFailed")
       );
     }
   };
@@ -865,7 +1675,7 @@ export default function Home() {
   ) => {
     if (
       !confirm(
-        "このフォルダを削除しますか？"
+        tx("alert.folderDeleteConfirm")
       )
     ) {
       return;
@@ -919,7 +1729,7 @@ export default function Home() {
       console.error(error);
 
       alert(
-        "フォルダの削除に失敗しました"
+        tx("alert.folderDeleteFailed")
       );
     }
   };
@@ -969,7 +1779,7 @@ export default function Home() {
       console.error(error);
 
       alert(
-        "デッキの移動に失敗しました"
+        tx("alert.deckMoveFailed")
       );
     }
   };
@@ -1006,7 +1816,7 @@ export default function Home() {
           "string"
         ) {
           alert(
-            "CSVを読み込めませんでした"
+            tx("alert.csvReadFailed")
           );
           return;
         }
@@ -1032,7 +1842,7 @@ export default function Home() {
           lines.length === 0
         ) {
           alert(
-            "CSVにデータがありません"
+            tx("alert.csvEmpty")
           );
           return;
         }
@@ -1140,7 +1950,7 @@ const parts = parseCSVLine(line);
           0
         ) {
           alert(
-            "単語を読み込めませんでした"
+            tx("alert.wordReadFailed")
           );
           return;
         }
@@ -1154,7 +1964,7 @@ const parts = parseCSVLine(line);
 
         if (!deck) {
           alert(
-            "デッキが見つかりません"
+            tx("alert.deckNotFound")
           );
           return;
         }
@@ -1189,7 +1999,7 @@ const parts = parseCSVLine(line);
         );
 
         alert(
-          `${importedCards.length}語をインポートしました`
+          tx("alert.csvImported").replace("{count}", String(importedCards.length))
         );
       } catch (error) {
         console.error(
@@ -1198,7 +2008,7 @@ const parts = parseCSVLine(line);
         );
 
         alert(
-          "CSVエラー: " +
+          tx("alert.csvError") +
             (error instanceof Error
               ? error.message
               : String(error))
@@ -1208,7 +2018,7 @@ const parts = parseCSVLine(line);
 
     reader.onerror = () => {
       alert(
-        "CSVファイルを読み込めませんでした"
+        tx("alert.csvFileFailed")
       );
     };
 
@@ -1299,7 +2109,7 @@ const parts = parseCSVLine(line);
 
     if (!front) {
       alert(
-        "単語を入力してください"
+        tx("alert.wordRequired")
       );
       return;
     }
@@ -1313,7 +2123,7 @@ const parts = parseCSVLine(line);
 
     if (!deck) {
       alert(
-        "現在のデッキが見つかりません"
+        tx("alert.currentDeckMissing")
       );
       return;
     }
@@ -1358,7 +2168,7 @@ const parts = parseCSVLine(line);
       if (duplicate) {
         const shouldAdd =
           confirm(
-            `「${front}」はすでに存在します。\n\nそれでも追加しますか？`
+            tx("alert.duplicateWord").replace("{word}", front)
           );
 
         if (!shouldAdd) {
@@ -1429,7 +2239,7 @@ const parts = parseCSVLine(line);
       );
 
       alert(
-        "単語の保存に失敗しました。\n" +
+        tx("alert.wordSaveFailed") +
           (error instanceof Error
             ? error.message
             : String(error))
@@ -1467,7 +2277,7 @@ const parts = parseCSVLine(line);
 
     if (
       !confirm(
-        `「${card.front}」を削除しますか？`
+        tx("alert.wordDeleteConfirm").replace("{word}", card.front)
       )
     ) {
       return;
@@ -1507,7 +2317,7 @@ const parts = parseCSVLine(line);
       console.error(error);
 
       alert(
-        "単語の削除に失敗しました"
+        tx("alert.wordDeleteFailed")
       );
     }
   };
@@ -1519,7 +2329,7 @@ const parts = parseCSVLine(line);
   const startStudy = () => {
     const deck = decks.find((item) => item.name === currentDeck);
     if (!deck || deck.cards.length === 0) {
-      alert("単語がありません");
+      alert(tx("alert.noWords"));
       return;
     }
 
@@ -1585,7 +2395,7 @@ const parts = parseCSVLine(line);
 
     const time =
       dateObject.toLocaleTimeString(
-        "ja-JP",
+        language,
         {
           hour: "2-digit",
           minute: "2-digit",
@@ -1675,7 +2485,7 @@ const parts = parseCSVLine(line);
       );
 
       alert(
-        "学習記録の保存に失敗しました"
+        tx("alert.studyRecordSaveFailed")
       );
     }
   };
@@ -1737,7 +2547,7 @@ const parts = parseCSVLine(line);
     ) => {
       if (
         !confirm(
-          "この学習記録を削除しますか？"
+          tx("alert.studyRecordDeleteConfirm")
         )
       ) {
         return;
@@ -1764,7 +2574,7 @@ const parts = parseCSVLine(line);
         console.error(error);
 
         alert(
-          "学習記録の削除に失敗しました"
+          tx("alert.studyRecordDeleteFailed")
         );
       }
     };
@@ -1785,14 +2595,14 @@ const parts = parseCSVLine(line);
       seconds % 60;
 
     if (minutes === 0) {
-      return `${remaining}秒`;
+      return `${remaining}${tx("duration.seconds")}`;
     }
 
     if (remaining === 0) {
-      return `${minutes}分`;
+      return `${minutes}${tx("duration.minutes")}`;
     }
 
-    return `${minutes}分${remaining}秒`;
+    return `${minutes}${tx("duration.minutes")}${tx("duration.separator")}${remaining}${tx("duration.seconds")}`;
   };
 
   const answerCard = async (
@@ -1896,7 +2706,7 @@ const parts = parseCSVLine(line);
       );
 
       alert(
-        "カードの学習記録を保存できませんでした。\n\n" +
+        tx("alert.cardRecordSaveFailed") +
           (error instanceof Error ? error.message : String(error))
       );
     }
@@ -1935,11 +2745,11 @@ const parts = parseCSVLine(line);
   );
 
   alert(
-    "学習終了！\n\n" +
-      `正解：${nextCorrect}問\n` +
-      `不正解：${nextIncorrect}問\n` +
-      `回答：${answered}問\n` +
-      `正答率：${
+    tx("study.finished") + "\n\n" +
+      `${tx("study.correct")}: ${nextCorrect}\n` +
+      `${tx("study.incorrect")}: ${nextIncorrect}\n` +
+      `${tx("study.answered")}: ${answered}\n` +
+      `${tx("study.accuracy")}: ${
         answered > 0
           ? Math.round(
               (nextCorrect /
@@ -1978,7 +2788,7 @@ const parts = parseCSVLine(line);
       <section className="mx-auto w-full max-w-6xl p-5 md:p-10">
         <header className="mb-7">
           <h1 className="text-3xl font-bold tracking-tight">
-            カラー選択
+            {tx("color.title")}
           </h1>
 
         </header>
@@ -2002,7 +2812,7 @@ const parts = parseCSVLine(line);
                   key={preset.color}
                   type="button"
                   onClick={() => chooseColor(preset.color)}
-                  aria-label={`${preset.name}を選択`}
+                  aria-label={tx(preset.name)}
                   aria-pressed={active}
                   className="group flex flex-col items-center gap-3 rounded-xl p-2 transition hover:bg-slate-50"
                 >
@@ -2021,7 +2831,7 @@ const parts = parseCSVLine(line);
                     )}
                   </span>
                   <span className="text-sm font-medium text-slate-600">
-                    {preset.name}
+                    {tx(preset.name)}
                   </span>
                 </button>
               );
@@ -2031,10 +2841,10 @@ const parts = parseCSVLine(line);
 
         <section className="rounded-2xl border border-[#e6ebf5] bg-white p-6 shadow-sm md:p-8">
           <h2 className="text-lg font-bold">
-            🖌 カスタムカラーを選択
+            🖌 {tx("color.custom")}
           </h2>
           <p className="mb-6 mt-1 text-sm text-slate-500">
-            カラーピッカーで自由に色を選択できます。
+            {tx("color.customDesc")}
           </p>
 
           <div className="grid gap-7 md:grid-cols-2">
@@ -2043,7 +2853,7 @@ const parts = parseCSVLine(line);
                 htmlFor="color-picker"
                 className="mb-3 block text-sm font-semibold"
               >
-                自由に色を選択
+                {tx("color.choose")}
               </label>
 
               <div
@@ -2057,19 +2867,19 @@ const parts = parseCSVLine(line);
                   type="color"
                   value={color}
                   onChange={(e) => chooseColor(e.target.value)}
-                  aria-label="カスタムカラー"
+                  aria-label={tx("color.custom")} 
                   className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                 />
                 <div
                   className="pointer-events-none rounded-full border-4 border-white px-5 py-3 text-sm font-bold text-white shadow"
                   style={{ backgroundColor: color }}
                 >
-                  色を変更する
+                  {tx("color.change")}
                 </div>
               </div>
 
               <p className="mt-3 text-xs text-slate-400">
-                色のエリアをクリックすると、色選択ツールが開きます。
+                {tx("color.clickHint")}
               </p>
 
               <div className="mt-6 rounded-xl bg-slate-50 p-4">
@@ -2077,7 +2887,7 @@ const parts = parseCSVLine(line);
                   htmlFor="hue-slider"
                   className="mb-3 block text-sm font-semibold"
                 >
-                  色相（色の種類）
+                  {tx("color.hue")}
                 </label>
                 <input
                   id="hue-slider"
@@ -2132,7 +2942,7 @@ const parts = parseCSVLine(line);
                   htmlFor="hex-code"
                   className="mb-2 block text-sm font-semibold"
                 >
-                  HEX カラーコード
+                  {tx("color.hex")}
                 </label>
                 <div className="flex gap-2">
                   <input
@@ -2160,21 +2970,21 @@ const parts = parseCSVLine(line);
                       void navigator.clipboard?.writeText(color);
                     }}
                     className="rounded-xl border border-slate-200 px-4 text-sm hover:bg-slate-50"
-                    aria-label="HEXコードをコピー"
+                    aria-label={tx("color.copy")} 
                   >
-                    コピー
+                    {tx("color.copy")}
                   </button>
                 </div>
                 {hexError && (
                   <p className="mt-1 text-sm text-red-500">
-                    #RRGGBB形式で入力してください。
+                    {tx("color.hexError")}
                   </p>
                 )}
               </div>
 
               <div>
                 <p className="mb-3 text-sm font-semibold">
-                  RGB カラー値
+                  {tx("color.rgb")}
                 </p>
                 <div className="grid grid-cols-3 gap-3">
                   {[
@@ -2202,7 +3012,7 @@ const parts = parseCSVLine(line);
 
               <div className="rounded-2xl bg-slate-50 p-4">
                 <p className="mb-3 text-sm font-semibold">
-                  選択中のカラー
+                  {tx("color.selected")}
                 </p>
                 <div
                   className="h-24 rounded-xl shadow-inner"
@@ -2223,7 +3033,7 @@ const parts = parseCSVLine(line);
               />
               <div>
                 <p className="text-sm font-semibold">
-                  {saved ? "保存済みのテーマカラー" : "現在のテーマカラー"}
+                  {saved ? tx("color.saved") : tx("color.current")}
                 </p>
                 <p className="mt-1 font-mono text-sm text-slate-500">
                   {color}
@@ -2231,7 +3041,7 @@ const parts = parseCSVLine(line);
               </div>
             </div>
             <p className="text-sm text-slate-500">
-              保存するとテーマカラーとして記録されます。
+              {tx("color.savedHint")}
             </p>
           </div>
 
@@ -2241,7 +3051,7 @@ const parts = parseCSVLine(line);
               onClick={cancelColor}
               className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold hover:bg-slate-50"
             >
-              キャンセル
+              {tx("common.cancel")}
             </button>
             <button
               type="button"
@@ -2249,7 +3059,7 @@ const parts = parseCSVLine(line);
               className="rounded-xl px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:brightness-95"
               style={{ backgroundColor: color }}
             >
-              {saved ? "保存しました ✓" : "保存する"}
+              {saved ? tx("common.saved") : tx("common.save")}
             </button>
           </div>
         </section>
@@ -2329,7 +3139,7 @@ const parts = parseCSVLine(line);
                 "bold",
             }}
           >
-            ← 戻る
+            {tx("study.back")}
           </button>
 
           <p
@@ -2358,14 +3168,11 @@ const parts = parseCSVLine(line);
               colors.gray,
           }}
         >
-          正解：
-          {studyCorrect}
+          {tx("study.correct")}:           {studyCorrect}
           {"　"}
-          不正解：
-          {studyIncorrect}
+          {tx("study.incorrect")}:           {studyIncorrect}
           {"　"}
-          回答：
-          {currentAnswered}
+          {tx("study.answered")}:           {currentAnswered}
         </div>
 
         <div
@@ -2428,7 +3235,7 @@ const parts = parseCSVLine(line);
                     colors.gray,
                 }}
               >
-                タップして答えを見る
+                {tx("study.tap")}
               </div>
             </>
           ) : (
@@ -2457,7 +3264,7 @@ const parts = parseCSVLine(line);
                 }}
               >
                 {card.pinyin ||
-                  "読み方なし"}
+                  tx("study.noReading")}
               </div>
 
               <div
@@ -2471,7 +3278,7 @@ const parts = parseCSVLine(line);
                 }}
               >
                 {card.japanese ||
-                  "日本語訳なし"}
+                  tx("study.noTranslation")}
               </div>
 
               {card.example && (
@@ -2532,7 +3339,7 @@ const parts = parseCSVLine(line);
               "pointer",
           }}
         >
-          発音
+          {tx("study.pronunciation")}
         </button>
 
         {showAnswer && (
@@ -2559,7 +3366,7 @@ const parts = parseCSVLine(line);
                 minWidth: "120px",
               }}
             >
-              正解
+              {tx("study.correct")}
             </button>
             <button
               type="button"
@@ -2575,7 +3382,7 @@ const parts = parseCSVLine(line);
                 minWidth: "120px",
               }}
             >
-              不正解
+              {tx("study.incorrect")}
             </button>
           </div>
         )}
@@ -2669,7 +3476,7 @@ const parts = parseCSVLine(line);
               "16px",
           }}
         >
-          ← デッキ一覧
+          {tx("deck.back")}
         </button>
 
         <h1
@@ -2687,7 +3494,7 @@ const parts = parseCSVLine(line);
               colors.gray,
           }}
         >
-          {deck.cards.length}語
+          {deck.cards.length} {tx("deck.cards")}
         </p>
 
         <button
@@ -2719,7 +3526,7 @@ const parts = parseCSVLine(line);
               "pointer",
           }}
         >
-          学習開始
+          {tx("deck.start")}
         </button>
 
         <input
@@ -2766,7 +3573,7 @@ const parts = parseCSVLine(line);
               "pointer",
           }}
         >
-          CSVインポート
+          {tx("deck.csv")}
         </button>
 
         <button
@@ -2798,7 +3605,7 @@ const parts = parseCSVLine(line);
               "pointer",
           }}
         >
-          単語を追加
+          {tx("deck.addWord")}
         </button>
 
         {/* 単語フォーム */}
@@ -2827,12 +3634,12 @@ const parts = parseCSVLine(line);
               }}
             >
               {editingCardId
-                ? "単語を編集"
-                : "単語を追加"}
+                ? tx("deck.editWord")
+                : tx("deck.addWord")}
             </h2>
 
             <input
-              placeholder="単語 *"
+              placeholder={tx("deck.word")}
               value={
                 cardFront
               }
@@ -2860,7 +3667,7 @@ const parts = parseCSVLine(line);
             />
 
             <input
-              placeholder="ピンイン・読み方"
+              placeholder={tx("deck.reading")}
               value={
                 cardPinyin
               }
@@ -2888,7 +3695,7 @@ const parts = parseCSVLine(line);
             />
 
             <input
-              placeholder="日本語訳"
+              placeholder={tx("deck.translation")}
               value={
                 cardJapanese
               }
@@ -2916,7 +3723,7 @@ const parts = parseCSVLine(line);
             />
 
             <input
-              placeholder="例文"
+              placeholder={tx("deck.example")}
               value={
                 cardExample
               }
@@ -2944,7 +3751,7 @@ const parts = parseCSVLine(line);
             />
 
             <input
-              placeholder="例文の日本語訳"
+              placeholder={tx("deck.exampleTranslation")}
               value={
                 cardExampleJapanese
               }
@@ -3002,7 +3809,7 @@ const parts = parseCSVLine(line);
                     "pointer",
                 }}
               >
-                保存
+                {tx("deck.save")}
               </button>
 
               <button
@@ -3028,7 +3835,7 @@ const parts = parseCSVLine(line);
                     "pointer",
                 }}
               >
-                キャンセル
+                {tx("common.cancel")}
               </button>
             </div>
           </div>
@@ -3050,7 +3857,7 @@ const parts = parseCSVLine(line);
                 "12px",
             }}
           >
-            単語一覧
+            {tx("deck.list")}
           </h2>
 
           {/* 検索 */}
@@ -3065,7 +3872,7 @@ const parts = parseCSVLine(line);
             >
               <input
                 type="text"
-                placeholder="単語を検索"
+                placeholder={tx("deck.search")}
                 value={
                   cardSearch
                 }
@@ -3108,7 +3915,7 @@ const parts = parseCSVLine(line);
                   {
                     filteredCards.length
                   }
-                  語が見つかりました
+                  {" "}{tx("deck.found")}
                 </div>
               )}
             </div>
@@ -3130,7 +3937,7 @@ const parts = parseCSVLine(line);
                   colors.gray,
               }}
             >
-              まだ単語がありません
+              {tx("deck.empty")}
             </div>
           ) : filteredCards.length ===
             0 ? (
@@ -3148,10 +3955,7 @@ const parts = parseCSVLine(line);
                   colors.gray,
               }}
             >
-              「
-              {cardSearch}
-              」に一致する
-              単語がありません。
+              {tx("deck.noMatchStart")}{cardSearch}{tx("deck.noMatchEnd")}
               <br />
 
               <button
@@ -3177,7 +3981,7 @@ const parts = parseCSVLine(line);
                     "pointer",
                 }}
               >
-                検索をクリア
+                {tx("deck.clearSearch")}
               </button>
             </div>
           ) : (
@@ -3319,7 +4123,7 @@ const parts = parseCSVLine(line);
                             "bold",
                         }}
                       >
-                        編集
+                        {tx("deck.edit")}
                       </button>
 
                       <button
@@ -3345,7 +4149,7 @@ const parts = parseCSVLine(line);
                             "bold",
                         }}
                       >
-                        削除
+                        {tx("deck.delete")}
                       </button>
                     </div>
                   </div>
@@ -3377,8 +4181,8 @@ const parts = parseCSVLine(line);
 
       <div id="deck-management" style={{ scrollMarginTop: "28px", margin: "28px 0 16px", padding: "18px 18px 6px", borderTop: "1px solid #E5E9E2" }}>
         <p style={{ margin: 0, color: "#7B847A", fontSize: "10px", fontWeight: 750, letterSpacing: ".14em" }}>YOUR LIBRARY</p>
-        <h2 style={{ margin: "7px 0 0", fontSize: "21px", letterSpacing: "-.04em", color: "#252824" }}>暗記デッキ管理</h2>
-        <p style={{ margin: "7px 0 0", color: "#858780", fontSize: "12px", lineHeight: 1.7 }}>フォルダや単語デッキを整理して、学習を始めましょう。</p>
+        <h2 style={{ margin: "7px 0 0", fontSize: "21px", letterSpacing: "-.04em", color: "#252824" }}>{tx("deck.manage")}</h2>
+        <p style={{ margin: "7px 0 0", color: "#858780", fontSize: "12px", lineHeight: 1.7 }}>{tx("deck.description")}</p>
       </div>
 
       {/* フォルダ */}
@@ -3442,7 +4246,7 @@ const parts = parseCSVLine(line);
                     "pointer",
                 }}
               >
-                削除
+                {tx("deck.delete")}
               </button>
             </div>
 
@@ -3513,7 +4317,7 @@ const parts = parseCSVLine(line);
                             .cards
                             .length
                         }
-                        語
+                        {tx("deck.cards")}
                       </span>
                     </button>
 
@@ -3538,7 +4342,7 @@ const parts = parseCSVLine(line);
                       }}
                     >
                       <option value="">
-                        未分類
+                        {tx("folder.uncategorized")}
                       </option>
 
                       {folders.map(
@@ -3580,7 +4384,7 @@ const parts = parseCSVLine(line);
                           "pointer",
                       }}
                     >
-                      削除
+                      {tx("deck.delete")}
                     </button>
                   </div>
                 )
@@ -3611,7 +4415,7 @@ const parts = parseCSVLine(line);
           }}
         >
           <h2>
-            未分類
+            {tx("folder.uncategorized")}
           </h2>
 
           {decks
@@ -3670,7 +4474,7 @@ const parts = parseCSVLine(line);
                         .cards
                         .length
                     }
-                    語
+                    {tx("deck.cards")}
                   </button>
 
                   <select
@@ -3694,7 +4498,7 @@ const parts = parseCSVLine(line);
                     }}
                   >
                     <option value="">
-                      フォルダへ移動
+                      {tx("folder.move")}
                     </option>
 
                     {folders.map(
@@ -3736,7 +4540,7 @@ const parts = parseCSVLine(line);
                         "pointer",
                     }}
                   >
-                    削除
+                    {tx("deck.delete")}
                   </button>
                 </div>
               )
@@ -3747,11 +4551,11 @@ const parts = parseCSVLine(line);
       {/* 新しいフォルダ */}
 
       <h2>
-        新しいフォルダ
+        {tx("folder.new")}
       </h2>
 
       <input
-        placeholder="例：中国語"
+        placeholder={tx("folder.example")}
         value={
           newFolderName
         }
@@ -3797,17 +4601,17 @@ const parts = parseCSVLine(line);
             "bold",
         }}
       >
-        フォルダ作成
+        {tx("folder.create")}
       </button>
 
       {/* 新しいデッキ */}
 
       <h2>
-        新しいデッキ作成
+        {tx("deck.new")}
       </h2>
 
       <input
-        placeholder="例：HSK6"
+        placeholder={tx("deck.exampleName")}
         value={
           newDeckName
         }
@@ -3858,31 +4662,31 @@ const parts = parseCSVLine(line);
 
 
 
-<option value="zh-CN">中国語（簡体字）</option>
-<option value="zh-TW">中国語（繁体字）</option>
-<option value="de-DE">ドイツ語</option>
-<option value="es-ES">スペイン語</option>
-<option value="it-IT">イタリア語</option>
-<option value="ja-JP">日本語</option>
-<option value="ko-KR">韓国語</option>
-<option value="nl-NL">オランダ語</option>
-<option value="da-DK">デンマーク語</option>
-<option value="fr-FR">フランス語</option>
-<option value="pt-PT">ポルトガル語（ヨーロッパ）</option>
-<option value="pt-BR">ポルトガル語（ブラジル）</option>
-<option value="vi-VN">ベトナム語</option>
-<option value="sv-SE">スウェーデン語</option>
-<option value="nb-NO">ノルウェー語（ブークモール）</option>
-<option value="id-ID">インドネシア語</option>
-<option value="tr-TR">トルコ語</option>
-<option value="pl-PL">ポーランド語</option>
-<option value="ru-RU">ロシア語</option>
-<option value="el-GR">ギリシャ語</option>
-<option value="th-TH">タイ語</option>
-<option value="cs-CZ">チェコ語</option>
-<option value="ro-RO">ルーマニア語</option>
-<option value="hi-IN">ヒンディー語</option>
-<option value="ar-SA">アラビア語</option>
+<option value="zh-CN">{tx("language.zhCN")}</option>
+<option value="zh-TW">{tx("language.zhTW")}</option>
+<option value="de-DE">{tx("language.de")}</option>
+<option value="es-ES">{tx("language.es")}</option>
+<option value="it-IT">{tx("language.it")}</option>
+<option value="ja-JP">{tx("language.ja")}</option>
+<option value="ko-KR">{tx("language.ko")}</option>
+<option value="nl-NL">{tx("language.nl")}</option>
+<option value="da-DK">{tx("language.da")}</option>
+<option value="fr-FR">{tx("language.fr")}</option>
+<option value="pt-PT">{tx("language.ptPT")}</option>
+<option value="pt-BR">{tx("language.ptBR")}</option>
+<option value="vi-VN">{tx("language.vi")}</option>
+<option value="sv-SE">{tx("language.sv")}</option>
+<option value="nb-NO">{tx("language.nb")}</option>
+<option value="id-ID">{tx("language.id")}</option>
+<option value="tr-TR">{tx("language.tr")}</option>
+<option value="pl-PL">{tx("language.pl")}</option>
+<option value="ru-RU">{tx("language.ru")}</option>
+<option value="el-GR">{tx("language.el")}</option>
+<option value="th-TH">{tx("language.th")}</option>
+<option value="cs-CZ">{tx("language.cs")}</option>
+<option value="ro-RO">{tx("language.ro")}</option>
+<option value="hi-IN">{tx("language.hi")}</option>
+<option value="ar-SA">{tx("language.ar")}</option>
 
 
 
@@ -3918,7 +4722,7 @@ const parts = parseCSVLine(line);
         }}
       >
         <option value="">
-          フォルダなし
+          {tx("deck.noFolder")}
         </option>
 
         {folders.map(
@@ -3960,7 +4764,7 @@ const parts = parseCSVLine(line);
             "bold",
         }}
       >
-        作成
+        {tx("deck.create")}
       </button>
     </main>
   );

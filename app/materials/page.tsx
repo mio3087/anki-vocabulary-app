@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -12,6 +13,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
+import { useAppLanguage } from "@/app/component/AppLanguage";
 
 type MaterialType = "book" | "deck";
 
@@ -31,16 +33,387 @@ type Material = {
   createdAt: number;
 };
 
-const LANGUAGES = [
-  "中国語",
-  "ドイツ語",
-  "スペイン語",
-  "英語",
-  "イタリア語",
-  "韓国語",
-  "日本語",
-  "その他",
+type AppLanguage = "ja" | "de" | "en" | "zh-CN" | "zh-TW" | "es";
+
+const MATERIAL_LANGUAGES = [
+  { value: "中国語", label: { ja: "中国語", de: "Chinesisch", en: "Chinese", "zh-CN": "中文", "zh-TW": "中文", es: "Chino" } },
+  { value: "ドイツ語", label: { ja: "ドイツ語", de: "Deutsch", en: "German", "zh-CN": "德语", "zh-TW": "德語", es: "Alemán" } },
+  { value: "スペイン語", label: { ja: "スペイン語", de: "Spanisch", en: "Spanish", "zh-CN": "西班牙语", "zh-TW": "西班牙語", es: "Español" } },
+  { value: "英語", label: { ja: "英語", de: "Englisch", en: "English", "zh-CN": "英语", "zh-TW": "英語", es: "Inglés" } },
+  { value: "イタリア語", label: { ja: "イタリア語", de: "Italienisch", en: "Italian", "zh-CN": "意大利语", "zh-TW": "義大利語", es: "Italiano" } },
+  { value: "韓国語", label: { ja: "韓国語", de: "Koreanisch", en: "Korean", "zh-CN": "韩语", "zh-TW": "韓語", es: "Coreano" } },
+  { value: "日本語", label: { ja: "日本語", de: "Japanisch", en: "Japanese", "zh-CN": "日语", "zh-TW": "日語", es: "Japonés" } },
+  { value: "その他", label: { ja: "その他", de: "Andere", en: "Other", "zh-CN": "其他", "zh-TW": "其他", es: "Otro" } },
 ];
+
+const translations: Record<AppLanguage, Record<string, string>> = {
+  ja: {
+    loading: "教材を読み込んでいます...",
+    title: "📚 教材一覧",
+    loginRequired: "教材を登録・保存するにはログインしてください。",
+    login: "ログインする",
+    backToday: "今日の学習へ戻る",
+    eyebrow: "STUDY LIBRARY",
+    subtitle: "本も単語帳も、進み具合を見える化しよう。",
+    today: "今日の学習へ →",
+    plan: "学習計画",
+    todayNav: "今日の学習",
+    editMaterial: "✏️ 教材を編集",
+    addMaterial: "➕ 教材を登録",
+    materialName: "教材名",
+    namePlaceholder: "例：HSK7-9級、ドイツ語問題集",
+    language: "言語",
+    materialType: "教材の種類",
+    book: "本・問題集（ページ数）",
+    deck: "暗記デッキ（単語数）",
+    totalPages: "総ページ数",
+    totalWords: "総単語数",
+    saving: "保存中...",
+    saveChanges: "変更を保存",
+    register: "教材を登録",
+    cancelEdit: "編集をキャンセル",
+    recordHeading: "📝 学習した範囲を記録",
+    recordDescription: "例：1〜20ページ、または1〜20番の単語。以前記録した範囲をもう一度入力しても、進捗は二重に加算されません。",
+    registerFirst: "まずは上のフォームから教材を登録してください。",
+    selectMaterial: "学習する教材",
+    selectPlaceholder: "教材を選択してください",
+    pages: "ページ",
+    words: "単語",
+    wordNumber: "番の単語",
+    startNumber: "開始番号",
+    endNumber: "終了番号",
+    recordRange: "の範囲で記録できます。",
+    recording: "記録中...",
+    saveRecord: "学習記録を保存",
+    registered: "📖 登録した教材",
+    noMaterials: "まだ教材がありません。",
+    firstMaterial: "最初の教材を登録してみましょう！",
+    studied: "学習済み",
+    records: "記録した学習範囲：",
+    recordsUnit: "件",
+    viewRecords: "学習記録を見る",
+    edit: "編集",
+    delete: "削除",
+    goPlan: "学習計画へ",
+    totalUnit: "全",
+    errorLoad: "教材を読み込めませんでした。Firestoreのセキュリティルールや接続設定を確認してください。",
+    errorLoginSave: "教材を保存するにはログインしてください。",
+    errorName: "教材名を入力してください。",
+    errorTotal: "総ページ数・総単語数は1以上の整数で入力してください。",
+    errorSave: "保存できませんでした。Firestoreのセキュリティルールを確認してください。",
+    errorLoginRecord: "学習記録を保存するにはログインしてください。",
+    errorSelect: "学習する教材を選んでください。",
+    errorRange: "開始番号は1以上、終了番号は開始番号以上の整数で入力してください。",
+    errorRecord: "学習記録を保存できませんでした。Firestoreのセキュリティルールを確認してください。",
+    confirmDelete: "を削除しますか？\nこの教材の学習記録も削除されます。",
+    errorDelete: "削除できませんでした。Firestoreの設定を確認してください。",
+  },
+  de: {
+    loading: "Lernmaterialien werden geladen...",
+    title: "📚 Lernmaterialien",
+    loginRequired: "Bitte melde dich an, um Lernmaterialien zu speichern.",
+    login: "Anmelden",
+    backToday: "Zurück zum heutigen Lernen",
+    eyebrow: "STUDY LIBRARY",
+    subtitle: "Behalte den Lernfortschritt deiner Bücher und Vokabeldecks im Blick.",
+    today: "Zum heutigen Lernen →",
+    plan: "Lernplan",
+    todayNav: "Heutiges Lernen",
+    editMaterial: "✏️ Material bearbeiten",
+    addMaterial: "➕ Material hinzufügen",
+    materialName: "Name des Lernmaterials",
+    namePlaceholder: "z. B. HSK 7–9, Deutsch-Übungsbuch",
+    language: "Sprache",
+    materialType: "Materialtyp",
+    book: "Buch / Übungsbuch (Seiten)",
+    deck: "Vokabeldeck (Wörter)",
+    totalPages: "Gesamtseitenzahl",
+    totalWords: "Gesamtzahl der Wörter",
+    saving: "Wird gespeichert...",
+    saveChanges: "Änderungen speichern",
+    register: "Material hinzufügen",
+    cancelEdit: "Bearbeitung abbrechen",
+    recordHeading: "📝 Lernfortschritt eintragen",
+    recordDescription: "Beispiel: Seiten 1–20 oder Wörter 1–20. Bereits erfasste Bereiche werden nicht doppelt gezählt.",
+    registerFirst: "Füge zuerst oben ein Lernmaterial hinzu.",
+    selectMaterial: "Lernmaterial auswählen",
+    selectPlaceholder: "Material auswählen",
+    pages: "Seiten",
+    words: "Wörter",
+    wordNumber: "Wörter",
+    startNumber: "Startnummer",
+    endNumber: "Endnummer",
+    recordRange: "kann erfasst werden.",
+    recording: "Wird eingetragen...",
+    saveRecord: "Lernfortschritt speichern",
+    registered: "📖 Registrierte Lernmaterialien",
+    noMaterials: "Noch keine Lernmaterialien vorhanden.",
+    firstMaterial: "Füge dein erstes Lernmaterial hinzu!",
+    studied: "Gelernt",
+    records: "Erfasste Lernbereiche: ",
+    recordsUnit: "",
+    viewRecords: "Lernverlauf anzeigen",
+    edit: "Bearbeiten",
+    delete: "Löschen",
+    goPlan: "Zum Lernplan",
+    totalUnit: "Gesamt: ",
+    errorLoad: "Die Lernmaterialien konnten nicht geladen werden. Bitte überprüfe die Firestore-Sicherheitsregeln und die Verbindung.",
+    errorLoginSave: "Bitte melde dich an, um das Material zu speichern.",
+    errorName: "Bitte gib einen Materialnamen ein.",
+    errorTotal: "Die Gesamtzahl der Seiten oder Wörter muss eine ganze Zahl ab 1 sein.",
+    errorSave: "Speichern fehlgeschlagen. Bitte überprüfe die Firestore-Sicherheitsregeln.",
+    errorLoginRecord: "Bitte melde dich an, um den Lernfortschritt zu speichern.",
+    errorSelect: "Bitte wähle ein Lernmaterial aus.",
+    errorRange: "Die Startnummer muss mindestens 1 sein. Die Endnummer muss eine ganze Zahl sein, die mindestens so groß wie die Startnummer ist.",
+    errorRecord: "Der Lernfortschritt konnte nicht gespeichert werden. Bitte überprüfe die Firestore-Sicherheitsregeln.",
+    confirmDelete: " wirklich löschen?\nDer zugehörige Lernverlauf wird ebenfalls gelöscht.",
+    errorDelete: "Löschen fehlgeschlagen. Bitte überprüfe die Firestore-Einstellungen.",
+  },
+  en: {
+    loading: "Loading study materials...",
+    title: "📚 Study Materials",
+    loginRequired: "Please log in to register and save study materials.",
+    login: "Log in",
+    backToday: "Back to today's study",
+    eyebrow: "STUDY LIBRARY",
+    subtitle: "Track your progress with books and vocabulary decks.",
+    today: "Today's Study →",
+    plan: "Study Plan",
+    todayNav: "Today's Study",
+    editMaterial: "✏️ Edit Material",
+    addMaterial: "➕ Add Material",
+    materialName: "Material Name",
+    namePlaceholder: "e.g. HSK 7–9, German Workbook",
+    language: "Language",
+    materialType: "Material Type",
+    book: "Book / Workbook (pages)",
+    deck: "Vocabulary Deck (words)",
+    totalPages: "Total Pages",
+    totalWords: "Total Words",
+    saving: "Saving...",
+    saveChanges: "Save Changes",
+    register: "Add Material",
+    cancelEdit: "Cancel Editing",
+    recordHeading: "📝 Record Study Progress",
+    recordDescription: "Example: pages 1–20 or words 1–20. Previously recorded ranges will not be counted twice.",
+    registerFirst: "Please add a study material using the form above first.",
+    selectMaterial: "Select Material",
+    selectPlaceholder: "Choose a material",
+    pages: "pages",
+    words: "words",
+    wordNumber: "words",
+    startNumber: "Start Number",
+    endNumber: "End Number",
+    recordRange: "can be recorded.",
+    recording: "Recording...",
+    saveRecord: "Save Study Record",
+    registered: "📖 Registered Materials",
+    noMaterials: "You haven't added any materials yet.",
+    firstMaterial: "Add your first study material!",
+    studied: "Studied",
+    records: "Recorded ranges: ",
+    recordsUnit: "",
+    viewRecords: "View Study Records",
+    edit: "Edit",
+    delete: "Delete",
+    goPlan: "Study Plan",
+    totalUnit: "Total: ",
+    errorLoad: "Could not load materials. Please check your Firestore security rules and connection settings.",
+    errorLoginSave: "Please log in to save the material.",
+    errorName: "Please enter a material name.",
+    errorTotal: "The total number of pages or words must be an integer of at least 1.",
+    errorSave: "Could not save. Please check your Firestore security rules.",
+    errorLoginRecord: "Please log in to save your study record.",
+    errorSelect: "Please select a material to study.",
+    errorRange: "The start number must be at least 1, and the end number must be an integer equal to or greater than the start number.",
+    errorRecord: "Could not save the study record. Please check your Firestore security rules.",
+    confirmDelete: "Do you want to delete this material?\nIts study records will also be deleted.",
+    errorDelete: "Could not delete the material. Please check your Firestore settings.",
+  },
+  "zh-CN": {
+    loading: "正在加载学习资料...",
+    title: "📚 学习资料",
+    loginRequired: "请登录后注册并保存学习资料。",
+    login: "登录",
+    backToday: "返回今日学习",
+    eyebrow: "STUDY LIBRARY",
+    subtitle: "记录书籍和单词卡组的学习进度。",
+    today: "今日学习 →",
+    plan: "学习计划",
+    todayNav: "今日学习",
+    editMaterial: "✏️ 编辑学习资料",
+    addMaterial: "➕ 添加学习资料",
+    materialName: "资料名称",
+    namePlaceholder: "例如：HSK7-9级、德语练习册",
+    language: "语言",
+    materialType: "资料类型",
+    book: "书籍 / 练习册（页数）",
+    deck: "单词卡组（单词数）",
+    totalPages: "总页数",
+    totalWords: "总单词数",
+    saving: "正在保存...",
+    saveChanges: "保存修改",
+    register: "添加资料",
+    cancelEdit: "取消编辑",
+    recordHeading: "📝 记录学习范围",
+    recordDescription: "例如：第1～20页，或第1～20个单词。重复记录相同范围时，进度不会重复增加。",
+    registerFirst: "请先使用上方表单添加学习资料。",
+    selectMaterial: "选择学习资料",
+    selectPlaceholder: "请选择资料",
+    pages: "页",
+    words: "个单词",
+    wordNumber: "个单词",
+    startNumber: "起始编号",
+    endNumber: "结束编号",
+    recordRange: "的范围可以记录。",
+    recording: "正在记录...",
+    saveRecord: "保存学习记录",
+    registered: "📖 已添加的学习资料",
+    noMaterials: "还没有学习资料。",
+    firstMaterial: "添加你的第一份学习资料吧！",
+    studied: "已学习",
+    records: "学习记录范围：",
+    recordsUnit: "条",
+    viewRecords: "查看学习记录",
+    edit: "编辑",
+    delete: "删除",
+    goPlan: "学习计划",
+    totalUnit: "共",
+    errorLoad: "无法加载学习资料。请检查 Firestore 安全规则和连接设置。",
+    errorLoginSave: "请登录后保存学习资料。",
+    errorName: "请输入资料名称。",
+    errorTotal: "总页数或总单词数必须是大于等于1的整数。",
+    errorSave: "保存失败。请检查 Firestore 安全规则。",
+    errorLoginRecord: "请登录后保存学习记录。",
+    errorSelect: "请选择要学习的资料。",
+    errorRange: "起始编号必须大于等于1，结束编号必须是大于等于起始编号的整数。",
+    errorRecord: "无法保存学习记录。请检查 Firestore 安全规则。",
+    confirmDelete: "，确定要删除吗？\n该资料的学习记录也会被删除。",
+    errorDelete: "删除失败。请检查 Firestore 设置。",
+  },
+  "zh-TW": {
+    loading: "正在載入學習教材...",
+    title: "📚 學習教材",
+    loginRequired: "請登入後註冊並儲存學習教材。",
+    login: "登入",
+    backToday: "返回今日學習",
+    eyebrow: "STUDY LIBRARY",
+    subtitle: "讓書籍和單字卡組的學習進度一目了然。",
+    today: "今日學習 →",
+    plan: "學習計畫",
+    todayNav: "今日學習",
+    editMaterial: "✏️ 編輯教材",
+    addMaterial: "➕ 新增教材",
+    materialName: "教材名稱",
+    namePlaceholder: "例如：HSK7-9級、德文練習題",
+    language: "語言",
+    materialType: "教材類型",
+    book: "書籍／練習題（頁數）",
+    deck: "單字卡組（單字數）",
+    totalPages: "總頁數",
+    totalWords: "總單字數",
+    saving: "儲存中...",
+    saveChanges: "儲存變更",
+    register: "新增教材",
+    cancelEdit: "取消編輯",
+    recordHeading: "📝 記錄學習範圍",
+    recordDescription: "例如：第1～20頁，或第1～20個單字。重複輸入已記錄的範圍，進度不會重複計算。",
+    registerFirst: "請先使用上方表單新增教材。",
+    selectMaterial: "選擇學習教材",
+    selectPlaceholder: "請選擇教材",
+    pages: "頁",
+    words: "個單字",
+    wordNumber: "個單字",
+    startNumber: "起始編號",
+    endNumber: "結束編號",
+    recordRange: "的範圍可以記錄。",
+    recording: "記錄中...",
+    saveRecord: "儲存學習記錄",
+    registered: "📖 已新增的教材",
+    noMaterials: "目前還沒有教材。",
+    firstMaterial: "新增你的第一份教材吧！",
+    studied: "已學習",
+    records: "已記錄的學習範圍：",
+    recordsUnit: "筆",
+    viewRecords: "查看學習記錄",
+    edit: "編輯",
+    delete: "刪除",
+    goPlan: "前往學習計畫",
+    totalUnit: "共",
+    errorLoad: "無法載入教材。請檢查 Firestore 安全性規則及連線設定。",
+    errorLoginSave: "請登入後儲存教材。",
+    errorName: "請輸入教材名稱。",
+    errorTotal: "總頁數或總單字數必須是大於或等於1的整數。",
+    errorSave: "無法儲存。請檢查 Firestore 安全性規則。",
+    errorLoginRecord: "請登入後儲存學習記錄。",
+    errorSelect: "請選擇要學習的教材。",
+    errorRange: "起始編號必須大於或等於1，結束編號必須是大於或等於起始編號的整數。",
+    errorRecord: "無法儲存學習記錄。請檢查 Firestore 安全性規則。",
+    confirmDelete: "，確定要刪除嗎？\n該教材的學習記錄也會一併刪除。",
+    errorDelete: "無法刪除。請檢查 Firestore 設定。",
+  },
+  es: {
+    loading: "Cargando materiales de estudio...",
+    title: "📚 Materiales de estudio",
+    loginRequired: "Inicia sesión para registrar y guardar materiales.",
+    login: "Iniciar sesión",
+    backToday: "Volver al estudio de hoy",
+    eyebrow: "STUDY LIBRARY",
+    subtitle: "Visualiza tu progreso con libros y mazos de vocabulario.",
+    today: "Estudio de hoy →",
+    plan: "Plan de estudio",
+    todayNav: "Estudio de hoy",
+    editMaterial: "✏️ Editar material",
+    addMaterial: "➕ Añadir material",
+    materialName: "Nombre del material",
+    namePlaceholder: "Ej.: HSK 7-9, cuaderno de alemán",
+    language: "Idioma",
+    materialType: "Tipo de material",
+    book: "Libro / Cuaderno (páginas)",
+    deck: "Mazo de vocabulario (palabras)",
+    totalPages: "Total de páginas",
+    totalWords: "Total de palabras",
+    saving: "Guardando...",
+    saveChanges: "Guardar cambios",
+    register: "Añadir material",
+    cancelEdit: "Cancelar edición",
+    recordHeading: "📝 Registrar el progreso",
+    recordDescription: "Ejemplo: páginas 1–20 o palabras 1–20. Los rangos ya registrados no se contabilizan dos veces.",
+    registerFirst: "Primero añade un material con el formulario de arriba.",
+    selectMaterial: "Seleccionar material",
+    selectPlaceholder: "Elige un material",
+    pages: "páginas",
+    words: "palabras",
+    wordNumber: "palabras",
+    startNumber: "Número inicial",
+    endNumber: "Número final",
+    recordRange: "se puede registrar.",
+    recording: "Registrando...",
+    saveRecord: "Guardar registro de estudio",
+    registered: "📖 Materiales registrados",
+    noMaterials: "Todavía no hay materiales.",
+    firstMaterial: "¡Añade tu primer material de estudio!",
+    studied: "Estudiado",
+    records: "Rangos registrados: ",
+    recordsUnit: "",
+    viewRecords: "Ver registros de estudio",
+    edit: "Editar",
+    delete: "Eliminar",
+    goPlan: "Ir al plan de estudio",
+    totalUnit: "Total: ",
+    errorLoad: "No se pudieron cargar los materiales. Comprueba las reglas de seguridad de Firestore y la conexión.",
+    errorLoginSave: "Inicia sesión para guardar el material.",
+    errorName: "Introduce el nombre del material.",
+    errorTotal: "El total de páginas o palabras debe ser un número entero igual o superior a 1.",
+    errorSave: "No se pudo guardar. Comprueba las reglas de seguridad de Firestore.",
+    errorLoginRecord: "Inicia sesión para guardar el registro de estudio.",
+    errorSelect: "Selecciona el material que vas a estudiar.",
+    errorRange: "El número inicial debe ser al menos 1 y el número final debe ser un entero igual o superior al inicial.",
+    errorRecord: "No se pudo guardar el registro. Comprueba las reglas de seguridad de Firestore.",
+    confirmDelete: "¿Quieres eliminar este material?\nTambién se eliminarán sus registros de estudio.",
+    errorDelete: "No se pudo eliminar. Comprueba la configuración de Firestore.",
+  },
+};
 
 function getToday(): string {
   const now = new Date();
@@ -88,6 +461,12 @@ function getProgress(material: Material): number {
 }
 
 export default function MaterialsPage() {
+  const { language: appLanguage } = useAppLanguage();
+  const currentLanguage = (translations[appLanguage as AppLanguage]
+    ? appLanguage
+    : "ja") as AppLanguage;
+  const t = translations[currentLanguage];
+
   const [user, setUser] = useState<User | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -105,7 +484,6 @@ export default function MaterialsPage() {
   const [rangeStart, setRangeStart] = useState("1");
   const [rangeEnd, setRangeEnd] = useState("10");
 
-  // ログイン状態を確認する
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -115,7 +493,6 @@ export default function MaterialsPage() {
     return () => unsubscribe();
   }, []);
 
-  // ログインユーザー本人の教材だけを読み込む
   useEffect(() => {
     let cancelled = false;
 
@@ -170,13 +547,11 @@ export default function MaterialsPage() {
               return [];
             }
 
-            return [
-              {
-                start: range.start,
-                end: range.end,
-                date: range.date,
-              },
-            ];
+            return [{
+              start: range.start,
+              end: range.end,
+              date: range.date,
+            }];
           });
 
           return {
@@ -204,16 +579,9 @@ export default function MaterialsPage() {
         }
       } catch (err) {
         console.error(err);
-
-        if (!cancelled) {
-          setError(
-            "教材を読み込めませんでした。Firestoreのセキュリティルールや接続設定を確認してください。"
-          );
-        }
+        if (!cancelled) setError(t.errorLoad);
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        if (!cancelled) setLoading(false);
       }
     }
 
@@ -224,12 +592,11 @@ export default function MaterialsPage() {
     };
   }, [user, authChecked]);
 
-  // 教材の新規登録・編集
   async function handleSaveMaterial(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!user) {
-      setError("教材を保存するにはログインしてください。");
+      setError(t.errorLoginSave);
       return;
     }
 
@@ -237,7 +604,7 @@ export default function MaterialsPage() {
     const parsedTotal = Number(total);
 
     if (!trimmedName) {
-      setError("教材名を入力してください。");
+      setError(t.errorName);
       return;
     }
 
@@ -246,7 +613,7 @@ export default function MaterialsPage() {
       parsedTotal < 1 ||
       parsedTotal > 10000000
     ) {
-      setError("総ページ数・総単語数は1以上の整数で入力してください。");
+      setError(t.errorTotal);
       return;
     }
 
@@ -294,10 +661,7 @@ export default function MaterialsPage() {
         );
 
         setMaterials((previous) => [
-          {
-            id: result.id,
-            ...newMaterial,
-          },
+          { id: result.id, ...newMaterial },
           ...previous,
         ]);
       }
@@ -309,15 +673,12 @@ export default function MaterialsPage() {
       setEditingId(null);
     } catch (err) {
       console.error(err);
-      setError(
-        "保存できませんでした。Firestoreのセキュリティルールを確認してください。"
-      );
+      setError(t.errorSave);
     } finally {
       setSaving(false);
     }
   }
 
-  // 編集フォームに教材の情報を入れる
   function startEditing(material: Material) {
     setEditingId(material.id);
     setName(material.name);
@@ -337,12 +698,11 @@ export default function MaterialsPage() {
     setError("");
   }
 
-  // 学習範囲を記録する
   async function handleRecordStudy(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!user) {
-      setError("学習記録を保存するにはログインしてください。");
+      setError(t.errorLoginRecord);
       return;
     }
 
@@ -351,7 +711,7 @@ export default function MaterialsPage() {
     const end = Number(rangeEnd);
 
     if (!material) {
-      setError("学習する教材を選んでください。");
+      setError(t.errorSelect);
       return;
     }
 
@@ -361,9 +721,7 @@ export default function MaterialsPage() {
       start < 1 ||
       end < start
     ) {
-      setError(
-        "開始番号は1以上、終了番号は開始番号以上の整数で入力してください。"
-      );
+      setError(t.errorRange);
       return;
     }
 
@@ -396,20 +754,17 @@ export default function MaterialsPage() {
       );
     } catch (err) {
       console.error(err);
-      setError(
-        "学習記録を保存できませんでした。Firestoreのセキュリティルールを確認してください。"
-      );
+      setError(t.errorRecord);
     } finally {
       setSaving(false);
     }
   }
 
-  // 教材を削除する
   async function handleDelete(material: Material) {
     if (!user) return;
 
     const confirmed = window.confirm(
-      `「${material.name}」を削除しますか？\nこの教材の学習記録も削除されます。`
+      `「${material.name}」${t.confirmDelete}`
     );
 
     if (!confirmed) return;
@@ -425,23 +780,18 @@ export default function MaterialsPage() {
         previous.filter((item) => item.id !== material.id)
       );
 
-      if (selectedId === material.id) {
-        setSelectedId("");
-      }
-
-      if (editingId === material.id) {
-        cancelEditing();
-      }
+      if (selectedId === material.id) setSelectedId("");
+      if (editingId === material.id) cancelEditing();
     } catch (err) {
       console.error(err);
-      setError("削除できませんでした。Firestoreの設定を確認してください。");
+      setError(t.errorDelete);
     }
   }
 
   if (!authChecked || loading) {
     return (
       <main style={styles.page}>
-        <p>教材を読み込んでいます...</p>
+        <p>{t.loading}</p>
       </main>
     );
   }
@@ -450,14 +800,14 @@ export default function MaterialsPage() {
     return (
       <main style={styles.page}>
         <div style={styles.container}>
-          <h1 style={styles.title}>📚 教材一覧</h1>
-          <p>教材を登録・保存するにはログインしてください。</p>
+          <h1 style={styles.title}>{t.title}</h1>
+          <p>{t.loginRequired}</p>
           <Link href="/login" style={styles.primaryLink}>
-            ログインする
+            {t.login}
           </Link>
           <p style={{ marginTop: 20 }}>
             <Link href="/today" style={styles.textLink}>
-              今日の学習へ戻る
+              {t.backToday}
             </Link>
           </p>
         </div>
@@ -470,24 +820,22 @@ export default function MaterialsPage() {
       <div style={styles.container}>
         <header style={styles.header}>
           <div>
-            <p style={styles.eyebrow}>STUDY LIBRARY</p>
-            <h1 style={styles.title}>📚 教材一覧</h1>
-            <p style={styles.subtitle}>
-              本も単語帳も、進み具合を見える化しよう。
-            </p>
+            <p style={styles.eyebrow}>{t.eyebrow}</p>
+            <h1 style={styles.title}>{t.title}</h1>
+            <p style={styles.subtitle}>{t.subtitle}</p>
           </div>
 
           <Link href="/today" style={styles.primaryLink}>
-            今日の学習へ →
+            {t.today}
           </Link>
         </header>
 
         <nav style={styles.nav}>
           <Link href="/plan" style={styles.navLink}>
-            学習計画
+            {t.plan}
           </Link>
           <Link href="/today" style={styles.navLink}>
-            今日の学習
+            {t.todayNav}
           </Link>
         </nav>
 
@@ -499,17 +847,17 @@ export default function MaterialsPage() {
 
         <section style={styles.panel}>
           <h2 style={styles.heading}>
-            {editingId ? "✏️ 教材を編集" : "➕ 教材を登録"}
+            {editingId ? t.editMaterial : t.addMaterial}
           </h2>
 
           <form onSubmit={handleSaveMaterial} style={styles.form}>
             <label style={styles.label}>
-              教材名
+              {t.materialName}
               <input
                 style={styles.input}
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                placeholder="例：HSK7-9級、ドイツ語問題集"
+                placeholder={t.namePlaceholder}
                 maxLength={150}
                 required
               />
@@ -517,22 +865,22 @@ export default function MaterialsPage() {
 
             <div style={styles.twoColumns}>
               <label style={styles.label}>
-                言語
+                {t.language}
                 <select
                   style={styles.input}
                   value={language}
                   onChange={(event) => setLanguage(event.target.value)}
                 >
-                  {LANGUAGES.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
+                  {MATERIAL_LANGUAGES.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label[currentLanguage]}
                     </option>
                   ))}
                 </select>
               </label>
 
               <label style={styles.label}>
-                教材の種類
+                {t.materialType}
                 <select
                   style={styles.input}
                   value={type}
@@ -540,14 +888,14 @@ export default function MaterialsPage() {
                     setType(event.target.value as MaterialType)
                   }
                 >
-                  <option value="book">本・問題集（ページ数）</option>
-                  <option value="deck">暗記デッキ（単語数）</option>
+                  <option value="book">{t.book}</option>
+                  <option value="deck">{t.deck}</option>
                 </select>
               </label>
             </div>
 
             <label style={styles.label}>
-              総{type === "book" ? "ページ数" : "単語数"}
+              {type === "book" ? t.totalPages : t.totalWords}
               <input
                 style={styles.input}
                 type="number"
@@ -571,10 +919,10 @@ export default function MaterialsPage() {
                 }}
               >
                 {saving
-                  ? "保存中..."
+                  ? t.saving
                   : editingId
-                    ? "変更を保存"
-                    : "教材を登録"}
+                    ? t.saveChanges
+                    : t.register}
               </button>
 
               {editingId && (
@@ -583,7 +931,7 @@ export default function MaterialsPage() {
                   onClick={cancelEditing}
                   style={styles.secondaryButton}
                 >
-                  編集をキャンセル
+                  {t.cancelEdit}
                 </button>
               )}
             </div>
@@ -591,18 +939,15 @@ export default function MaterialsPage() {
         </section>
 
         <section style={styles.panel}>
-          <h2 style={styles.heading}>📝 学習した範囲を記録</h2>
-          <p style={styles.description}>
-            例：1〜20ページ、または1〜20番の単語。以前記録した範囲を
-            もう一度入力しても、進捗は二重に加算されません。
-          </p>
+          <h2 style={styles.heading}>{t.recordHeading}</h2>
+          <p style={styles.description}>{t.recordDescription}</p>
 
           {materials.length === 0 ? (
-            <p>まずは上のフォームから教材を登録してください。</p>
+            <p>{t.registerFirst}</p>
           ) : (
             <form onSubmit={handleRecordStudy} style={styles.form}>
               <label style={styles.label}>
-                学習する教材
+                {t.selectMaterial}
                 <select
                   style={styles.input}
                   value={selectedId}
@@ -621,11 +966,11 @@ export default function MaterialsPage() {
                   }}
                   required
                 >
-                  <option value="">教材を選択してください</option>
+                  <option value="">{t.selectPlaceholder}</option>
                   {materials.map((material) => (
                     <option key={material.id} value={material.id}>
-                      {material.name}（全{material.total}
-                      {material.type === "book" ? "ページ" : "単語"}）
+                      {material.name}（{t.totalUnit}{material.total}
+                      {material.type === "book" ? t.pages : t.words}）
                     </option>
                   ))}
                 </select>
@@ -639,13 +984,13 @@ export default function MaterialsPage() {
                 if (!selected) return null;
 
                 const unit =
-                  selected.type === "book" ? "ページ" : "番の単語";
+                  selected.type === "book" ? t.pages : t.wordNumber;
 
                 return (
                   <>
                     <div style={styles.twoColumns}>
                       <label style={styles.label}>
-                        開始番号
+                        {t.startNumber}
                         <input
                           style={styles.input}
                           type="number"
@@ -660,7 +1005,7 @@ export default function MaterialsPage() {
                       </label>
 
                       <label style={styles.label}>
-                        終了番号
+                        {t.endNumber}
                         <input
                           style={styles.input}
                           type="number"
@@ -677,7 +1022,7 @@ export default function MaterialsPage() {
 
                     <p style={styles.description}>
                       1〜{selected.total.toLocaleString()}
-                      {unit}の範囲で記録できます。
+                      {unit}{t.recordRange}
                     </p>
                   </>
                 );
@@ -693,20 +1038,20 @@ export default function MaterialsPage() {
                     saving || !selectedId ? "not-allowed" : "pointer",
                 }}
               >
-                {saving ? "記録中..." : "学習記録を保存"}
+                {saving ? t.recording : t.saveRecord}
               </button>
             </form>
           )}
         </section>
 
         <section>
-          <h2 style={styles.heading}>📖 登録した教材</h2>
+          <h2 style={styles.heading}>{t.registered}</h2>
 
           {materials.length === 0 ? (
             <div style={styles.empty}>
               <p style={{ fontSize: 32, margin: 0 }}>🌱</p>
-              <p>まだ教材がありません。</p>
-              <p>最初の教材を登録してみましょう！</p>
+              <p>{t.noMaterials}</p>
+              <p>{t.firstMaterial}</p>
             </div>
           ) : (
             <div style={styles.materialList}>
@@ -714,27 +1059,26 @@ export default function MaterialsPage() {
                 const covered = getCoveredCount(material.studyRanges);
                 const progress = getProgress(material);
                 const unit =
-                  material.type === "book" ? "ページ" : "単語";
+                  material.type === "book" ? t.pages : t.words;
 
                 return (
                   <article key={material.id} style={styles.materialCard}>
                     <div style={styles.cardTop}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <span style={styles.tag}>
-                          {material.language}
+                          {MATERIAL_LANGUAGES.find(
+                            (item) => item.value === material.language
+                          )?.label[currentLanguage] ?? material.language}
                         </span>
                         <span style={styles.tag}>
-                          {material.type === "book"
-                            ? "📕 本・問題集"
-                            : "🗂️ 暗記デッキ"}
+                          {material.type === "book" ? t.book : t.deck}
                         </span>
 
                         <h3 style={styles.cardTitle}>{material.name}</h3>
 
                         <p style={styles.description}>
-                          学習済み {covered.toLocaleString()} /{" "}
-                          {material.total.toLocaleString()}
-                          {unit}
+                          {t.studied} {covered.toLocaleString()} /{" "}
+                          {material.total.toLocaleString()} {unit}
                         </p>
                       </div>
 
@@ -746,7 +1090,7 @@ export default function MaterialsPage() {
                     <div
                       style={styles.progressTrack}
                       role="progressbar"
-                      aria-label={`${material.name}の学習進捗`}
+                      aria-label={`${material.name} ${t.studied}`}
                       aria-valuemin={0}
                       aria-valuemax={100}
                       aria-valuenow={progress}
@@ -760,12 +1104,14 @@ export default function MaterialsPage() {
                     </div>
 
                     <p style={styles.smallText}>
-                      記録した学習範囲：{material.studyRanges.length}件
+                      {t.records}
+                      {material.studyRanges.length}
+                      {t.recordsUnit}
                     </p>
 
                     {material.studyRanges.length > 0 && (
                       <details style={styles.details}>
-                        <summary>学習記録を見る</summary>
+                        <summary>{t.viewRecords}</summary>
                         <ul style={styles.rangeList}>
                           {[...material.studyRanges]
                             .reverse()
@@ -787,7 +1133,7 @@ export default function MaterialsPage() {
                         onClick={() => startEditing(material)}
                         style={styles.secondaryButton}
                       >
-                        編集
+                        {t.edit}
                       </button>
 
                       <button
@@ -795,7 +1141,7 @@ export default function MaterialsPage() {
                         onClick={() => void handleDelete(material)}
                         style={styles.deleteButton}
                       >
-                        削除
+                        {t.delete}
                       </button>
                     </div>
                   </article>
@@ -807,11 +1153,11 @@ export default function MaterialsPage() {
 
         <footer style={styles.footer}>
           <Link href="/plan" style={styles.textLink}>
-            学習計画へ
+            {t.goPlan}
           </Link>
           {"　・　"}
           <Link href="/today" style={styles.textLink}>
-            今日の学習へ
+            {t.todayNav}
           </Link>
         </footer>
       </div>
@@ -827,13 +1173,11 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#302a22",
     boxSizing: "border-box",
   },
-
   container: {
     width: "100%",
     maxWidth: 850,
     margin: "0 auto",
   },
-
   header: {
     display: "flex",
     justifyContent: "space-between",
@@ -842,7 +1186,6 @@ const styles: Record<string, React.CSSProperties> = {
     flexWrap: "wrap",
     marginBottom: 24,
   },
-
   eyebrow: {
     fontSize: 12,
     fontWeight: 800,
@@ -850,20 +1193,17 @@ const styles: Record<string, React.CSSProperties> = {
     margin: "0 0 8px",
     color: "var(--anki-theme-dark)",
   },
-
   title: {
     fontSize: "clamp(28px, 5vw, 40px)",
     lineHeight: 1.2,
     margin: "0 0 10px",
     fontWeight: 900,
   },
-
   subtitle: {
     margin: 0,
     color: "#675d50",
     lineHeight: 1.7,
   },
-
   primaryLink: {
     display: "inline-block",
     padding: "12px 16px",
@@ -873,14 +1213,12 @@ const styles: Record<string, React.CSSProperties> = {
     textDecoration: "none",
     fontWeight: 800,
   },
-
   nav: {
     display: "flex",
     flexWrap: "wrap",
     gap: 10,
     marginBottom: 24,
   },
-
   navLink: {
     display: "inline-block",
     padding: "9px 14px",
@@ -891,7 +1229,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     background: "#fffdf6",
   },
-
   panel: {
     padding: 22,
     marginBottom: 24,
@@ -900,32 +1237,27 @@ const styles: Record<string, React.CSSProperties> = {
     background: "#fffdf6",
     boxShadow: "4px 5px 0 var(--anki-theme-light)",
   },
-
   heading: {
     fontSize: 22,
     lineHeight: 1.4,
     margin: "0 0 18px",
     fontWeight: 900,
   },
-
   description: {
     color: "#675d50",
     lineHeight: 1.7,
     fontSize: 14,
   },
-
   form: {
     display: "grid",
     gap: 16,
   },
-
   label: {
     display: "grid",
     gap: 8,
     fontWeight: 800,
     fontSize: 14,
   },
-
   input: {
     width: "100%",
     boxSizing: "border-box",
@@ -937,20 +1269,17 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 16,
     accentColor: "var(--anki-theme-color)",
   },
-
   twoColumns: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
     gap: 14,
   },
-
   buttonRow: {
     display: "flex",
     flexWrap: "wrap",
     gap: 10,
     marginTop: 12,
   },
-
   primaryButton: {
     padding: "12px 17px",
     border: "2px solid var(--anki-theme-color)",
@@ -961,7 +1290,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 14,
     cursor: "pointer",
   },
-
   secondaryButton: {
     padding: "10px 14px",
     border: "1px solid var(--anki-theme-soft)",
@@ -971,7 +1299,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 800,
     cursor: "pointer",
   },
-
   deleteButton: {
     padding: "10px 14px",
     border: "1px solid #b64c43",
@@ -981,7 +1308,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 800,
     cursor: "pointer",
   },
-
   error: {
     padding: 14,
     marginBottom: 20,
@@ -991,7 +1317,6 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#922e25",
     lineHeight: 1.6,
   },
-
   empty: {
     padding: 30,
     border: "1px dashed var(--anki-theme-soft)",
@@ -1000,12 +1325,10 @@ const styles: Record<string, React.CSSProperties> = {
     background: "#fffdf6",
     lineHeight: 1.7,
   },
-
   materialList: {
     display: "grid",
     gap: 18,
   },
-
   materialCard: {
     padding: 20,
     border: "2px solid var(--anki-theme-soft)",
@@ -1014,14 +1337,12 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: "3px 4px 0 var(--anki-theme-light)",
     minWidth: 0,
   },
-
   cardTop: {
     display: "flex",
     alignItems: "flex-start",
     justifyContent: "space-between",
     gap: 12,
   },
-
   tag: {
     display: "inline-block",
     margin: "0 6px 8px 0",
@@ -1032,20 +1353,17 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     fontWeight: 800,
   },
-
   cardTitle: {
     margin: "5px 0 8px",
     fontSize: 20,
     lineHeight: 1.5,
     overflowWrap: "anywhere",
   },
-
   percentage: {
     fontSize: 25,
     whiteSpace: "nowrap",
     color: "var(--anki-theme-dark)",
   },
-
   progressTrack: {
     width: "100%",
     height: 13,
@@ -1054,36 +1372,30 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 999,
     background: "var(--anki-theme-light)",
   },
-
   progressBar: {
     height: "100%",
     borderRadius: 999,
     background: "var(--anki-theme-color)",
     transition: "width 0.25s ease",
   },
-
   smallText: {
     margin: "10px 0",
     fontSize: 12,
     color: "#756b5d",
   },
-
   details: {
     marginTop: 12,
     lineHeight: 1.8,
     fontSize: 14,
   },
-
   rangeList: {
     paddingLeft: 22,
   },
-
   footer: {
     marginTop: 30,
     textAlign: "center",
     fontSize: 14,
   },
-
   textLink: {
     color: "var(--anki-theme-dark)",
     fontWeight: 800,

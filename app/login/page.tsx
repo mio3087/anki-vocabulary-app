@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -14,11 +15,251 @@ import {
 } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { auth } from "@/lib/firebase";
+import { useAppLanguage } from "@/app/component/AppLanguage";
 
 type LoginMode = "google" | "email" | "phone";
+type AppLanguage = "ja" | "de" | "en" | "zh-CN" | "zh-TW" | "es";
+
+const translations: Record<AppLanguage, Record<string, string>> = {
+  ja: {
+    heading: "ログイン・新規登録",
+    emailTab: "メールアドレス",
+    phoneTab: "電話番号",
+    email: "メールアドレス",
+    password: "パスワード（6文字以上）",
+    emailLogin: "メールでログイン",
+    emailRegister: "メールで新規登録",
+    processing: "処理中…",
+    backLogin: "ログインに戻る",
+    createAccount: "アカウントを新規登録",
+    forgotPassword: "パスワードを忘れた場合",
+    phone: "電話番号（国番号付き）",
+    phoneExample: "例：日本は +81、中国は +86。先頭の0を省く国があります。",
+    sendSms: "SMS確認コードを送信",
+    sending: "送信中…",
+    smsCode: "SMS確認コード",
+    verifying: "確認中…",
+    verifySms: "コードを確認してログイン",
+    or: "または",
+    google: "Googleでログイン",
+    footer: "ログインすると、アカウントを使って学習記録を管理できます。",
+    emailRegistered: "このメールアドレスは登録済みです。ログインしてください。",
+    invalidEmail: "メールアドレスの形式を確認してください。",
+    weakPassword: "パスワードは6文字以上にしてください。",
+    invalidCredential: "ログイン情報を確認してください。",
+    popupClosed: "Googleログインがキャンセルされました。",
+    captcha: "認証確認に失敗しました。再度お試しください。",
+    firebaseSettings: "Firebaseの認証設定を確認してください。",
+    generalError: "処理に失敗しました。入力内容とFirebaseの設定を確認してください。",
+    enterEmail: "先にメールアドレスを入力してください。",
+    resetSent: "パスワード再設定メールを送信しました。受信箱をご確認ください。",
+    countryCode: "国番号を付けて入力してください。例：日本は +81、中国は +86",
+    recaptchaError: "認証欄を読み込めませんでした。ページを再読み込みしてください。",
+    smsSent: "SMSを送信しました。届いた確認コードを入力してください。",
+    enterSms: "SMSの確認コードを入力してください。",
+    resetError: "パスワード再設定に失敗しました。入力内容を確認してください。",
+  },
+  de: {
+    heading: "Anmelden / Registrieren",
+    emailTab: "E-Mail",
+    phoneTab: "Telefonnummer",
+    email: "E-Mail-Adresse",
+    password: "Passwort (mindestens 6 Zeichen)",
+    emailLogin: "Mit E-Mail anmelden",
+    emailRegister: "Mit E-Mail registrieren",
+    processing: "Wird verarbeitet…",
+    backLogin: "Zurück zur Anmeldung",
+    createAccount: "Neues Konto erstellen",
+    forgotPassword: "Passwort vergessen?",
+    phone: "Telefonnummer (mit Ländervorwahl)",
+    phoneExample: "Beispiel: Japan +81, China +86. In einigen Ländern entfällt die führende 0.",
+    sendSms: "SMS-Code senden",
+    sending: "Wird gesendet…",
+    smsCode: "SMS-Bestätigungscode",
+    verifying: "Wird überprüft…",
+    verifySms: "Code bestätigen und anmelden",
+    or: "oder",
+    google: "Mit Google anmelden",
+    footer: "Nach der Anmeldung kannst du deine Lernfortschritte mit deinem Konto verwalten.",
+    emailRegistered: "Diese E-Mail-Adresse ist bereits registriert. Bitte melde dich an.",
+    invalidEmail: "Bitte überprüfe das Format deiner E-Mail-Adresse.",
+    weakPassword: "Das Passwort muss mindestens 6 Zeichen lang sein.",
+    invalidCredential: "Bitte überprüfe deine Anmeldedaten.",
+    popupClosed: "Die Google-Anmeldung wurde abgebrochen.",
+    captcha: "Die Verifizierung ist fehlgeschlagen. Bitte versuche es erneut.",
+    firebaseSettings: "Bitte überprüfe die Firebase-Authentifizierungseinstellungen.",
+    generalError: "Der Vorgang ist fehlgeschlagen. Bitte überprüfe deine Eingaben und die Firebase-Einstellungen.",
+    enterEmail: "Bitte gib zuerst deine E-Mail-Adresse ein.",
+    resetSent: "Die E-Mail zum Zurücksetzen des Passworts wurde gesendet. Bitte überprüfe deinen Posteingang.",
+    countryCode: "Bitte gib die Nummer mit Ländervorwahl ein. Beispiel: Japan +81, China +86.",
+    recaptchaError: "Das Verifizierungsfeld konnte nicht geladen werden. Bitte lade die Seite neu.",
+    smsSent: "Die SMS wurde gesendet. Bitte gib den erhaltenen Bestätigungscode ein.",
+    enterSms: "Bitte gib den SMS-Bestätigungscode ein.",
+    resetError: "Das Zurücksetzen des Passworts ist fehlgeschlagen. Bitte überprüfe deine Eingaben.",
+  },
+  en: {
+    heading: "Log in / Sign up",
+    emailTab: "Email",
+    phoneTab: "Phone",
+    email: "Email Address",
+    password: "Password (at least 6 characters)",
+    emailLogin: "Log in with Email",
+    emailRegister: "Sign up with Email",
+    processing: "Processing…",
+    backLogin: "Back to Log In",
+    createAccount: "Create an Account",
+    forgotPassword: "Forgot your password?",
+    phone: "Phone Number (with country code)",
+    phoneExample: "Example: Japan +81, China +86. Some countries omit the leading 0.",
+    sendSms: "Send SMS Verification Code",
+    sending: "Sending…",
+    smsCode: "SMS Verification Code",
+    verifying: "Verifying…",
+    verifySms: "Verify Code and Log In",
+    or: "or",
+    google: "Log in with Google",
+    footer: "Log in to manage your study records with your account.",
+    emailRegistered: "This email address is already registered. Please log in.",
+    invalidEmail: "Please check the format of your email address.",
+    weakPassword: "Your password must contain at least 6 characters.",
+    invalidCredential: "Please check your login credentials.",
+    popupClosed: "Google login was cancelled.",
+    captcha: "Verification failed. Please try again.",
+    firebaseSettings: "Please check your Firebase authentication settings.",
+    generalError: "The operation failed. Please check your input and Firebase settings.",
+    enterEmail: "Please enter your email address first.",
+    resetSent: "A password reset email has been sent. Please check your inbox.",
+    countryCode: "Please enter your phone number with a country code. Example: Japan +81, China +86.",
+    recaptchaError: "Could not load the verification field. Please reload the page.",
+    smsSent: "An SMS has been sent. Please enter the verification code you received.",
+    enterSms: "Please enter the SMS verification code.",
+    resetError: "Could not reset your password. Please check your input.",
+  },
+  "zh-CN": {
+    heading: "登录 / 注册",
+    emailTab: "电子邮箱",
+    phoneTab: "电话号码",
+    email: "电子邮箱地址",
+    password: "密码（至少6个字符）",
+    emailLogin: "使用邮箱登录",
+    emailRegister: "使用邮箱注册",
+    processing: "处理中…",
+    backLogin: "返回登录",
+    createAccount: "注册新账号",
+    forgotPassword: "忘记密码？",
+    phone: "电话号码（含国家区号）",
+    phoneExample: "例如：日本 +81，中国 +86。部分国家需要省略开头的0。",
+    sendSms: "发送短信验证码",
+    sending: "发送中…",
+    smsCode: "短信验证码",
+    verifying: "验证中…",
+    verifySms: "验证并登录",
+    or: "或者",
+    google: "使用 Google 登录",
+    footer: "登录后，你可以使用账号管理自己的学习记录。",
+    emailRegistered: "该邮箱已注册，请直接登录。",
+    invalidEmail: "请检查邮箱地址格式。",
+    weakPassword: "密码至少需要6个字符。",
+    invalidCredential: "请检查登录信息。",
+    popupClosed: "已取消 Google 登录。",
+    captcha: "验证失败，请重试。",
+    firebaseSettings: "请检查 Firebase 身份验证设置。",
+    generalError: "操作失败。请检查输入内容和 Firebase 设置。",
+    enterEmail: "请先输入邮箱地址。",
+    resetSent: "密码重置邮件已发送，请检查收件箱。",
+    countryCode: "请输入带国家区号的电话号码。例如：日本 +81，中国 +86。",
+    recaptchaError: "无法加载验证区域，请重新加载页面。",
+    smsSent: "短信已发送，请输入收到的验证码。",
+    enterSms: "请输入短信验证码。",
+    resetError: "密码重置失败，请检查输入内容。",
+  },
+  "zh-TW": {
+    heading: "登入／註冊",
+    emailTab: "電子郵件",
+    phoneTab: "電話號碼",
+    email: "電子郵件地址",
+    password: "密碼（至少6個字元）",
+    emailLogin: "使用電子郵件登入",
+    emailRegister: "使用電子郵件註冊",
+    processing: "處理中…",
+    backLogin: "返回登入",
+    createAccount: "註冊新帳號",
+    forgotPassword: "忘記密碼？",
+    phone: "電話號碼（含國碼）",
+    phoneExample: "例如：日本 +81，中國 +86。部分國家需要省略開頭的0。",
+    sendSms: "傳送簡訊驗證碼",
+    sending: "傳送中…",
+    smsCode: "簡訊驗證碼",
+    verifying: "驗證中…",
+    verifySms: "確認驗證碼並登入",
+    or: "或",
+    google: "使用 Google 登入",
+    footer: "登入後，你可以使用帳號管理自己的學習記錄。",
+    emailRegistered: "此電子郵件地址已註冊，請直接登入。",
+    invalidEmail: "請確認電子郵件地址格式。",
+    weakPassword: "密碼至少需要6個字元。",
+    invalidCredential: "請確認登入資訊。",
+    popupClosed: "已取消 Google 登入。",
+    captcha: "驗證失敗，請再試一次。",
+    firebaseSettings: "請檢查 Firebase 驗證設定。",
+    generalError: "操作失敗。請檢查輸入內容與 Firebase 設定。",
+    enterEmail: "請先輸入電子郵件地址。",
+    resetSent: "密碼重設郵件已寄出，請查看收件匣。",
+    countryCode: "請輸入含國碼的電話號碼。例如：日本 +81，中國 +86。",
+    recaptchaError: "無法載入驗證區域，請重新整理頁面。",
+    smsSent: "簡訊已傳送，請輸入收到的驗證碼。",
+    enterSms: "請輸入簡訊驗證碼。",
+    resetError: "密碼重設失敗，請檢查輸入內容。",
+  },
+  es: {
+    heading: "Iniciar sesión / Registrarse",
+    emailTab: "Correo electrónico",
+    phoneTab: "Teléfono",
+    email: "Correo electrónico",
+    password: "Contraseña (al menos 6 caracteres)",
+    emailLogin: "Iniciar sesión con correo",
+    emailRegister: "Registrarse con correo",
+    processing: "Procesando…",
+    backLogin: "Volver a iniciar sesión",
+    createAccount: "Crear una cuenta",
+    forgotPassword: "¿Olvidaste tu contraseña?",
+    phone: "Número de teléfono (con prefijo internacional)",
+    phoneExample: "Ejemplo: Japón +81, China +86. En algunos países se omite el 0 inicial.",
+    sendSms: "Enviar código de verificación por SMS",
+    sending: "Enviando…",
+    smsCode: "Código de verificación SMS",
+    verifying: "Verificando…",
+    verifySms: "Verificar código e iniciar sesión",
+    or: "o",
+    google: "Iniciar sesión con Google",
+    footer: "Inicia sesión para gestionar tus registros de estudio con tu cuenta.",
+    emailRegistered: "Esta dirección de correo ya está registrada. Inicia sesión.",
+    invalidEmail: "Comprueba el formato de tu dirección de correo.",
+    weakPassword: "La contraseña debe tener al menos 6 caracteres.",
+    invalidCredential: "Comprueba tus datos de inicio de sesión.",
+    popupClosed: "Se canceló el inicio de sesión con Google.",
+    captcha: "La verificación ha fallado. Inténtalo de nuevo.",
+    firebaseSettings: "Comprueba la configuración de autenticación de Firebase.",
+    generalError: "No se pudo completar la operación. Comprueba los datos y la configuración de Firebase.",
+    enterEmail: "Introduce primero tu dirección de correo.",
+    resetSent: "Se ha enviado un correo para restablecer la contraseña. Revisa tu bandeja de entrada.",
+    countryCode: "Introduce el número con el prefijo internacional. Ejemplo: Japón +81, China +86.",
+    recaptchaError: "No se pudo cargar el campo de verificación. Recarga la página.",
+    smsSent: "Se ha enviado un SMS. Introduce el código de verificación recibido.",
+    enterSms: "Introduce el código de verificación SMS.",
+    resetError: "No se pudo restablecer la contraseña. Comprueba los datos introducidos.",
+  },
+};
 
 export default function LoginPage() {
   const router = useRouter();
+  const { language: appLanguage } = useAppLanguage();
+
+  const currentLanguage = (
+    translations[appLanguage as AppLanguage] ? appLanguage : "ja"
+  ) as AppLanguage;
+
+  const t = translations[currentLanguage];
 
   const [mode, setMode] = useState<LoginMode>("email");
   const [isRegister, setIsRegister] = useState(false);
@@ -53,12 +294,12 @@ export default function LoginPage() {
       const code = err.code;
 
       if (code.includes("email-already-in-use")) {
-        setError("このメールアドレスは登録済みです。ログインしてください。");
+        setError(t.emailRegistered);
         return;
       }
 
       if (code.includes("invalid-email")) {
-        setError("メールアドレスの形式を確認してください。");
+        setError(t.invalidEmail);
         return;
       }
 
@@ -66,7 +307,7 @@ export default function LoginPage() {
         code.includes("weak-password") ||
         code.includes("password-too-short")
       ) {
-        setError("パスワードは6文字以上にしてください。");
+        setError(t.weakPassword);
         return;
       }
 
@@ -74,17 +315,17 @@ export default function LoginPage() {
         code.includes("wrong-password") ||
         code.includes("invalid-credential")
       ) {
-        setError("ログイン情報を確認してください。");
+        setError(t.invalidCredential);
         return;
       }
 
       if (code.includes("popup-closed-by-user")) {
-        setError("Googleログインがキャンセルされました。");
+        setError(t.popupClosed);
         return;
       }
 
       if (code.includes("captcha") || code.includes("recaptcha")) {
-        setError("認証確認に失敗しました。再度お試しください。");
+        setError(t.captcha);
         return;
       }
 
@@ -92,14 +333,12 @@ export default function LoginPage() {
         code.includes("unauthorized-domain") ||
         code.includes("operation-not-allowed")
       ) {
-        setError("Firebaseの認証設定を確認してください。");
+        setError(t.firebaseSettings);
         return;
       }
     }
 
-    setError(
-      "処理に失敗しました。入力内容とFirebaseの設定を確認してください。"
-    );
+    setError(t.generalError);
   }
 
   async function handleGoogleLogin() {
@@ -151,7 +390,7 @@ export default function LoginPage() {
 
   async function handlePasswordReset() {
     if (!email.trim()) {
-      setError("先にメールアドレスを入力してください。");
+      setError(t.enterEmail);
       return;
     }
 
@@ -161,9 +400,7 @@ export default function LoginPage() {
 
     try {
       await sendPasswordResetEmail(auth, email.trim());
-      setMessage(
-        "パスワード再設定メールを送信しました。受信箱をご確認ください。"
-      );
+      setMessage(t.resetSent);
     } catch (err) {
       showError(err);
     } finally {
@@ -178,16 +415,12 @@ export default function LoginPage() {
 
     try {
       if (!phone.trim().startsWith("+")) {
-        setError(
-          "国番号を付けて入力してください。例：日本は +81、中国は +86"
-        );
+        setError(t.countryCode);
         return;
       }
 
       if (!recaptchaContainer.current) {
-        setError(
-          "認証欄を読み込めませんでした。ページを再読み込みしてください。"
-        );
+        setError(t.recaptchaError);
         return;
       }
 
@@ -206,9 +439,7 @@ export default function LoginPage() {
       );
 
       setConfirmation(result);
-      setMessage(
-        "SMSを送信しました。届いた確認コードを入力してください。"
-      );
+      setMessage(t.smsSent);
     } catch (err) {
       recaptchaVerifier.current?.clear();
       recaptchaVerifier.current = null;
@@ -220,7 +451,7 @@ export default function LoginPage() {
 
   async function handleVerifySms() {
     if (!confirmation || !smsCode.trim()) {
-      setError("SMSの確認コードを入力してください。");
+      setError(t.enterSms);
       return;
     }
 
@@ -401,7 +632,7 @@ export default function LoginPage() {
                 margin: 0,
               }}
             >
-              ログイン・新規登録
+              {t.heading}
             </p>
           </div>
 
@@ -429,10 +660,7 @@ export default function LoginPage() {
                   padding: "10px 12px",
                   border: 0,
                   borderRadius: 9,
-                  background:
-                    mode === item
-                      ? "#FFFFFF"
-                      : "transparent",
+                  background: mode === item ? "#FFFFFF" : "transparent",
                   color:
                     mode === item
                       ? "var(--anki-theme-dark)"
@@ -444,7 +672,7 @@ export default function LoginPage() {
                   cursor: "pointer",
                 }}
               >
-                {item === "email" ? "メールアドレス" : "電話番号"}
+                {item === "email" ? t.emailTab : t.phoneTab}
               </button>
             ))}
           </div>
@@ -462,7 +690,7 @@ export default function LoginPage() {
                   fontWeight: 650,
                 }}
               >
-                メールアドレス
+                {t.email}
                 <input
                   className="login-field"
                   type="email"
@@ -483,7 +711,7 @@ export default function LoginPage() {
                   fontWeight: 650,
                 }}
               >
-                パスワード（6文字以上）
+                {t.password}
                 <input
                   className="login-field"
                   type="password"
@@ -510,10 +738,10 @@ export default function LoginPage() {
                 }}
               >
                 {loading
-                  ? "処理中…"
+                  ? t.processing
                   : isRegister
-                    ? "メールで新規登録"
-                    : "メールでログイン"}
+                    ? t.emailRegister
+                    : t.emailLogin}
               </button>
 
               <button
@@ -525,13 +753,14 @@ export default function LoginPage() {
                 }}
                 style={secondaryButton}
               >
-                {isRegister ? "ログインに戻る" : "アカウントを新規登録"}
+                {isRegister ? t.backLogin : t.createAccount}
               </button>
 
               {!isRegister && (
                 <button
                   type="button"
                   onClick={handlePasswordReset}
+                  disabled={loading}
                   style={{
                     border: 0,
                     background: "transparent",
@@ -541,7 +770,7 @@ export default function LoginPage() {
                     cursor: "pointer",
                   }}
                 >
-                  パスワードを忘れた場合
+                  {t.forgotPassword}
                 </button>
               )}
             </form>
@@ -557,7 +786,7 @@ export default function LoginPage() {
                   fontWeight: 650,
                 }}
               >
-                電話番号（国番号付き）
+                {t.phone}
                 <input
                   className="login-field"
                   type="tel"
@@ -577,7 +806,7 @@ export default function LoginPage() {
                   margin: 0,
                 }}
               >
-                例：日本は +81、中国は +86。先頭の0を省く国があります。
+                {t.phoneExample}
               </p>
 
               <div ref={recaptchaContainer} />
@@ -593,7 +822,7 @@ export default function LoginPage() {
                     opacity: loading ? 0.7 : 1,
                   }}
                 >
-                  {loading ? "送信中…" : "SMS確認コードを送信"}
+                  {loading ? t.sending : t.sendSms}
                 </button>
               ) : (
                 <>
@@ -605,7 +834,7 @@ export default function LoginPage() {
                       fontWeight: 650,
                     }}
                   >
-                    SMS確認コード
+                    {t.smsCode}
                     <input
                       className="login-field"
                       inputMode="numeric"
@@ -626,7 +855,7 @@ export default function LoginPage() {
                       opacity: loading ? 0.7 : 1,
                     }}
                   >
-                    {loading ? "確認中…" : "コードを確認してログイン"}
+                    {loading ? t.verifying : t.verifySms}
                   </button>
                 </>
               )}
@@ -650,7 +879,7 @@ export default function LoginPage() {
                 flex: 1,
               }}
             />
-            または
+            {t.or}
             <span
               style={{
                 height: 1,
@@ -697,7 +926,7 @@ export default function LoginPage() {
                 d="M24 48c6.48 0 11.93-2.13 15.91-5.8l-7.73-6c-2.14 1.44-4.89 2.3-8.18 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
               />
             </svg>
-            Googleでログイン
+            {t.google}
           </button>
 
           {message && (
@@ -747,7 +976,7 @@ export default function LoginPage() {
               textAlign: "center",
             }}
           >
-            ログインすると、アカウントを使って学習記録を管理できます。
+            {t.footer}
           </p>
         </section>
 
