@@ -28,8 +28,22 @@ type LanguageContextType = {
 // 保存用キー
 const LANGUAGE_STORAGE_KEY = "anki-app-language";
 
+// 言語変更イベント
+const LANGUAGE_CHANGE_EVENT = "anki-language-change";
+
 // 初期値
 const DEFAULT_LANGUAGE: AppLanguage = "ja";
+
+// 対応言語
+const SUPPORTED_LANGUAGES: AppLanguage[] = [
+  "ja",
+  "de",
+  "en",
+  "zh-CN",
+  "zh-TW",
+  "es",
+  "it",
+];
 
 // Context
 const LanguageContext =
@@ -46,34 +60,63 @@ export function AppLanguageProvider({
 
   const [ready, setReady] = useState(false);
 
-  // 初回読み込み時に保存済みの言語を取得
+  // 初回読み込み・言語変更イベントの監視
   useEffect(() => {
-    try {
-      const savedLanguage = localStorage.getItem(
-        LANGUAGE_STORAGE_KEY
+    const loadLanguage = () => {
+      try {
+        const savedLanguage = localStorage.getItem(
+          LANGUAGE_STORAGE_KEY
+        );
+
+        if (
+          savedLanguage &&
+          SUPPORTED_LANGUAGES.includes(
+            savedLanguage as AppLanguage
+          )
+        ) {
+          setLanguageState(savedLanguage as AppLanguage);
+        } else {
+          setLanguageState(DEFAULT_LANGUAGE);
+        }
+      } catch (error) {
+        console.error(
+          "言語設定の読み込みに失敗しました:",
+          error
+        );
+      } finally {
+        setReady(true);
+      }
+    };
+
+    // 初回読み込み
+    loadLanguage();
+
+    // 設定ページからの言語変更を検知
+    window.addEventListener(
+      LANGUAGE_CHANGE_EVENT,
+      loadLanguage
+    );
+
+    // 別タブでの言語変更も検知
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === LANGUAGE_STORAGE_KEY) {
+        loadLanguage();
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+
+    return () => {
+      window.removeEventListener(
+        LANGUAGE_CHANGE_EVENT,
+        loadLanguage
       );
 
-      const supportedLanguages: AppLanguage[] = [
-        "ja",
-        "de",
-        "en",
-        "zh-CN",
-        "zh-TW",
-        "es",
-        "it",
-      ];
-
-      if (
-        savedLanguage &&
-        supportedLanguages.includes(savedLanguage as AppLanguage)
-      ) {
-        setLanguageState(savedLanguage as AppLanguage);
-      }
-    } catch (error) {
-      console.error("言語設定の読み込みに失敗しました:", error);
-    } finally {
-      setReady(true);
-    }
+      window.removeEventListener(
+        "storage",
+        handleStorageChange
+      );
+    };
   }, []);
 
   // 言語変更
@@ -86,7 +129,10 @@ export function AppLanguageProvider({
         newLanguage
       );
     } catch (error) {
-      console.error("言語設定の保存に失敗しました:", error);
+      console.error(
+        "言語設定の保存に失敗しました:",
+        error
+      );
     }
   };
 
