@@ -8,7 +8,9 @@ import {
 } from "react-simple-maps";
 
 import { languages as defaultLanguages } from "../data/language-countries";
-import { useAppLanguage } from "@/app/component/AppLanguage";
+
+
+import { useLanguage } from "@/app/component/AppLanguage";
 
 type LanguageCode = "ja" | "de" | "en" | "zh-CN" | "zh-TW" | "es";
 
@@ -558,7 +560,7 @@ function getCountryLanguages(
 }
 
 export default function LanguageWorldMap() {
-  const { language } = useAppLanguage();
+  const { language } = useLanguage();
 
   const currentLanguage: LanguageCode =
     language in translations ? (language as LanguageCode) : "ja";

@@ -1,7 +1,7 @@
 
 "use client";
 import Link from "next/link";
-import { useAppLanguage } from "@/app/component/AppLanguage";
+import { useLanguage } from "@/app/component/AppLanguage";
 
 
 
@@ -960,7 +960,7 @@ function makeThemeColors(primary: string): ThemeColors {
 }
 
 export default function Home() {
-  const { language } = useAppLanguage();
+  const { language } = useLanguage();
   const tx = (key: string) => pageText(language, key);
   const [themeColor, setThemeColor] = useState("#718675");
   const [showThemeSettings, setShowThemeSettings] = useState(false);
