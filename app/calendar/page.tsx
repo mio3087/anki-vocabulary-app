@@ -14,7 +14,7 @@ import {
 } from "firebase/firestore";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
-import { useLanguage } from "@/app/component/LanguageContext";
+import { useLanguage } from "@/app/component/AppLanguage";
 
 type LanguageCode = "ja" | "en" | "de" | "es" | "zh-CN" | "zh-TW";
 type TaskStatus = "未着手" | "進行中" | "完了";
@@ -1788,10 +1788,10 @@ export default function CalendarPage() {
 
                     return (
                       <article className="exam-row" key={exam.id}>
-                        <div className="exam-date-block">
-                          <span>{Number(exam.date.slice(5, 7)}</span>
-                          <strong>{Number(exam.date.slice(8, 10))}</strong>
-                        </div>
+                      <div className="exam-date-block">
+  <span>{Number(exam.date.slice(5, 7))}</span>
+  <strong>{Number(exam.date.slice(8, 10))}</strong>
+</div>
                         <div className="exam-info">
                           <strong>{exam.name}</strong>
                           <span>{exam.date.replaceAll("-", " / ")}</span>

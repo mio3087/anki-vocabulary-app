@@ -417,7 +417,7 @@ function statusLabel(status: PlanStatus | undefined, t: (key: keyof typeof trans
 
 export default function StudyPlanPage() {
   const { language } = useAppLanguage();
-  const currentLanguage = translations[language] ? language : "ja";
+  const currentLanguage = language in translations ? language as keyof typeof translations : "ja";
   const t = (key: keyof typeof translations.ja) =>
     translations[currentLanguage][key];
 

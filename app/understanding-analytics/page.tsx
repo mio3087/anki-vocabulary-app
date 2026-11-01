@@ -11,7 +11,9 @@ import { useLanguage } from "@/app/component/AppLanguage";
 import { mockRealityCheckData } from "@/lib/understanding/mock-data";
 import type { Skill, Language } from "@/lib/understanding/types";
 
-const translations: Record<string, Record<string, string>> = {
+type Translation = Record<string, string>;
+
+const translations: Record<string, Translation> = {
   ja: {
     subtitle:"わかったつもりを検知し、本当の理解を見つけよう", reading:"読解", listening:"リスニング", writing:"ライティング", speaking:"スピーキング", overall:"総合分析", result:"今回の検証結果", sample:"サンプルデータ", self:"自己評価", assumed:"（理解したつもり）", actual:"実際の理解度", verified:"（検証結果）", gapTitle:"わかったつもりでした！", confirmed:"理解度を確認できました", gapText:"自信と実力に", points:"ポイント", review:"もう一度、内容を確認してみましょう。", errors:"どこでつまずいた？", breakdown:"（誤解の内訳）", cases:"件", insights:"今回の気づき", next:"次にやること", retry:"もう一度チャレンジ", retryAlert:"再チャレンジ機能は次の開発段階で実装します。", fallback:"今回の分析結果を振り返りましょう。", balance:"スキル別の実力バランス", tendencies:"発見された傾向", strongest:"最も高い技能：", improve:"最も改善が必要な技能：", trend:"理解度の推移", records:"回の記録", confidence:"自己評価", actualLegend:"実際の理解度", noHistory:"まだ履歴がありません。", latestGap:"最新のギャップ：", observe:"自己評価と実際の理解度の差を継続的に観察しましょう。", recent:"最近検証した文章・課題", noLanguageHistory:"この言語の分析履歴はまだありません。", vocabulary:"語彙", grammar:"文法", structure:"文構造", inference:"推論・論理", context:"文脈", recall:"想起・記憶", pronunciation:"発音", fluency:"流暢さ", expression:"表現", other:"その他", zh:"中国語（簡体字）", de:"ドイツ語", es:"スペイン語", ko:"韓国語", it:"イタリア語", jaLang:"日本語"
   },
@@ -63,10 +65,13 @@ export default function UnderstandingAnalyticsPage() {
       ? appLanguage
       : "ja";
 
-  const tr = (key: string) =>
+  const tr = (key: string): string => {
+  return (
     translations[displayLanguage]?.[key] ??
-    translations.ja[key] ??
-    key;
+    translations.ja?.[key] ??
+    key
+  );
+};
 
   const [activeSkill, setActiveSkill] = useState<Skill>("reading");
   const [showLanguageMenu, setShowLanguageMenu] = useState(false);

@@ -1,7 +1,7 @@
-
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties, FormEvent } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import {
   addDoc,
@@ -39,6 +39,8 @@ type StudyTask = {
   repeatDays: number[];
 };
 
+type Translation = Record<string, string | string[]>;
+
 const todayString = () => {
   const now = new Date();
   const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
@@ -60,9 +62,8 @@ const emptyForm = () => ({
 
 const weekdays = [0, 1, 2, 3, 4, 5, 6];
 
-const translations: Record<
-  AppLanguage,
-  Record<string, string | string[]>
+const translations: { ja: Translation } & Partial<
+  Record<Exclude<AppLanguage, "ja">, Translation>
 > = {
   ja: {
     title: "タスク管理",
@@ -607,14 +608,21 @@ const localeMap: Record<AppLanguage, string> = {
   "zh-CN": "zh-CN",
   "zh-TW": "zh-TW",
   es: "es-ES",
+  it: "it-IT",
 };
 
 export default function TasksPage() {
   const { language } = useAppLanguage();
-  const tr = translations[language];
 
-  const msg = (key: string, values?: Record<string, string | number>) => {
+  // 日本語の翻訳は必ず存在するため、未対応言語は日本語に切り替える
+  const tr: Translation = translations[language] ?? translations.ja;
+
+  const msg = (
+    key: string,
+    values?: Record<string, string | number>
+  ): string => {
     const raw = tr[key];
+
     if (typeof raw !== "string") return key;
 
     return Object.entries(values ?? {}).reduce(
@@ -624,7 +632,7 @@ export default function TasksPage() {
     );
   };
 
-  const dayLabels = tr.weekdays as string[];
+  const dayLabels = (tr.weekdays as string[]) ?? translations.ja.weekdays as string[];
 
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
@@ -644,7 +652,7 @@ export default function TasksPage() {
     const parsed = new Date(`${date}T00:00:00`);
     if (Number.isNaN(parsed.getTime())) return date;
 
-    return new Intl.DateTimeFormat(localeMap[language], {
+    return new Intl.DateTimeFormat(localeMap[language] ?? "ja-JP", {
       year: "numeric",
       month: "short",
       day: "numeric",
@@ -766,7 +774,7 @@ export default function TasksPage() {
     setEditingId(null);
   };
 
-  const saveTask = async (event: React.FormEvent<HTMLFormElement>) => {
+  const saveTask = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!user) {
@@ -908,7 +916,7 @@ export default function TasksPage() {
     }));
   };
 
-  const pageStyle: React.CSSProperties = {
+  const pageStyle: CSSProperties = {
     maxWidth: 1000,
     margin: "0 auto",
     padding: "36px 24px 48px",
@@ -917,7 +925,7 @@ export default function TasksPage() {
     boxSizing: "border-box",
   };
 
-  const inputStyle: React.CSSProperties = {
+  const inputStyle: CSSProperties = {
     width: "100%",
     boxSizing: "border-box",
     padding: 10,
@@ -930,7 +938,7 @@ export default function TasksPage() {
     accentColor: "var(--anki-theme-color)",
   };
 
-  const buttonStyle: React.CSSProperties = {
+  const buttonStyle: CSSProperties = {
     padding: "9px 14px",
     border: "1px solid var(--anki-theme-soft)",
     borderRadius: 10,
@@ -941,7 +949,7 @@ export default function TasksPage() {
     transition: "background 0.2s ease",
   };
 
-  const sectionStyle: React.CSSProperties = {
+  const sectionStyle: CSSProperties = {
     border: "1px solid #eee8df",
     borderRadius: 18,
     padding: 22,
@@ -950,7 +958,7 @@ export default function TasksPage() {
     boxShadow: "0 4px 20px rgba(55, 43, 29, 0.025)",
   };
 
-  const eyebrowStyle: React.CSSProperties = {
+  const eyebrowStyle: CSSProperties = {
     color: "var(--anki-theme-dark)",
     fontSize: 10,
     letterSpacing: 2,
@@ -958,7 +966,7 @@ export default function TasksPage() {
     fontWeight: 600,
   };
 
-  const primaryButtonStyle: React.CSSProperties = {
+  const primaryButtonStyle: CSSProperties = {
     ...buttonStyle,
     padding: "11px 20px",
     background: "var(--anki-theme-color)",
@@ -966,12 +974,12 @@ export default function TasksPage() {
     borderColor: "var(--anki-theme-color)",
   };
 
-  const labelStyle: React.CSSProperties = {
+  const labelStyle: CSSProperties = {
     fontSize: 13,
     fontWeight: 500,
   };
 
-  const selectStyle: React.CSSProperties = {
+  const selectStyle: CSSProperties = {
     ...inputStyle,
   };
 

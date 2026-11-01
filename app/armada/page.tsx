@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useLanguage } from "@/app/component/LanguageContext";
+import { useLanguage } from "@/app/component/AppLanguage";
 
 type LanguageCode = "ja" | "es" | "de" | "zh-CN" | "zh-TW" | "en";
 

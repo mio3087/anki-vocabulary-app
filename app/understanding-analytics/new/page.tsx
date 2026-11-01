@@ -46,7 +46,9 @@ const errorCategories = [
 
 type ErrorId = (typeof errorCategories)[number];
 
-const translations: Record<AppLanguage, Record<string, string>> = {
+const translations: {
+  ja: Record<string, string>;
+} & Partial<Record<Exclude<AppLanguage, "ja">, Record<string, string>>> = {
   ja: {
     back: "Reality Check に戻る",
     guide: "使い方ガイド",
@@ -534,8 +536,11 @@ const languageLabels: Record<string, string> = {
 export default function NewUnderstandingAnalysisPage() {
   const { language: appLanguage } = useAppLanguage();
 
-  const dictionary = translations[appLanguage] ?? translations.ja;
-  const t = (key: string) => dictionary[key] ?? translations.ja[key] ?? key;
+  const dictionary: Record<string, string> =
+  translations[appLanguage] ?? translations.ja;
+
+const t = (key: string): string =>
+  dictionary[key] ?? translations.ja[key] ?? key;
 
   const [language, setLanguage] = useState<Language>("zh");
   const [skill, setSkill] = useState<Skill>("reading");

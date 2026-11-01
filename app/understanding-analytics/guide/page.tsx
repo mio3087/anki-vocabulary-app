@@ -17,7 +17,9 @@ import {
   Lightbulb,
 } from "lucide-react";
 
-const translations: Record<AppLanguage, Record<string, string>> = {
+const translations: {
+  ja: Record<string, string>;
+} & Partial<Record<Exclude<AppLanguage, "ja">, Record<string, string>>> = {
   ja: {
     back: "Reality Check に戻る",
     heading: "「分かったつもり」を見つける",
@@ -505,8 +507,12 @@ const skillData = [
 
 export default function RealityCheckGuidePage() {
   const { language } = useAppLanguage();
-  const dictionary = translations[language] ?? translations.ja;
-  const t = (key: string) => dictionary[key] ?? translations.ja[key] ?? key;
+
+  const dictionary: Record<string, string> =
+    translations[language] ?? translations.ja;
+
+  const t = (key: string): string =>
+    dictionary[key] ?? translations.ja[key] ?? key;
 
   const themeColor = "var(--anki-theme-color)";
   const themeDark = "var(--anki-theme-dark)";

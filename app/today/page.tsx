@@ -61,6 +61,7 @@ const localeMap: Record<AppLanguage, string> = {
   "zh-CN": "zh-CN",
   "zh-TW": "zh-TW",
   es: "es-ES",
+  it: "it-IT",
 };
 
 type Translation = {
@@ -119,7 +120,9 @@ type Translation = {
   weekdays: string[];
 };
 
-const translations: Record<AppLanguage, Translation> = {
+const translations: {
+  ja: Translation;
+} & Partial<Record<Exclude<AppLanguage, "ja">, Translation>> = {
   ja: {
     title: "今日のノルマ",
     taskManagement: "タスク管理",
@@ -557,7 +560,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 export default function TodayPage() {
   const { language } = useAppLanguage();
-  const tr = translations[language];
+const tr: Translation = translations[language] ?? translations.ja;
 
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
@@ -609,7 +612,7 @@ export default function TodayPage() {
       } catch (error) {
         console.error("Study plan loading error:", error);
         setPlans([]);
-        setErrorMessage(translations[language].planError);
+        setErrorMessage((translations[language] ?? translations.ja).planError);
       }
     }
 
@@ -659,7 +662,7 @@ export default function TodayPage() {
       },
       (error) => {
         console.error("Task loading error:", error);
-        setErrorMessage(translations[language].taskError);
+        setErrorMessage((translations[language] ?? translations.ja).taskError);
         setLoading(false);
       }
     );

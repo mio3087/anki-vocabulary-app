@@ -500,13 +500,10 @@ export default function StoryDetailPage() {
     "Wir müssen die Wahrheit herausfinden.";
 
   function speak(text: string, storyLanguage: string) {
-    if (
-      typeof window === "undefined" ||
-      !("speechSynthesis" in window)
-    ) {
-      window.alert(t.speechError);
-      return;
-    }
+    if (!("speechSynthesis" in window)) {
+  alert(t.speechError);
+  return;
+}
 
     window.speechSynthesis.cancel();
 

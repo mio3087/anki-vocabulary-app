@@ -559,7 +559,7 @@ function getCountryLanguages(
 }
 
 export default function LanguageWorldMap() {
-  const { language } = useAppLanguage();
+const { language } = useLanguage();
 
   const currentLanguage: LanguageCode =
     language in translations ? (language as LanguageCode) : "ja";
