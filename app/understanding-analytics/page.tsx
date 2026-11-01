@@ -7,7 +7,7 @@ import {
   Lightbulb, Target, RefreshCw, CheckCircle2, AlertTriangle,
   ChevronDown, Globe, Bookmark, ArrowRight,
 } from "lucide-react";
-import { useLanguage } from "@/app/component/LanguageContext";
+import { useLanguage } from "@/app/component/AppLanguage";
 import { mockRealityCheckData } from "@/lib/understanding/mock-data";
 import type { Skill, Language } from "@/lib/understanding/types";
 
