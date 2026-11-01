@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { useAppLanguage } from "@/app/component/AppLanguage";
+import { useLanguage } from "@/app/component/LanguageContext";
 
 type Language = "ja" | "de" | "en" | "zh-CN" | "zh-TW" | "es";
 
@@ -388,7 +388,7 @@ const uiTranslations: Record<Language, Record<string, string>> = {
 };
 
 export default function Chapter1Page() {
-  const { language } = useAppLanguage();
+  const { language } = useLanguage();
 
   const currentLanguage: Language =
     language in uiTranslations ? (language as Language) : "ja";

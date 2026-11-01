@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useAppLanguage } from "@/app/component/AppLanguage";
+import { useLanguage } from "@/app/component/LanguageContext";
 
 import {
   X,
@@ -44,7 +44,7 @@ const squareButtonStyle = {
 export default function AnkiSidebar() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
-  const { t } = useAppLanguage();
+  const { language } = useLanguage();
 
   const sections = [
     {
