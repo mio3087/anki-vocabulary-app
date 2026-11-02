@@ -3651,7 +3651,7 @@ const updatedCard: Card = {
         color:
           answerMode === "2"
             ? colors.white
-            : colors.text,
+            : colors.dark,
         fontWeight: "bold",
         cursor: "pointer",
       }}
@@ -3681,7 +3681,7 @@ const updatedCard: Card = {
         color:
           answerMode === "4"
             ? colors.white
-            : colors.text,
+            : colors.dark,
         fontWeight: "bold",
         cursor: "pointer",
       }}
