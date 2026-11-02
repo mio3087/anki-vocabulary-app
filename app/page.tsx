@@ -27,13 +27,6 @@ type Folder = {
   name: string;
 };
 
-type LearningStatus =
-  | "weak"
-  | "almost"
-  | "vague"
-  | "learned"
-  | "perfect"
-  | "unlearned";
 
 type LearningStatus =
   | "weak"
