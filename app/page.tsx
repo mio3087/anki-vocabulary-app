@@ -27,6 +27,22 @@ type Folder = {
   name: string;
 };
 
+type LearningStatus =
+  | "weak"
+  | "almost"
+  | "vague"
+  | "learned"
+  | "perfect"
+  | "unlearned";
+
+type LearningStatus =
+  | "weak"
+  | "almost"
+  | "vague"
+  | "learned"
+  | "perfect"
+  | "unlearned";
+
 type Card = {
   id: string;
   front: string;
@@ -34,11 +50,15 @@ type Card = {
   japanese: string;
   example: string;
   exampleJapanese: string;
+
   reviewCount?: number;
   correctCount?: number;
   incorrectCount?: number;
   lastReviewedAt?: number;
   lastResult?: "correct" | "incorrect";
+
+  learningStatus?: LearningStatus;
+  nextReviewAt?: number | null;
 };
 
 type Deck = {
@@ -1145,7 +1165,10 @@ export default function Home() {
   ]);
 
   const [currentDeck, setCurrentDeck] = useState("中国語");
-  const [deckOpen, setDeckOpen] = useState(false);
+const [deckOpen, setDeckOpen] = useState(false);
+
+// 回答方式
+const [answerMode, setAnswerMode] = useState<"2" | "4">("2");
 
   // =========================================================
   // 学習
@@ -2606,7 +2629,9 @@ const parts = parseCSVLine(line);
   };
 
   const answerCard = async (
-  correct: boolean
+  correct: boolean,
+  learningStatus?: LearningStatus,
+  reviewDays?: number
 ) => {
   const currentCard =
     studyCards[studyIndex];
@@ -2635,28 +2660,32 @@ const parts = parseCSVLine(line);
   // カード個別の学習記録
   // -----------------------------
 
-  const updatedCard: Card = {
-    ...currentCard,
+const updatedCard: Card = {
+  ...currentCard,
 
-    reviewCount:
-      (currentCard.reviewCount || 0) + 1,
+  reviewCount:
+    (currentCard.reviewCount || 0) + 1,
 
-    correctCount:
-      (currentCard.correctCount || 0) +
-      (correct ? 1 : 0),
+  correctCount:
+    (currentCard.correctCount || 0) +
+    (correct ? 1 : 0),
 
-    incorrectCount:
-      (currentCard.incorrectCount || 0) +
-      (correct ? 0 : 1),
+  incorrectCount:
+    (currentCard.incorrectCount || 0) +
+    (correct ? 0 : 1),
 
-    lastReviewedAt:
-      Date.now(),
+  lastReviewedAt: Date.now(),
 
-    lastResult:
-      correct
-        ? "correct"
-        : "incorrect",
-  };
+  lastResult: correct ? "correct" : "incorrect",
+
+  learningStatus:
+    learningStatus ?? currentCard.learningStatus,
+
+  nextReviewAt:
+    reviewDays !== undefined
+      ? Date.now() + reviewDays * 24 * 60 * 60 * 1000
+      : currentCard.nextReviewAt ?? null,
+};
 
 
   // -----------------------------
@@ -3308,84 +3337,171 @@ const parts = parseCSVLine(line);
                   {
                     card.exampleJapanese
                   }
+                            <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              speakWord(card.front);
+            }}
+            title="音声を再生"
+            aria-label="音声を再生"
+            style={{
+              alignSelf: "center",
+              marginTop: "24px",
+              width: "48px",
+              height: "48px",
+              borderRadius: "50%",
+              border: `1px solid ${colors.blue}`,
+              background: colors.white,
+              color: colors.blueDark,
+              fontSize: "24px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+            }}
+          >🔊
+            
+          </button>
                 </div>
               )}
             </>
           )}
         </div>
 
-        <button
-          onClick={() =>
-            speakWord(
-              card.front
-            )
-          }
-          style={{
-            marginTop:
-              "20px",
-            padding:
-              "10px 22px",
-            borderRadius:
-              "20px",
-            border:
-              `2px solid ${colors.blue}`,
-            background:
-              colors.white,
-            color:
-              colors.blueDark,
-            fontSize:
-              "16px",
-            cursor:
-              "pointer",
-          }}
-        >
-          {tx("study.pronunciation")}
-        </button>
+        
 
         {showAnswer && (
-          <div
-            style={{
-              display: "flex",
-              gap: "12px",
-              marginTop: "25px",
-              justifyContent: "center",
-              flexWrap: "wrap",
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => void answerCard(true)}
-              style={{
-                padding: "14px 28px",
-                borderRadius: "16px",
-                border: "none",
-                background: colors.green,
-                color: colors.white,
-                fontWeight: "bold",
-                cursor: "pointer",
-                minWidth: "120px",
-              }}
-            >
-              {tx("study.correct")}
-            </button>
-            <button
-              type="button"
-              onClick={() => void answerCard(false)}
-              style={{
-                padding: "14px 28px",
-                borderRadius: "16px",
-                border: "none",
-                background: colors.pink,
-                color: colors.white,
-                fontWeight: "bold",
-                cursor: "pointer",
-                minWidth: "120px",
-              }}
-            >
-              {tx("study.incorrect")}
-            </button>
+  <div
+    style={{
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr",
+      gap: "12px",
+      marginTop: "25px",
+      width: "100%",
+    }}
+  >
+    {answerMode === "2" ? (
+      <>
+        <button
+          type="button"
+          onClick={() => void answerCard(false)}
+          style={{
+            minHeight: "70px",
+            borderRadius: "16px",
+            border: "none",
+            background: colors.pink,
+            color: colors.white,
+            fontWeight: "bold",
+            fontSize: "16px",
+            cursor: "pointer",
+          }}
+        >
+          {tx("study.incorrect")}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => void answerCard(true)}
+          style={{
+            minHeight: "70px",
+            borderRadius: "16px",
+            border: "none",
+            background: colors.green,
+            color: colors.white,
+            fontWeight: "bold",
+            fontSize: "16px",
+            cursor: "pointer",
+          }}
+        >
+          {tx("study.correct")}
+        </button>
+      </>
+    ) : (
+      <>
+        <button
+          type="button"
+          onClick={() => void answerCard(false, "weak", 1)}
+          style={{
+            minHeight: "80px",
+            borderRadius: "16px",
+            border: "none",
+            background: colors.pink,
+            color: colors.white,
+            fontWeight: "bold",
+            fontSize: "15px",
+            cursor: "pointer",
+          }}
+        >
+          苦手
+          <div style={{ fontSize: "12px", marginTop: "5px" }}>
+            明日復習
           </div>
-        )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => void answerCard(false, "vague", 3)}
+          style={{
+            minHeight: "80px",
+            borderRadius: "16px",
+            border: "none",
+            background: "#C49A62",
+            color: colors.white,
+            fontWeight: "bold",
+            fontSize: "15px",
+            cursor: "pointer",
+          }}
+        >
+          うろ覚え
+          <div style={{ fontSize: "12px", marginTop: "5px" }}>
+            3日後復習
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => void answerCard(true, "learned", 5)}
+          style={{
+            minHeight: "80px",
+            borderRadius: "16px",
+            border: "none",
+            background: colors.green,
+            color: colors.white,
+            fontWeight: "bold",
+            fontSize: "15px",
+            cursor: "pointer",
+          }}
+        >
+          覚えた
+          <div style={{ fontSize: "12px", marginTop: "5px" }}>
+            5日後復習
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => void answerCard(true, "perfect", 7)}
+          style={{
+            minHeight: "80px",
+            borderRadius: "16px",
+            border: "none",
+            background: colors.blue,
+            color: colors.white,
+            fontWeight: "bold",
+            fontSize: "15px",
+            cursor: "pointer",
+          }}
+        >
+          簡単
+          <div style={{ fontSize: "12px", marginTop: "5px" }}>
+            7日後復習
+          </div>
+        </button>
+      </>
+    )}
+  </div>
+)}
       </main>
     );
   }
@@ -3497,6 +3613,93 @@ const parts = parseCSVLine(line);
           {deck.cards.length} {tx("deck.cards")}
         </p>
 
+<div
+  style={{
+    marginTop: "24px",
+    padding: "18px",
+    background: colors.white,
+    border: `1px solid ${colors.border}`,
+    borderRadius: "16px",
+  }}
+>
+  <div
+    style={{
+      fontSize: "15px",
+      fontWeight: "bold",
+      marginBottom: "12px",
+      color: colors.text,
+    }}
+  >
+    回答方式
+  </div>
+
+  <div
+    style={{
+      display: "flex",
+      gap: "10px",
+    }}
+  >
+    <button
+      type="button"
+      onClick={() => setAnswerMode("2")}
+      style={{
+        flex: 1,
+        padding: "13px 8px",
+        borderRadius: "12px",
+        border: `1px solid ${
+          answerMode === "2"
+            ? colors.blue
+            : colors.border
+        }`,
+        background:
+          answerMode === "2"
+            ? colors.blue
+            : colors.white,
+        color:
+          answerMode === "2"
+            ? colors.white
+            : colors.text,
+        fontWeight: "bold",
+        cursor: "pointer",
+      }}
+    >
+      2択
+      <div style={{ fontSize: "12px", marginTop: "4px" }}>
+        正解・不正解
+      </div>
+    </button>
+
+    <button
+      type="button"
+      onClick={() => setAnswerMode("4")}
+      style={{
+        flex: 1,
+        padding: "13px 8px",
+        borderRadius: "12px",
+        border: `1px solid ${
+          answerMode === "4"
+            ? colors.blue
+            : colors.border
+        }`,
+        background:
+          answerMode === "4"
+            ? colors.blue
+            : colors.white,
+        color:
+          answerMode === "4"
+            ? colors.white
+            : colors.text,
+        fontWeight: "bold",
+        cursor: "pointer",
+      }}
+    >
+      4択
+      <div style={{ fontSize: "12px", marginTop: "4px" }}>
+        習熟度で評価
+      </div>
+    </button>
+  </div>
+</div>
         <button
           onClick={
             startStudy
