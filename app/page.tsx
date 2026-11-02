@@ -3620,7 +3620,7 @@ const updatedCard: Card = {
       fontSize: "15px",
       fontWeight: "bold",
       marginBottom: "12px",
-      color: colors.text,
+      color: colors.dark,
     }}
   >
     回答方式
