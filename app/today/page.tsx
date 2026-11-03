@@ -512,7 +512,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 export default function TodayPage() {
   const { language } = useAppLanguage();
-  const tr = copy[language] ?? copy.ja;
+  const tr = copy[language as keyof typeof copy] ?? copy.ja;
 
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
