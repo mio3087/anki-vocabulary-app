@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, ChangeEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useLanguage } from "@/app/component/AppLanguage";
 import { db } from "@/lib/firebase";
 import {
@@ -10,22 +10,25 @@ import {
   getDocs,
   setDoc,
 } from "firebase/firestore";
+import {
+  getStorage,
+  ref,
+  uploadBytes,
+  getDownloadURL,
+} from "firebase/storage";
 
 type Folder = {
   id: string;
   name: string;
-  order?: number; // 並び順用
+  order?: number;
 };
 
 type LearningStatus =
   | "weak"
-  | "almost"
   | "vague"
   | "learned"
   | "perfect"
   | "unlearned";
-
-type DeckPriority = "gold" | "silver" | "bronze" | "none";
 
 type Card = {
   id: string;
@@ -48,8 +51,8 @@ type Deck = {
   language: string;
   cards: Card[];
   folderId: string | null;
-  priority?: DeckPriority;
-  order?: number; // 並び順用
+  coverImageUrl?: string;
+  order?: number;
 };
 
 type StudyRecord = {
@@ -193,13 +196,6 @@ function prioritizeWeakCards(cards: Card[]) {
     });
 }
 
-const priorityWeight: Record<DeckPriority, number> = {
-  gold: 3,
-  silver: 2,
-  bronze: 1,
-  none: 0,
-};
-
 const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "12px 14px",
@@ -240,6 +236,14 @@ export default function Page() {
   const deckSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // デッキ作成時用
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+
+  // デッキ詳細（編集）用
+  const editImageInputRef = useRef<HTMLInputElement | null>(null);
+  const editCameraInputRef = useRef<HTMLInputElement | null>(null);
+
   const [themeColor, setThemeColor] = useState("#718675");
   const [showThemeSettings, setShowThemeSettings] = useState(false);
   const [color, setColor] = useState("#718675");
@@ -251,7 +255,7 @@ export default function Page() {
 
   const [currentDeck, setCurrentDeck] = useState("");
   const [deckOpen, setDeckOpen] = useState(false);
-  const [answerMode, setAnswerMode] = useState<"2" | "4">("4");
+  const [answerMode, setAnswerMode] = useState<"2" | "4">("2");
 
   const [speechLanguage, setSpeechLanguage] = useState("zh-CN");
 
@@ -278,6 +282,10 @@ export default function Page() {
   const [newDeckLanguage, setNewDeckLanguage] = useState("zh-CN");
   const [newDeckFolderId, setNewDeckFolderId] = useState<string | null>(null);
   const [newFolderName, setNewFolderName] = useState("");
+
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [coverPreview, setCoverPreview] = useState("");
+  const [uploadingCover, setUploadingCover] = useState(false);
 
   const [showCardForm, setShowCardForm] = useState(false);
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
@@ -321,7 +329,6 @@ export default function Page() {
       "folder.create": "フォルダ作成",
       "folder.move": "フォルダへ移動",
       "common.cancel": "キャンセル",
-      "common.save": "保存する",
       "study.quit": "学習をやめる",
       "study.correct": "正解",
       "study.incorrect": "不正解",
@@ -368,12 +375,14 @@ export default function Page() {
           name: item.data().name || item.id,
           order: item.data().order ?? index,
         }));
+
         loadedFolders.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
         setFolders(loadedFolders);
 
         const deckSnapshot = await getDocs(collection(db, "decks"));
         const loadedDecks: Deck[] = deckSnapshot.docs.map((item, index) => {
           const data = item.data();
+
           return {
             name: data.name || item.id,
             language: data.language || "zh-CN",
@@ -392,23 +401,29 @@ export default function Page() {
                   ...(card.lastResult === "correct" || card.lastResult === "incorrect"
                     ? { lastResult: card.lastResult }
                     : {}),
-                  ...(card.learningStatus ? { learningStatus: card.learningStatus } : {}),
+                  ...(card.learningStatus
+                    ? { learningStatus: card.learningStatus }
+                    : {}),
                   nextReviewAt: card.nextReviewAt ?? null,
                 }))
               : [],
             folderId: data.folderId ?? null,
-            priority: (data.priority as DeckPriority) || "none",
+            coverImageUrl: data.coverImageUrl || "",
             order: data.order ?? index,
           };
         });
+
         setDecks(loadedDecks);
+
         if (loadedDecks.length > 0) {
           setCurrentDeck(loadedDecks[0].name);
         }
 
         const recordSnapshot = await getDocs(collection(db, "studyRecords"));
+
         const loadedRecords: StudyRecord[] = recordSnapshot.docs.map((item) => {
           const data = item.data();
+
           return {
             id: item.id,
             date: data.date || "",
@@ -421,6 +436,7 @@ export default function Page() {
             duration: Number(data.duration || 0),
           };
         });
+
         loadedRecords.sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0));
         setStudyRecords(loadedRecords);
       } catch (error) {
@@ -429,6 +445,7 @@ export default function Page() {
         setLoading(false);
       }
     };
+
     void loadData();
   }, []);
 
@@ -439,12 +456,19 @@ export default function Page() {
   useEffect(() => {
     const stored = localStorage.getItem("anki-theme-color");
     const valid = stored ? normalizeHex(stored) : null;
+
     if (valid) {
       setThemeColor(valid);
       setColor(valid);
       setSavedColor(valid);
     }
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (coverPreview) URL.revokeObjectURL(coverPreview);
+    };
+  }, [coverPreview]);
 
   const saveColor = () => {
     localStorage.setItem("anki-theme-color", color);
@@ -458,19 +482,24 @@ export default function Page() {
   useEffect(() => {
     const deck = decks.find((item) => item.name === currentDeck);
     if (!deck || !deckOpen) return;
+
     let savedLanguage = "";
+
     try {
       savedLanguage = localStorage.getItem(getDeckSpeechKey(deck.name)) || "";
     } catch {}
+
     const validLanguage = languageOptions.some(([code]) => code === savedLanguage);
     setSpeechLanguage(validLanguage ? savedLanguage : deck.language);
   }, [currentDeck, deckOpen, decks]);
 
   const changeSpeechLanguage = (value: string) => {
     setSpeechLanguage(value);
+
     try {
       localStorage.setItem(getDeckSpeechKey(currentDeck), value);
     } catch {}
+
     if ("speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
@@ -478,15 +507,20 @@ export default function Page() {
 
   const speakWord = (word: string) => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+
     window.speechSynthesis.cancel();
+
     const utterance = new SpeechSynthesisUtterance(word);
     let rate = 0.8;
+
     try {
       const storedRate = Number(localStorage.getItem("anki-speech-rate") ?? "0.8");
+
       if (Number.isFinite(storedRate) && storedRate >= 0.5 && storedRate <= 2) {
         rate = storedRate;
       }
     } catch {}
+
     utterance.lang = speechLanguage || "zh-CN";
     utterance.rate = rate;
     window.speechSynthesis.speak(utterance);
@@ -494,14 +528,20 @@ export default function Page() {
 
   useEffect(() => {
     if (!studyMode) return;
+
     const card = studyCards[studyIndex];
     if (!card) return;
+
     let autoReadEnabled = true;
+
     try {
       autoReadEnabled = localStorage.getItem("anki-auto-read") !== "false";
     } catch {}
+
     if (!autoReadEnabled) return;
+
     speakWord(card.front);
+
     return () => {
       if ("speechSynthesis" in window) {
         window.speechSynthesis.cancel();
@@ -519,92 +559,208 @@ export default function Page() {
 
   const updateDeckState = (updatedDeck: Deck) => {
     setDecks((previous) =>
-      previous.map((item) => (item.name === updatedDeck.name ? updatedDeck : item))
+      previous.map((item) =>
+        item.name === updatedDeck.name ? updatedDeck : item
+      )
     );
   };
 
-  // フォルダの順番を入れ替える（上にスワイプ・下にスワイプ風の移動）
   const moveFolderOrder = async (index: number, direction: "up" | "down") => {
     const targetIndex = direction === "up" ? index - 1 : index + 1;
+
     if (targetIndex < 0 || targetIndex >= folders.length) return;
 
     const newFolders = [...folders];
     const temp = newFolders[index];
+
     newFolders[index] = newFolders[targetIndex];
     newFolders[targetIndex] = temp;
 
-    // order値を更新して保存
-    const updated = newFolders.map((f, i) => ({ ...f, order: i }));
+    const updated = newFolders.map((folder, i) => ({
+      ...folder,
+      order: i,
+    }));
+
     setFolders(updated);
 
     try {
-      await Promise.all(updated.map((f) => persistFolder(f)));
+      await Promise.all(updated.map((folder) => persistFolder(folder)));
     } catch (error) {
       console.error("フォルダ並び替え保存エラー:", error);
     }
   };
 
-  // デッキの順番を入れ替える
-  const moveDeckOrder = async (folderDecks: Deck[], index: number, direction: "up" | "down") => {
+  const moveDeckOrder = async (
+    folderDecks: Deck[],
+    index: number,
+    direction: "up" | "down"
+  ) => {
     const targetIndex = direction === "up" ? index - 1 : index + 1;
+
     if (targetIndex < 0 || targetIndex >= folderDecks.length) return;
 
     const newFolderDecks = [...folderDecks];
     const temp = newFolderDecks[index];
+
     newFolderDecks[index] = newFolderDecks[targetIndex];
     newFolderDecks[targetIndex] = temp;
 
-    // 全体デッキステートに反映
-    const updatedDecks = decks.map((d) => {
-      const foundIdx = newFolderDecks.findIndex((fd) => fd.name === d.name);
-      if (foundIdx !== -1) {
-        return { ...d, order: foundIdx };
+    const updatedDecks = decks.map((deck) => {
+      const foundIndex = newFolderDecks.findIndex(
+        (item) => item.name === deck.name
+      );
+
+      if (foundIndex !== -1) {
+        return { ...deck, order: foundIndex };
       }
-      return d;
+
+      return deck;
     });
 
     setDecks(updatedDecks);
 
     try {
-      await Promise.all(newFolderDecks.map((d, i) => persistDeck({ ...d, order: i })));
+      await Promise.all(
+        newFolderDecks.map((deck, i) =>
+          persistDeck({ ...deck, order: i })
+        )
+      );
     } catch (error) {
       console.error("デッキ並び替え保存エラー:", error);
     }
   };
 
+  // 共通のFirebase Storage画像アップロード関数
+  const uploadImageToStorage = async (file: File) => {
+    const storage = getStorage();
+    const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const imageRef = ref(
+      storage,
+      `deck-covers/${createId()}-${safeFileName}`
+    );
+    await uploadBytes(imageRef, file);
+    return await getDownloadURL(imageRef);
+  };
+
+  // デッキ新規作成時の画像選択ハンドラー
+  const selectCoverImage = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("画像ファイルを選択してください。");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert("画像は5MB以下にしてください。");
+      return;
+    }
+
+    setCoverFile(file);
+
+    const previewUrl = URL.createObjectURL(file);
+    setCoverPreview(previewUrl);
+  };
+
+  // 作成後（デッキ詳細画面）の画像更新・追加ハンドラー
+  const updateExistingDeckCover = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("画像ファイルを選択してください。");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert("画像は5MB以下にしてください。");
+      return;
+    }
+
+    const deck = decks.find((item) => item.name === currentDeck);
+    if (!deck) return;
+
+    setUploadingCover(true);
+
+    try {
+      const coverImageUrl = await uploadImageToStorage(file);
+      const updatedDeck: Deck = {
+        ...deck,
+        coverImageUrl,
+      };
+
+      await persistDeck(updatedDeck);
+      updateDeckState(updatedDeck);
+      alert("デッキのアイコン画像を更新しました。");
+    } catch (error) {
+      console.error("画像更新エラー:", error);
+      alert("画像の更新に失敗しました。\n" + String(error));
+    } finally {
+      setUploadingCover(false);
+    }
+  };
+
   const addDeck = async () => {
     const name = newDeckName.trim();
+
     if (!name) return alert(tx("alert.deckName"));
+
     if (decks.some((deck) => deck.name === name)) {
       return alert(tx("alert.deckDuplicate"));
     }
-    const newDeck: Deck = {
-      name,
-      language: newDeckLanguage,
-      cards: [],
-      folderId: newDeckFolderId,
-      priority: "none",
-      order: decks.length,
-    };
+
+    setUploadingCover(true);
+
     try {
+      let coverImageUrl = "";
+
+      if (coverFile) {
+        coverImageUrl = await uploadImageToStorage(coverFile);
+      }
+
+      const newDeck: Deck = {
+        name,
+        language: newDeckLanguage,
+        cards: [],
+        folderId: newDeckFolderId,
+        coverImageUrl,
+        order: decks.length,
+      };
+
       await persistDeck(newDeck);
+
       setDecks((previous) => [...previous, newDeck]);
       setCurrentDeck(name);
       setNewDeckName("");
       setNewDeckFolderId(null);
+      setCoverFile(null);
+      setCoverPreview("");
+
       alert(tx("alert.deckCreated"));
     } catch (error) {
-      console.error(error);
-      alert(tx("alert.deckSaveFailed"));
+      console.error("デッキ作成エラー:", error);
+      alert(tx("alert.deckSaveFailed") + "\n" + String(error));
+    } finally {
+      setUploadingCover(false);
     }
   };
 
   const deleteDeck = async (deckName: string) => {
-    if (!confirm(tx("alert.deckDeleteConfirm").replace("{name}", deckName))) return;
+    if (!confirm(tx("alert.deckDeleteConfirm").replace("{name}", deckName))) {
+      return;
+    }
+
     try {
       await deleteDoc(doc(db, "decks", deckName));
+
       const updated = decks.filter((deck) => deck.name !== deckName);
       setDecks(updated);
+
       if (currentDeck === deckName) {
         setCurrentDeck(updated[0]?.name || "");
         setDeckOpen(false);
@@ -617,8 +773,15 @@ export default function Page() {
 
   const addFolder = async () => {
     const name = newFolderName.trim();
+
     if (!name) return alert(tx("alert.folderName"));
-    const folder: Folder = { id: createId(), name, order: folders.length };
+
+    const folder: Folder = {
+      id: createId(),
+      name,
+      order: folders.length,
+    };
+
     try {
       await persistFolder(folder);
       setFolders((previous) => [...previous, folder]);
@@ -632,13 +795,22 @@ export default function Page() {
 
   const deleteFolder = async (folderId: string) => {
     if (!confirm(tx("alert.folderDeleteConfirm"))) return;
+
     try {
       await deleteDoc(doc(db, "folders", folderId));
-      setFolders((previous) => previous.filter((folder) => folder.id !== folderId));
-      const updatedDecks = decks.map((deck) =>
-        deck.folderId === folderId ? { ...deck, folderId: null } : deck
+
+      setFolders((previous) =>
+        previous.filter((folder) => folder.id !== folderId)
       );
+
+      const updatedDecks = decks.map((deck) =>
+        deck.folderId === folderId
+          ? { ...deck, folderId: null }
+          : deck
+      );
+
       setDecks(updatedDecks);
+
       await Promise.all(updatedDecks.map((deck) => persistDeck(deck)));
     } catch (error) {
       console.error(error);
@@ -649,7 +821,9 @@ export default function Page() {
   const moveDeck = async (deckName: string, folderId: string | null) => {
     const deck = decks.find((item) => item.name === deckName);
     if (!deck) return;
+
     const updatedDeck = { ...deck, folderId };
+
     try {
       await persistDeck(updatedDeck);
       updateDeckState(updatedDeck);
@@ -659,38 +833,35 @@ export default function Page() {
     }
   };
 
-  const changeDeckPriority = async (deckName: string, priority: DeckPriority) => {
-    const deck = decks.find((item) => item.name === deckName);
-    if (!deck) return;
-    const updatedDeck = { ...deck, priority };
-    try {
-      await persistDeck(updatedDeck);
-      updateDeckState(updatedDeck);
-    } catch (error) {
-      console.error(error);
-      alert("優先順位の保存に失敗しました。");
-    }
-  };
-
   const importCSV = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.currentTarget.files?.[0];
     if (!file) return;
+
     event.currentTarget.value = "";
+
     const reader = new FileReader();
+
     reader.onload = async () => {
       try {
         const result = reader.result;
-        if (typeof result !== "string") return alert(tx("alert.csvReadFailed"));
+
+        if (typeof result !== "string") {
+          return alert(tx("alert.csvReadFailed"));
+        }
+
         const lines = result
           .replace(/^\uFEFF/, "")
           .split(/\r?\n/)
           .map((line) => line.trim())
           .filter(Boolean);
+
         if (lines.length === 0) return alert(tx("alert.csvEmpty"));
 
         const importedCards: Card[] = [];
+
         for (const line of lines) {
           const parts = line.split(",");
+
           const card: Card = {
             id: createId(),
             front: (parts[0] || "").trim(),
@@ -705,25 +876,38 @@ export default function Page() {
             learningStatus: "unlearned",
             nextReviewAt: null,
           };
+
           if (card.front) importedCards.push(card);
         }
-        if (importedCards.length === 0) return alert(tx("alert.wordReadFailed"));
+
+        if (importedCards.length === 0) {
+          return alert(tx("alert.wordReadFailed"));
+        }
 
         const deck = decks.find((item) => item.name === currentDeck);
+
         if (!deck) return alert(tx("alert.deckNotFound"));
 
         const updatedDeck: Deck = {
           ...deck,
           cards: [...deck.cards, ...importedCards],
         };
+
         await persistDeck(updatedDeck);
         updateDeckState(updatedDeck);
-        alert(tx("alert.csvImported").replace("{count}", String(importedCards.length)));
+
+        alert(
+          tx("alert.csvImported").replace(
+            "{count}",
+            String(importedCards.length)
+          )
+        );
       } catch (error) {
         console.error(error);
         alert("CSVエラー: " + String(error));
       }
     };
+
     reader.readAsText(file, "UTF-8");
   };
 
@@ -759,11 +943,15 @@ export default function Page() {
 
   const saveCard = async () => {
     const front = cardFront.trim();
+
     if (!front) return alert(tx("alert.wordRequired"));
+
     const deck = decks.find((item) => item.name === currentDeck);
+
     if (!deck) return alert(tx("alert.currentDeckMissing"));
 
     let updatedCards: Card[];
+
     if (editingCardId) {
       updatedCards = deck.cards.map((card) =>
         card.id === editingCardId
@@ -779,11 +967,19 @@ export default function Page() {
       );
     } else {
       const duplicate = deck.cards.some(
-        (card) => card.front.trim().toLowerCase() === front.toLowerCase()
+        (card) =>
+          card.front.trim().toLowerCase() === front.toLowerCase()
       );
-      if (duplicate && !confirm(tx("alert.duplicateWord").replace("{word}", front))) {
+
+      if (
+        duplicate &&
+        !confirm(
+          tx("alert.duplicateWord").replace("{word}", front)
+        )
+      ) {
         return;
       }
+
       const newCard: Card = {
         id: createId(),
         front,
@@ -798,16 +994,26 @@ export default function Page() {
         learningStatus: "unlearned",
         nextReviewAt: null,
       };
+
       updatedCards = [...deck.cards, newCard];
     }
 
-    const updatedDeck: Deck = { ...deck, cards: updatedCards };
+    const updatedDeck: Deck = {
+      ...deck,
+      cards: updatedCards,
+    };
+
     try {
       await persistDeck(updatedDeck);
       updateDeckState(updatedDeck);
+
       setStudyCards((previous) =>
-        previous.map((card) => updatedCards.find((item) => item.id === card.id) || card)
+        previous.map(
+          (card) =>
+            updatedCards.find((item) => item.id === card.id) || card
+        )
       );
+
       resetCardForm();
     } catch (error) {
       console.error(error);
@@ -818,18 +1024,30 @@ export default function Page() {
   const deleteCard = async (cardId: string) => {
     const deck = decks.find((item) => item.name === currentDeck);
     if (!deck) return;
+
     const card = deck.cards.find((item) => item.id === cardId);
     if (!card) return;
-    if (!confirm(tx("alert.wordDeleteConfirm").replace("{word}", card.front))) return;
+
+    if (
+      !confirm(
+        tx("alert.wordDeleteConfirm").replace("{word}", card.front)
+      )
+    ) {
+      return;
+    }
 
     const updatedDeck: Deck = {
       ...deck,
       cards: deck.cards.filter((item) => item.id !== cardId),
     };
+
     try {
       await persistDeck(updatedDeck);
       updateDeckState(updatedDeck);
-      setStudyCards((previous) => previous.filter((item) => item.id !== cardId));
+
+      setStudyCards((previous) =>
+        previous.filter((item) => item.id !== cardId)
+      );
     } catch (error) {
       console.error(error);
       alert(tx("alert.wordDeleteFailed"));
@@ -838,8 +1056,12 @@ export default function Page() {
 
   const startStudy = () => {
     answerLockRef.current = false;
+
     const deck = decks.find((item) => item.name === currentDeck);
-    if (!deck || deck.cards.length === 0) return alert(tx("alert.noWords"));
+
+    if (!deck || deck.cards.length === 0) {
+      return alert(tx("alert.noWords"));
+    }
 
     setStudyCards(prioritizeWeakCards(deck.cards));
     setStudyIndex(0);
@@ -851,18 +1073,24 @@ export default function Page() {
     setStudyMode(true);
   };
 
-  const saveStudyRecord = async (correctCount: number, incorrectCount: number) => {
+  const saveStudyRecord = async (
+    correctCount: number,
+    incorrectCount: number
+  ) => {
     if (studyStartTime === null || studySessionId === null) return;
+
     const answered = correctCount + incorrectCount;
     if (answered === 0) return;
 
     const now = Date.now();
     const dateObject = new Date(now);
+
     const date = [
       dateObject.getFullYear(),
       String(dateObject.getMonth() + 1).padStart(2, "0"),
       String(dateObject.getDate()).padStart(2, "0"),
     ].join("-");
+
     const time = dateObject.toLocaleTimeString(language, {
       hour: "2-digit",
       minute: "2-digit",
@@ -878,11 +1106,15 @@ export default function Page() {
       answered,
       correct: correctCount,
       incorrect: incorrectCount,
-      duration: Math.max(0, Math.floor((now - studyStartTime) / 1000)),
+      duration: Math.max(
+        0,
+        Math.floor((now - studyStartTime) / 1000)
+      ),
     };
 
     try {
       await setDoc(doc(db, "studyRecords", record.id), record);
+
       setStudyRecords((previous) =>
         [record, ...previous.filter((item) => item.id !== record.id)].sort(
           (a, b) => (b.startedAt || 0) - (a.startedAt || 0)
@@ -895,15 +1127,36 @@ export default function Page() {
   };
 
   const finishStudy = async () => {
-    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+
     await deckSaveQueueRef.current;
 
     const total = studyCorrect + studyIncorrect;
-    const rate = total > 0 ? ((studyCorrect / total) * 100).toFixed(1) : "0.0";
-    const durationSec = studyStartTime ? Math.max(0, Math.floor((Date.now() - studyStartTime) / 1000)) : 0;
+
+    const rate =
+      total > 0
+        ? ((studyCorrect / total) * 100).toFixed(1)
+        : "0.0";
+
+    const durationSec = studyStartTime
+      ? Math.max(
+          0,
+          Math.floor((Date.now() - studyStartTime) / 1000)
+        )
+      : 0;
 
     await saveStudyRecord(studyCorrect, studyIncorrect);
-    setSummaryData({ total, correct: studyCorrect, incorrect: studyIncorrect, rate, durationSec });
+
+    setSummaryData({
+      total,
+      correct: studyCorrect,
+      incorrect: studyIncorrect,
+      rate,
+      durationSec,
+    });
+
     setShowSummaryModal(true);
   };
 
@@ -921,24 +1174,39 @@ export default function Page() {
     resetCardForm();
   };
 
-  const updateLearningStatus = async (cardId: string, status: LearningStatus) => {
+  const updateLearningStatus = async (
+    cardId: string,
+    status: LearningStatus
+  ) => {
     const deck = decks.find((item) => item.name === currentDeck);
     if (!deck) return;
 
-    const selectedStatus = statusOptions.find((item) => item.value === status);
+    const selectedStatus = statusOptions.find(
+      (item) => item.value === status
+    );
+
     const nextReviewAt = selectedStatus
       ? Date.now() + selectedStatus.days * 24 * 60 * 60 * 1000
       : null;
 
     const updatedCards = deck.cards.map((card) =>
-      card.id === cardId ? { ...card, learningStatus: status, nextReviewAt } : card
+      card.id === cardId
+        ? { ...card, learningStatus: status, nextReviewAt }
+        : card
     );
-    const updatedDeck: Deck = { ...deck, cards: updatedCards };
+
+    const updatedDeck: Deck = {
+      ...deck,
+      cards: updatedCards,
+    };
 
     updateDeckState(updatedDeck);
+
     setStudyCards((previous) =>
       previous.map((card) =>
-        card.id === cardId ? { ...card, learningStatus: status, nextReviewAt } : card
+        card.id === cardId
+          ? { ...card, learningStatus: status, nextReviewAt }
+          : card
       )
     );
 
@@ -953,7 +1221,14 @@ export default function Page() {
   const deleteCurrentStudyCard = async () => {
     const card = studyCards[studyIndex];
     if (!card) return;
-    if (!confirm(`「${card.front}」を削除しますか？\nこのカードはデッキからも削除されます。`)) return;
+
+    if (
+      !confirm(
+        `「${card.front}」を削除しますか？\nこのカードはデッキからも削除されます。`
+      )
+    ) {
+      return;
+    }
 
     const deck = decks.find((item) => item.name === currentDeck);
     if (!deck) return;
@@ -962,11 +1237,15 @@ export default function Page() {
       ...deck,
       cards: deck.cards.filter((item) => item.id !== card.id),
     };
-    const updatedStudyCards = studyCards.filter((item) => item.id !== card.id);
+
+    const updatedStudyCards = studyCards.filter(
+      (item) => item.id !== card.id
+    );
 
     try {
       await persistDeck(updatedDeck);
       updateDeckState(updatedDeck);
+
       setStudyCards(updatedStudyCards);
       setShowAnswer(false);
       resetCardForm();
@@ -975,6 +1254,7 @@ export default function Page() {
         await finishStudy();
         return;
       }
+
       if (studyIndex >= updatedStudyCards.length) {
         setStudyIndex(updatedStudyCards.length - 1);
       }
@@ -984,23 +1264,33 @@ export default function Page() {
     }
   };
 
-  const answerCard = (correct: boolean, learningStatus?: LearningStatus, reviewDays?: number) => {
+  const answerCard = (
+    correct: boolean,
+    learningStatus?: LearningStatus,
+    reviewDays?: number
+  ) => {
     if (answerLockRef.current) return;
+
     const currentCard = studyCards[studyIndex];
     if (!currentCard) return;
 
     answerLockRef.current = true;
+
     const nextCorrect = studyCorrect + (correct ? 1 : 0);
     const nextIncorrect = studyIncorrect + (correct ? 0 : 1);
+
     setStudyCorrect(nextCorrect);
     setStudyIncorrect(nextIncorrect);
 
     const now = Date.now();
+
     const updatedCard: Card = {
       ...currentCard,
       reviewCount: (currentCard.reviewCount || 0) + 1,
-      correctCount: (currentCard.correctCount || 0) + (correct ? 1 : 0),
-      incorrectCount: (currentCard.incorrectCount || 0) + (correct ? 0 : 1),
+      correctCount:
+        (currentCard.correctCount || 0) + (correct ? 1 : 0),
+      incorrectCount:
+        (currentCard.incorrectCount || 0) + (correct ? 0 : 1),
       lastReviewedAt: now,
       lastResult: correct ? "correct" : "incorrect",
       learningStatus: learningStatus ?? currentCard.learningStatus,
@@ -1013,22 +1303,30 @@ export default function Page() {
     const updatedStudyCards = studyCards.map((card, index) =>
       index === studyIndex ? updatedCard : card
     );
+
     setStudyCards(updatedStudyCards);
 
     const deck = decks.find((item) => item.name === currentDeck);
+
     if (deck) {
       const updatedDeck: Deck = {
         ...deck,
-        cards: deck.cards.map((card) => (card.id === updatedCard.id ? updatedCard : card)),
+        cards: deck.cards.map((card) =>
+          card.id === updatedCard.id ? updatedCard : card
+        ),
       };
+
       updateDeckState(updatedDeck);
-      deckSaveQueueRef.current = deckSaveQueueRef.current.then(async () => {
-        try {
-          await persistDeck(updatedDeck);
-        } catch (error) {
-          console.error("カード学習記録保存エラー:", error);
+
+      deckSaveQueueRef.current = deckSaveQueueRef.current.then(
+        async () => {
+          try {
+            await persistDeck(updatedDeck);
+          } catch (error) {
+            console.error("カード学習記録保存エラー:", error);
+          }
         }
-      });
+      );
     }
 
     if (studyIndex < updatedStudyCards.length - 1) {
@@ -1047,20 +1345,52 @@ export default function Page() {
 
   if (loading) {
     return (
-      <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#FBFBFD", color: "#8E8E93" }}>
+      <main
+        style={{
+          minHeight: "100vh",
+          display: "grid",
+          placeItems: "center",
+          background: "#FBFBFD",
+          color: "#8E8E93",
+        }}
+      >
         データを読み込んでいます…
       </main>
     );
   }
 
-  // --- テーマカラー設定画面 ---
+  // テーマカラー設定
   if (showThemeSettings) {
     return (
-      <main style={{ minHeight: "100vh", background: "#F5F7FC", padding: "30px 20px", color: "#26365D" }}>
-        <section style={{ maxWidth: "800px", margin: "0 auto", background: "#FFFFFF", borderRadius: "20px", padding: "28px", border: "1px solid #E6EBF5" }}>
-          <h1 style={{ fontSize: "26px", marginTop: 0 }}>{tx("color.title")}</h1>
+      <main
+        style={{
+          minHeight: "100vh",
+          background: "#F5F7FC",
+          padding: "30px 20px",
+          color: "#26365D",
+        }}
+      >
+        <section
+          style={{
+            maxWidth: "800px",
+            margin: "0 auto",
+            background: "#FFFFFF",
+            borderRadius: "20px",
+            padding: "28px",
+            border: "1px solid #E6EBF5",
+          }}
+        >
+          <h1 style={{ fontSize: "26px", marginTop: 0 }}>
+            {tx("color.title")}
+          </h1>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(100px,1fr))", gap: "12px" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit,minmax(100px,1fr))",
+              gap: "12px",
+            }}
+          >
             {presets.map((preset) => (
               <button
                 key={preset.color}
@@ -1068,22 +1398,45 @@ export default function Page() {
                 style={{
                   padding: "12px",
                   borderRadius: "12px",
-                  border: color === preset.color ? "2px solid #26365D" : "1px solid #E5E5EA",
+                  border:
+                    color === preset.color
+                      ? "2px solid #26365D"
+                      : "1px solid #E5E5EA",
                   background: "#FFFFFF",
                   cursor: "pointer",
                 }}
               >
-                <div style={{ height: "42px", borderRadius: "10px", background: preset.color, marginBottom: "8px" }} />
+                <div
+                  style={{
+                    height: "42px",
+                    borderRadius: "10px",
+                    background: preset.color,
+                    marginBottom: "8px",
+                  }}
+                />
                 <span style={{ fontSize: "13px" }}>{preset.name}</span>
               </button>
             ))}
           </div>
 
           <div style={{ marginTop: "24px" }}>
-            <label style={{ display: "block", marginBottom: "8px", fontWeight: 600 }}>
+            <label
+              style={{
+                display: "block",
+                marginBottom: "8px",
+                fontWeight: 600,
+              }}
+            >
               カラーバー（自由選択）
             </label>
-            <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+
+            <div
+              style={{
+                display: "flex",
+                gap: "12px",
+                alignItems: "center",
+              }}
+            >
               <input
                 type="color"
                 value={color}
@@ -1097,6 +1450,7 @@ export default function Page() {
                   background: "none",
                 }}
               />
+
               <input
                 type="text"
                 value={color}
@@ -1107,10 +1461,24 @@ export default function Page() {
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "24px" }}>
-            <button style={secondaryButtonStyle} onClick={() => { setColor(savedColor); setShowThemeSettings(false); }}>
+          <div
+            style={{
+              display: "flex",
+              gap: "10px",
+              justifyContent: "flex-end",
+              marginTop: "24px",
+            }}
+          >
+            <button
+              style={secondaryButtonStyle}
+              onClick={() => {
+                setColor(savedColor);
+                setShowThemeSettings(false);
+              }}
+            >
               キャンセル
             </button>
+
             <button style={primaryButtonStyle} onClick={saveColor}>
               保存する
             </button>
@@ -1120,63 +1488,248 @@ export default function Page() {
     );
   }
 
-  // --- カード学習画面 ---
+  // カード学習画面
   if (studyMode) {
     if (!currentCard) return null;
+
     const currentAnswered = studyCorrect + studyIncorrect;
-    const activeStatusStyle = getStatusStyle(currentCard.learningStatus);
+    const activeStatusStyle = getStatusStyle(
+      currentCard.learningStatus
+    );
 
     return (
-      <main style={{ minHeight: "100vh", background: "#FBFBFD", color: "#1D1D1F", display: "flex", justifyContent: "center", alignItems: "flex-start", padding: "30px 16px", boxSizing: "border-box", fontFamily: 'sans-serif' }}>
-        <div style={{ width: "100%", maxWidth: "620px", background: "#FFFFFF", border: "1px solid #E5E5EA", borderRadius: "20px", padding: "24px", boxSizing: "border-box" }}>
-          
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-            <button onClick={finishStudy} style={{ border: "none", background: "#F2F2F7", borderRadius: "9px", padding: "9px 13px", color: "#68686D", fontWeight: 600, cursor: "pointer" }}>
+      <main
+        style={{
+          minHeight: "100vh",
+          background: "#FBFBFD",
+          color: "#1D1D1F",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "flex-start",
+          padding: "30px 16px",
+          boxSizing: "border-box",
+          fontFamily: "sans-serif",
+        }}
+      >
+        <div
+          style={{
+            width: "100%",
+            maxWidth: "620px",
+            background: "#FFFFFF",
+            border: "1px solid #E5E5EA",
+            borderRadius: "20px",
+            padding: "24px",
+            boxSizing: "border-box",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "20px",
+            }}
+          >
+            <button
+              onClick={finishStudy}
+              style={{
+                border: "none",
+                background: "#F2F2F7",
+                borderRadius: "9px",
+                padding: "9px 13px",
+                color: "#68686D",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
               {tx("study.quit")}
             </button>
-            <span style={{ fontSize: "14px", fontWeight: 600, color: "#8E8E93" }}>
+
+            <span
+              style={{
+                fontSize: "14px",
+                fontWeight: 600,
+                color: "#8E8E93",
+              }}
+            >
               {studyIndex + 1} / {studyCards.length}
             </span>
           </div>
 
-          <div style={{ display: "flex", gap: "18px", flexWrap: "wrap", marginBottom: "18px", padding: "13px 16px", background: "#FAFAFC", border: "1px solid #F0F0F2", borderRadius: "12px", fontSize: "13px", color: "#8E8E93" }}>
-            <span>正解: <strong style={{ color: "#2E7D32" }}>{studyCorrect}</strong></span>
-            <span>不正解: <strong style={{ color: "#C62828" }}>{studyIncorrect}</strong></span>
-            <span>回答: <strong style={{ color: "#1D1D1F" }}>{currentAnswered}</strong></span>
+          <div
+            style={{
+              display: "flex",
+              gap: "18px",
+              flexWrap: "wrap",
+              marginBottom: "18px",
+              padding: "13px 16px",
+              background: "#FAFAFC",
+              border: "1px solid #F0F0F2",
+              borderRadius: "12px",
+              fontSize: "13px",
+              color: "#8E8E93",
+            }}
+          >
+            <span>
+              正解:{" "}
+              <strong style={{ color: "#2E7D32" }}>
+                {studyCorrect}
+              </strong>
+            </span>
+            <span>
+              不正解:{" "}
+              <strong style={{ color: "#C62828" }}>
+                {studyIncorrect}
+              </strong>
+            </span>
+            <span>
+              回答:{" "}
+              <strong style={{ color: "#1D1D1F" }}>
+                {currentAnswered}
+              </strong>
+            </span>
           </div>
 
-          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "8px", marginTop: "12px", marginBottom: "10px" }}>
-            <button onClick={() => openEditCard(currentCard)} style={{ padding: "7px 15px", borderRadius: "8px", border: "1px solid #E5E5EA", background: "#FFFFFF", color: "#55555B", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              alignItems: "center",
+              gap: "8px",
+              marginTop: "12px",
+              marginBottom: "10px",
+            }}
+          >
+            <button
+              onClick={() => openEditCard(currentCard)}
+              style={{
+                padding: "7px 15px",
+                borderRadius: "8px",
+                border: "1px solid #E5E5EA",
+                background: "#FFFFFF",
+                color: "#55555B",
+                fontSize: "12px",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
               編集
             </button>
-            <button onClick={deleteCurrentStudyCard} style={{ padding: "7px 15px", borderRadius: "8px", border: "1px solid #F0DADA", background: "#FFFFFF", color: "#B46A6A", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>
+
+            <button
+              onClick={deleteCurrentStudyCard}
+              style={{
+                padding: "7px 15px",
+                borderRadius: "8px",
+                border: "1px solid #F0DADA",
+                background: "#FFFFFF",
+                color: "#B46A6A",
+                fontSize: "12px",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
               削除
             </button>
           </div>
 
-          <div onClick={() => setShowAnswer((previous) => !previous)} style={{ minHeight: "290px", padding: "36px 22px", background: "#FAFAFC", border: "1px solid #E5E5EA", borderRadius: "16px", cursor: "pointer", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", textAlign: "center", boxSizing: "border-box" }}>
+          <div
+            onClick={() => setShowAnswer((previous) => !previous)}
+            style={{
+              minHeight: "290px",
+              padding: "36px 22px",
+              background: "#FAFAFC",
+              border: "1px solid #E5E5EA",
+              borderRadius: "16px",
+              cursor: "pointer",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              alignItems: "center",
+              textAlign: "center",
+              boxSizing: "border-box",
+            }}
+          >
             {!showAnswer ? (
               <>
-                <div style={{ fontSize: "42px", fontWeight: 700, marginBottom: "24px", wordBreak: "break-word" }}>
+                <div
+                  style={{
+                    fontSize: "42px",
+                    fontWeight: 700,
+                    marginBottom: "24px",
+                    wordBreak: "break-word",
+                  }}
+                >
                   {currentCard.front}
                 </div>
-                <div style={{ fontSize: "14px", color: "#8E8E93" }}>{tx("study.tap")}</div>
+
+                <div style={{ fontSize: "14px", color: "#8E8E93" }}>
+                  {tx("study.tap")}
+                </div>
               </>
             ) : (
               <>
-                <div style={{ fontSize: "34px", fontWeight: 700, marginBottom: "12px", wordBreak: "break-word" }}>
+                <div
+                  style={{
+                    fontSize: "34px",
+                    fontWeight: 700,
+                    marginBottom: "12px",
+                    wordBreak: "break-word",
+                  }}
+                >
                   {currentCard.front}
                 </div>
-                <div style={{ fontSize: "19px", color: "#8E8E93", marginBottom: "12px" }}>
+
+                <div
+                  style={{
+                    fontSize: "19px",
+                    color: "#8E8E93",
+                    marginBottom: "12px",
+                  }}
+                >
                   {currentCard.pinyin || tx("study.noReading")}
                 </div>
-                <div style={{ fontSize: "23px", fontWeight: 600, color: "#2C5282", marginBottom: "18px" }}>
+
+                <div
+                  style={{
+                    fontSize: "23px",
+                    fontWeight: 600,
+                    color: "#2C5282",
+                    marginBottom: "18px",
+                  }}
+                >
                   {currentCard.japanese || tx("study.noTranslation")}
                 </div>
-                {currentCard.example && <div style={{ fontSize: "15px", marginBottom: "7px" }}>{currentCard.example}</div>}
-                {currentCard.exampleJapanese && <div style={{ fontSize: "14px", color: "#8E8E93" }}>{currentCard.exampleJapanese}</div>}
 
-                <button type="button" onClick={(e) => { e.stopPropagation(); speakWord(currentCard.front); }} style={{ marginTop: "20px", width: "44px", height: "44px", borderRadius: "50%", border: "1px solid #E5E5EA", background: "#FFFFFF", cursor: "pointer", fontSize: "18px" }}>
+                {currentCard.example && (
+                  <div style={{ fontSize: "15px", marginBottom: "7px" }}>
+                    {currentCard.example}
+                  </div>
+                )}
+
+                {currentCard.exampleJapanese && (
+                  <div style={{ fontSize: "14px", color: "#8E8E93" }}>
+                    {currentCard.exampleJapanese}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    speakWord(currentCard.front);
+                  }}
+                  style={{
+                    marginTop: "20px",
+                    width: "44px",
+                    height: "44px",
+                    borderRadius: "50%",
+                    border: "1px solid #E5E5EA",
+                    background: "#FFFFFF",
+                    cursor: "pointer",
+                    fontSize: "18px",
+                  }}
+                >
                   🔊
                 </button>
               </>
@@ -1184,35 +1737,151 @@ export default function Page() {
           </div>
 
           {showCardForm && (
-            <div style={{ marginTop: "16px", padding: "18px", border: "1px solid #E5E5EA", borderRadius: "14px", background: "#FFFFFF" }}>
-              <h3 style={{ margin: "0 0 14px", fontSize: "17px" }}>カードを編集</h3>
-              <input placeholder="単語・表面" value={cardFront} onChange={(e) => setCardFront(e.target.value)} style={inputStyle} />
-              <input placeholder="ピンイン・読み方" value={cardPinyin} onChange={(e) => setCardPinyin(e.target.value)} style={inputStyle} />
-              <input placeholder="日本語訳" value={cardJapanese} onChange={(e) => setCardJapanese(e.target.value)} style={inputStyle} />
-              <input placeholder="例文" value={cardExample} onChange={(e) => setCardExample(e.target.value)} style={inputStyle} />
-              <input placeholder="例文の日本語訳" value={cardExampleJapanese} onChange={(e) => setCardExampleJapanese(e.target.value)} style={inputStyle} />
+            <div
+              style={{
+                marginTop: "16px",
+                padding: "18px",
+                border: "1px solid #E5E5EA",
+                borderRadius: "14px",
+                background: "#FFFFFF",
+              }}
+            >
+              <h3 style={{ margin: "0 0 14px", fontSize: "17px" }}>
+                カードを編集
+              </h3>
+
+              <input
+                placeholder="単語・表面"
+                value={cardFront}
+                onChange={(event) => setCardFront(event.target.value)}
+                style={inputStyle}
+              />
+
+              <input
+                placeholder="ピンイン・読み方"
+                value={cardPinyin}
+                onChange={(event) => setCardPinyin(event.target.value)}
+                style={inputStyle}
+              />
+
+              <input
+                placeholder="日本語訳"
+                value={cardJapanese}
+                onChange={(event) => setCardJapanese(event.target.value)}
+                style={inputStyle}
+              />
+
+              <input
+                placeholder="例文"
+                value={cardExample}
+                onChange={(event) => setCardExample(event.target.value)}
+                style={inputStyle}
+              />
+
+              <input
+                placeholder="例文の日本語訳"
+                value={cardExampleJapanese}
+                onChange={(event) =>
+                  setCardExampleJapanese(event.target.value)
+                }
+                style={inputStyle}
+              />
+
               <div style={{ display: "flex", gap: "8px" }}>
-                <button onClick={saveCard} style={{ ...primaryButtonStyle, flex: 1 }}>保存</button>
-                <button onClick={resetCardForm} style={{ ...secondaryButtonStyle, flex: 1 }}>キャンセル</button>
+                <button
+                  onClick={saveCard}
+                  style={{ ...primaryButtonStyle, flex: 1 }}
+                >
+                  保存
+                </button>
+
+                <button
+                  onClick={resetCardForm}
+                  style={{ ...secondaryButtonStyle, flex: 1 }}
+                >
+                  キャンセル
+                </button>
               </div>
             </div>
           )}
 
-          <section style={{ marginTop: "22px", padding: "17px", borderRadius: "14px", background: "#FAFAFC", border: "1px solid #E5E5EA" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
-              <strong style={{ fontSize: "14px" }}>このカードの暗記レベル</strong>
-              <span style={{ fontSize: "12px", color: activeStatusStyle?.color || "#8E8E93", background: activeStatusStyle?.background || "#F2F2F7", border: `1px solid ${activeStatusStyle?.border || "#E5E5EA"}`, borderRadius: "20px", padding: "5px 10px", fontWeight: 600 }}>
+          <section
+            style={{
+              marginTop: "22px",
+              padding: "17px",
+              borderRadius: "14px",
+              background: "#FAFAFC",
+              border: "1px solid #E5E5EA",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: "10px",
+                marginBottom: "12px",
+              }}
+            >
+              <strong style={{ fontSize: "14px" }}>
+                このカードの暗記レベル
+              </strong>
+
+              <span
+                style={{
+                  fontSize: "12px",
+                  color: activeStatusStyle?.color || "#8E8E93",
+                  background: activeStatusStyle?.background || "#F2F2F7",
+                  border: `1px solid ${activeStatusStyle?.border || "#E5E5EA"}`,
+                  borderRadius: "20px",
+                  padding: "5px 10px",
+                  fontWeight: 600,
+                }}
+              >
                 {getStatusLabel(currentCard.learningStatus)}
               </span>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "9px" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                gap: "9px",
+              }}
+            >
               {statusOptions.map((status) => {
                 const active = currentCard.learningStatus === status.value;
+
                 return (
-                  <button key={status.value} type="button" onClick={() => updateLearningStatus(currentCard.id, status.value)} style={{ padding: "13px 8px", borderRadius: "11px", border: `1px solid ${active ? status.color : status.border}`, background: status.background, color: status.color, fontWeight: 700, cursor: "pointer" }}>
+                  <button
+                    key={status.value}
+                    type="button"
+                    onClick={() =>
+                      updateLearningStatus(currentCard.id, status.value)
+                    }
+                    style={{
+                      padding: "13px 8px",
+                      borderRadius: "11px",
+                      border: `1px solid ${
+                        active ? status.color : status.border
+                      }`,
+                      background: status.background,
+                      color: status.color,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
                     <div>{status.label}</div>
-                    <div style={{ marginTop: "4px", fontSize: "11px", fontWeight: 400, opacity: 0.8 }}>{status.days}日後に復習</div>
+                    <div
+                      style={{
+                        marginTop: "4px",
+                        fontSize: "11px",
+                        fontWeight: 400,
+                        opacity: 0.8,
+                      }}
+                    >
+                      {status.days}日後に復習
+                    </div>
                   </button>
                 );
               })}
@@ -1220,44 +1889,105 @@ export default function Page() {
           </section>
 
           {showAnswer && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "10px", marginTop: "18px" }}>
-              {answerMode === "2" ? (
-                <>
-                  <button onClick={() => answerCard(false)} style={{ padding: "16px 10px", borderRadius: "12px", border: "1px solid #E28484", background: "#FDF2F2", color: "#A93226", fontWeight: 700, cursor: "pointer" }}>
-                    ✕ 不正解
-                  </button>
-                  <button onClick={() => answerCard(true)} style={{ padding: "16px 10px", borderRadius: "12px", border: "1px solid #82E0AA", background: "#E8F8F5", color: "#196F3D", fontWeight: 700, cursor: "pointer" }}>
-                    ◯ 正解
-                  </button>
-                </>
-              ) : (
-                statusOptions.map((status) => (
-                  <button key={status.value} onClick={() => answerCard(status.value === "learned" || status.value === "perfect", status.value, status.days)} style={{ padding: "16px 10px", borderRadius: "12px", border: `1px solid ${status.border}`, background: status.background, color: status.color, fontWeight: 700, cursor: "pointer" }}>
-                    <div>{status.label}</div>
-                    <div style={{ fontSize: "11px", fontWeight: 400, marginTop: "4px" }}>{status.days}日後に復習</div>
-                  </button>
-                ))
-              )}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                gap: "10px",
+                marginTop: "18px",
+              }}
+            >
+              <button
+                onClick={() => answerCard(false)}
+                style={{
+                  padding: "16px 10px",
+                  borderRadius: "12px",
+                  border: "1px solid #E28484",
+                  background: "#FDF2F2",
+                  color: "#A93226",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                ✕ 不正解
+              </button>
+
+              <button
+                onClick={() => answerCard(true)}
+                style={{
+                  padding: "16px 10px",
+                  borderRadius: "12px",
+                  border: "1px solid #82E0AA",
+                  background: "#E8F8F5",
+                  color: "#196F3D",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                ◯ 正解
+              </button>
             </div>
           )}
         </div>
 
         {showSummaryModal && summaryData && (
-          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", backdropFilter: "blur(8px)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 9999, padding: "20px" }}>
-            <div style={{ width: "100%", maxWidth: "400px", background: "#FFFFFF", borderRadius: "20px", padding: "28px", boxShadow: "0 20px 40px rgba(0,0,0,0.12)", textAlign: "center" }}>
-              <h2 style={{ marginTop: 0 }}>学習お疲れ様でした！</h2>
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.35)",
+              backdropFilter: "blur(8px)",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              zIndex: 9999,
+              padding: "20px",
+            }}
+          >
+            <div
+              style={{
+                width: "100%",
+                maxWidth: "400px",
+                background: "#FFFFFF",
+                borderRadius: "20px",
+                padding: "28px",
+                boxShadow: "0 20px 40px rgba(0,0,0,0.12)",
+                textAlign: "center",
+              }}
+            >
+              <h2 style={{ marginTop: 0 }}>
+                学習お疲れ様でした！
+              </h2>
+
               {[
                 ["回答数", `${summaryData.total} 問`],
                 ["正解数", `${summaryData.correct} 問`],
                 ["不正解数", `${summaryData.incorrect} 問`],
                 ["正答率", `${summaryData.rate} %`],
               ].map(([label, value]) => (
-                <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "11px 0", borderBottom: "1px solid #F0F0F2", fontSize: "14px" }}>
+                <div
+                  key={label}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "11px 0",
+                    borderBottom: "1px solid #F0F0F2",
+                    fontSize: "14px",
+                  }}
+                >
                   <span style={{ color: "#8E8E93" }}>{label}</span>
                   <strong>{value}</strong>
                 </div>
               ))}
-              <button onClick={closeSummaryModal} style={{ ...primaryButtonStyle, width: "100%", marginTop: "24px" }}>
+
+              <button
+                onClick={closeSummaryModal}
+                style={{
+                  ...primaryButtonStyle,
+                  width: "100%",
+                  marginTop: "24px",
+                }}
+              >
                 デッキ一覧に戻る
               </button>
             </div>
@@ -1267,76 +1997,438 @@ export default function Page() {
     );
   }
 
-  // --- デッキ詳細画面 ---
+  // デッキ詳細画面（デッキ作成後の管理画面）
   if (deckOpen) {
     const deck = decks.find((item) => item.name === currentDeck);
     if (!deck) return null;
+
     const normalizedSearch = cardSearch.trim().toLowerCase();
-    const filteredCards = normalizedSearch === "" ? deck.cards : deck.cards.filter((card) =>
-      [card.front, card.pinyin, card.japanese, card.example, card.exampleJapanese].join(" ").toLowerCase().includes(normalizedSearch)
-    );
+
+    const filteredCards =
+      normalizedSearch === ""
+        ? deck.cards
+        : deck.cards.filter((card) =>
+            [
+              card.front,
+              card.pinyin,
+              card.japanese,
+              card.example,
+              card.exampleJapanese,
+            ]
+              .join(" ")
+              .toLowerCase()
+              .includes(normalizedSearch)
+          );
 
     return (
-      <main style={{ maxWidth: "680px", margin: "30px auto", padding: "20px", fontFamily: 'sans-serif', color: "#1D1D1F" }}>
-        <button onClick={() => { setDeckOpen(false); setCardSearch(""); resetCardForm(); }} style={{ ...secondaryButtonStyle, marginBottom: "22px" }}>
+      <main
+        style={{
+          maxWidth: "680px",
+          margin: "30px auto",
+          padding: "20px",
+          fontFamily: "sans-serif",
+          color: "#1D1D1F",
+        }}
+      >
+        <button
+          onClick={() => {
+            setDeckOpen(false);
+            setCardSearch("");
+            resetCardForm();
+          }}
+          style={{ ...secondaryButtonStyle, marginBottom: "22px" }}
+        >
           ‹ {tx("deck.back")}
         </button>
 
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
-          <div>
-            <h1 style={{ fontSize: "28px", fontWeight: 700, margin: 0 }}>{currentDeck}</h1>
-            <p style={{ color: "#8E8E93", fontSize: "14px", marginTop: "5px" }}>{deck.cards.length} {tx("deck.cards")}</p>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "14px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "14px",
+              minWidth: 0,
+            }}
+          >
+            {deck.coverImageUrl ? (
+              <img
+                src={deck.coverImageUrl}
+                alt=""
+                style={{
+                  width: "76px",
+                  height: "76px",
+                  objectFit: "cover",
+                  borderRadius: "13px",
+                  border: "1px solid #E5E5EA",
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: "76px",
+                  height: "76px",
+                  borderRadius: "13px",
+                  background: "#F1F2EF",
+                  display: "grid",
+                  placeItems: "center",
+                  color: "#8B968C",
+                  fontSize: "26px",
+                }}
+              >
+                ▤
+              </div>
+            )}
+
+            <div style={{ minWidth: 0 }}>
+              <h1
+                style={{
+                  fontSize: "25px",
+                  fontWeight: 700,
+                  margin: 0,
+                  overflowWrap: "anywhere",
+                }}
+              >
+                {currentDeck}
+              </h1>
+
+              <p
+                style={{
+                  color: "#8E8E93",
+                  fontSize: "14px",
+                  marginTop: "5px",
+                }}
+              >
+                {deck.cards.length} {tx("deck.cards")}
+              </p>
+            </div>
           </div>
-          <button onClick={() => setShowThemeSettings(true)} style={secondaryButtonStyle}>テーマ</button>
+
+          <button
+            onClick={() => setShowThemeSettings(true)}
+            style={secondaryButtonStyle}
+          >
+            テーマ
+          </button>
         </div>
 
-        <button onClick={startStudy} style={{ ...primaryButtonStyle, width: "100%", marginTop: "15px", padding: "16px", fontSize: "16px" }}>
+        {/* 作成後のアイコン画像変更エリア */}
+        <div
+          style={{
+            marginTop: "16px",
+            padding: "14px",
+            background: "#FAFAFC",
+            border: "1px solid #E5E5EA",
+            borderRadius: "12px",
+          }}
+        >
+          <p
+            style={{
+              fontSize: "13px",
+              fontWeight: 600,
+              margin: "0 0 8px",
+            }}
+          >
+            デッキアイコンの変更
+          </p>
+
+          <input
+            ref={editImageInputRef}
+            type="file"
+            accept="image/*"
+            onChange={updateExistingDeckCover}
+            style={{ display: "none" }}
+          />
+
+          <input
+            ref={editCameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={updateExistingDeckCover}
+            style={{ display: "none" }}
+          />
+
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button
+              type="button"
+              disabled={uploadingCover}
+              onClick={() => editImageInputRef.current?.click()}
+              style={{
+                ...secondaryButtonStyle,
+                padding: "8px 12px",
+                fontSize: "12px",
+              }}
+            >
+              写真を選択
+            </button>
+
+            <button
+              type="button"
+              disabled={uploadingCover}
+              onClick={() => editCameraInputRef.current?.click()}
+              style={{
+                ...secondaryButtonStyle,
+                padding: "8px 12px",
+                fontSize: "12px",
+              }}
+            >
+              カメラで撮影
+            </button>
+          </div>
+        </div>
+
+        <div style={{ marginTop: "16px" }}>
+          <label
+            style={{
+              display: "block",
+              fontSize: "12px",
+              color: "#8E8E93",
+              marginBottom: "6px",
+            }}
+          >
+            音声の言語
+          </label>
+
+          <select
+            value={speechLanguage}
+            onChange={(event) =>
+              changeSpeechLanguage(event.target.value)
+            }
+            style={inputStyle}
+          >
+            {languageOptions.map(([code, label]) => (
+              <option key={code} value={code}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <button
+          onClick={startStudy}
+          style={{
+            ...primaryButtonStyle,
+            width: "100%",
+            marginTop: "5px",
+            padding: "16px",
+            fontSize: "16px",
+          }}
+        >
           {tx("deck.start")}
         </button>
 
         <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
-          <input ref={fileInputRef} type="file" accept=".csv,text/csv" onChange={importCSV} style={{ display: "none" }} />
-          <button onClick={() => fileInputRef.current?.click()} style={{ ...secondaryButtonStyle, flex: 1 }}>{tx("deck.csv")}</button>
-          <button onClick={openAddCard} style={{ ...secondaryButtonStyle, flex: 1 }}>+ {tx("deck.addWord")}</button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            onChange={importCSV}
+            style={{ display: "none" }}
+          />
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            style={{ ...secondaryButtonStyle, flex: 1 }}
+          >
+            {tx("deck.csv")}
+          </button>
+
+          <button
+            onClick={openAddCard}
+            style={{ ...secondaryButtonStyle, flex: 1 }}
+          >
+            + {tx("deck.addWord")}
+          </button>
         </div>
 
         {showCardForm && (
-          <section style={{ marginTop: "20px", padding: "20px", background: "#FFFFFF", border: "1px solid #E5E5EA", borderRadius: "15px" }}>
-            <h2 style={{ marginTop: 0, fontSize: "18px" }}>{editingCardId ? tx("deck.editWord") : tx("deck.addWord")}</h2>
-            <input placeholder={tx("deck.word")} value={cardFront} onChange={(e) => setCardFront(e.target.value)} style={inputStyle} />
-            <input placeholder={tx("deck.reading")} value={cardPinyin} onChange={(e) => setCardPinyin(e.target.value)} style={inputStyle} />
-            <input placeholder={tx("deck.translation")} value={cardJapanese} onChange={(e) => setCardJapanese(e.target.value)} style={inputStyle} />
-            <input placeholder={tx("deck.example")} value={cardExample} onChange={(e) => setCardExample(e.target.value)} style={inputStyle} />
-            <input placeholder={tx("deck.exampleTranslation")} value={cardExampleJapanese} onChange={(e) => setCardExampleJapanese(e.target.value)} style={inputStyle} />
+          <section
+            style={{
+              marginTop: "20px",
+              padding: "20px",
+              background: "#FFFFFF",
+              border: "1px solid #E5E5EA",
+              borderRadius: "15px",
+            }}
+          >
+            <h2 style={{ marginTop: 0, fontSize: "18px" }}>
+              {editingCardId
+                ? tx("deck.editWord")
+                : tx("deck.addWord")}
+            </h2>
+
+            <input
+              placeholder={tx("deck.word")}
+              value={cardFront}
+              onChange={(event) => setCardFront(event.target.value)}
+              style={inputStyle}
+            />
+
+            <input
+              placeholder={tx("deck.reading")}
+              value={cardPinyin}
+              onChange={(event) => setCardPinyin(event.target.value)}
+              style={inputStyle}
+            />
+
+            <input
+              placeholder={tx("deck.translation")}
+              value={cardJapanese}
+              onChange={(event) => setCardJapanese(event.target.value)}
+              style={inputStyle}
+            />
+
+            <input
+              placeholder={tx("deck.example")}
+              value={cardExample}
+              onChange={(event) => setCardExample(event.target.value)}
+              style={inputStyle}
+            />
+
+            <input
+              placeholder={tx("deck.exampleTranslation")}
+              value={cardExampleJapanese}
+              onChange={(event) =>
+                setCardExampleJapanese(event.target.value)
+              }
+              style={inputStyle}
+            />
+
             <div style={{ display: "flex", gap: "10px" }}>
-              <button onClick={saveCard} style={{ ...primaryButtonStyle, flex: 1 }}>{tx("deck.save")}</button>
-              <button onClick={resetCardForm} style={{ ...secondaryButtonStyle, flex: 1 }}>{tx("common.cancel")}</button>
+              <button
+                onClick={saveCard}
+                style={{ ...primaryButtonStyle, flex: 1 }}
+              >
+                {tx("deck.save")}
+              </button>
+
+              <button
+                onClick={resetCardForm}
+                style={{ ...secondaryButtonStyle, flex: 1 }}
+              >
+                {tx("common.cancel")}
+              </button>
             </div>
           </section>
         )}
 
         <section style={{ marginTop: "30px" }}>
-          <h2 style={{ fontSize: "18px", marginBottom: "13px" }}>{tx("deck.list")}</h2>
+          <h2 style={{ fontSize: "18px", marginBottom: "13px" }}>
+            {tx("deck.list")}
+          </h2>
+
           {deck.cards.length > 0 && (
-            <input placeholder={tx("deck.search")} value={cardSearch} onChange={(e) => setCardSearch(e.target.value)} style={{ ...inputStyle, background: "#FFFFFF" }} />
+            <input
+              placeholder={tx("deck.search")}
+              value={cardSearch}
+              onChange={(event) => setCardSearch(event.target.value)}
+              style={{ ...inputStyle, background: "#FFFFFF" }}
+            />
           )}
 
           {deck.cards.length === 0 ? (
-            <div style={{ padding: "30px 15px", textAlign: "center", background: "#FAFAFC", border: "1px dashed #E5E5EA", borderRadius: "14px", color: "#8E8E93" }}>
+            <div
+              style={{
+                padding: "30px 15px",
+                textAlign: "center",
+                background: "#FAFAFC",
+                border: "1px dashed #E5E5EA",
+                borderRadius: "14px",
+                color: "#8E8E93",
+              }}
+            >
               {tx("deck.empty")}
             </div>
           ) : (
             filteredCards.map((card) => (
-              <article key={card.id} style={{ marginBottom: "10px", padding: "16px", background: "#FFFFFF", border: "1px solid #E5E5EA", borderRadius: "14px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: "12px" }}>
+              <article
+                key={card.id}
+                style={{
+                  marginBottom: "10px",
+                  padding: "16px",
+                  background: "#FFFFFF",
+                  border: "1px solid #E5E5EA",
+                  borderRadius: "14px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: "12px",
+                  }}
+                >
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: "18px", fontWeight: 700, marginBottom: "4px", wordBreak: "break-word" }}>{card.front}</div>
-                    {card.pinyin && <div style={{ color: "#8E8E93", fontSize: "13px", marginBottom: "4px" }}>{card.pinyin}</div>}
-                    {card.japanese && <div style={{ fontSize: "15px", color: "#3A3A3C" }}>{card.japanese}</div>}
+                    <div
+                      style={{
+                        fontSize: "18px",
+                        fontWeight: 700,
+                        marginBottom: "4px",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {card.front}
+                    </div>
+
+                    {card.pinyin && (
+                      <div
+                        style={{
+                          color: "#8E8E93",
+                          fontSize: "13px",
+                          marginBottom: "4px",
+                        }}
+                      >
+                        {card.pinyin}
+                      </div>
+                    )}
+
+                    {card.japanese && (
+                      <div style={{ fontSize: "15px", color: "#3A3A3C" }}>
+                        {card.japanese}
+                      </div>
+                    )}
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    <button onClick={() => openEditCard(card)} style={{ ...secondaryButtonStyle, padding: "7px 10px", fontSize: "12px" }}>{tx("deck.edit")}</button>
-                    <button onClick={() => deleteCard(card.id)} style={{ padding: "7px 10px", background: "#FDF2F2", border: "1px solid #F3D0D0", color: "#A93226", borderRadius: "8px", cursor: "pointer", fontWeight: 600, fontSize: "12px" }}>{tx("deck.delete")}</button>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "6px",
+                    }}
+                  >
+                    <button
+                      onClick={() => openEditCard(card)}
+                      style={{
+                        ...secondaryButtonStyle,
+                        padding: "7px 10px",
+                        fontSize: "12px",
+                      }}
+                    >
+                      {tx("deck.edit")}
+                    </button>
+
+                    <button
+                      onClick={() => deleteCard(card.id)}
+                      style={{
+                        padding: "7px 10px",
+                        background: "#FDF2F2",
+                        border: "1px solid #F3D0D0",
+                        color: "#A93226",
+                        borderRadius: "8px",
+                        cursor: "pointer",
+                        fontWeight: 600,
+                        fontSize: "12px",
+                      }}
+                    >
+                      {tx("deck.delete")}
+                    </button>
                   </div>
                 </div>
               </article>
@@ -1347,99 +2439,364 @@ export default function Page() {
     );
   }
 
-  // --- デッキ一覧画面（フォルダ・デッキの並び替え・優先度・フォルダ移動対応） ---
+  // デッキ一覧の並び順
   const sortDecks = (deckList: Deck[]) => {
-    return [...deckList].sort((a, b) => {
-      // 1. まず優先順位（金・銀・銅）が高いものを上に
-      const weightA = priorityWeight[a.priority || "none"];
-      const weightB = priorityWeight[b.priority || "none"];
-      if (weightA !== weightB) {
-        return weightB - weightA;
-      }
-      // 2. 優先順位が同じ場合は設定された並び順（order）に従う
-      return (a.order ?? 0) - (b.order ?? 0);
-    });
+    return [...deckList].sort(
+      (a, b) => (a.order ?? 0) - (b.order ?? 0)
+    );
   };
 
+  // デッキカード
+  const renderDeckCard = (deck: Deck, deckIndex: number, list: Deck[]) => (
+    <div
+      key={deck.name}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "8px",
+        marginBottom: "10px",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "2px",
+          flexShrink: 0,
+        }}
+      >
+        <button
+          onClick={() => moveDeckOrder(list, deckIndex, "up")}
+          disabled={deckIndex === 0}
+          style={{
+            padding: "2px 5px",
+            fontSize: "10px",
+            cursor: deckIndex === 0 ? "default" : "pointer",
+            border: "1px solid #E5E5EA",
+            borderRadius: "4px",
+            background: "#FAFAFC",
+            color: "#777",
+            opacity: deckIndex === 0 ? 0.3 : 1,
+          }}
+          title="上に移動"
+        >
+          ▲
+        </button>
+
+        <button
+          onClick={() => moveDeckOrder(list, deckIndex, "down")}
+          disabled={deckIndex === list.length - 1}
+          style={{
+            padding: "2px 5px",
+            fontSize: "10px",
+            cursor:
+              deckIndex === list.length - 1 ? "default" : "pointer",
+            border: "1px solid #E5E5EA",
+            borderRadius: "4px",
+            background: "#FAFAFC",
+            color: "#777",
+            opacity: deckIndex === list.length - 1 ? 0.3 : 1,
+          }}
+          title="下に移動"
+        >
+          ▼
+        </button>
+      </div>
+
+      <button
+        onClick={() => {
+          setCurrentDeck(deck.name);
+          setDeckOpen(true);
+        }}
+        style={{
+          flex: 1,
+          minWidth: 0,
+          padding: "11px 12px",
+          textAlign: "left",
+          background: "#FFFFFF",
+          border: "1px solid #E5E5EA",
+          borderRadius: "13px",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          gap: "12px",
+        }}
+      >
+        {deck.coverImageUrl ? (
+          <img
+            src={deck.coverImageUrl}
+            alt=""
+            style={{
+              width: "56px",
+              height: "56px",
+              borderRadius: "9px",
+              objectFit: "cover",
+              flexShrink: 0,
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              width: "56px",
+              height: "56px",
+              borderRadius: "9px",
+              background: "#F1F2EF",
+              display: "grid",
+              placeItems: "center",
+              color: "#8B968C",
+              fontSize: "23px",
+              flexShrink: 0,
+            }}
+          >
+            ▤
+          </div>
+        )}
+
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <strong
+            style={{
+              display: "block",
+              fontSize: "14px",
+              fontWeight: 600,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {deck.name}
+          </strong>
+
+          <span
+            style={{
+              display: "block",
+              fontSize: "12px",
+              color: "#8E8E93",
+              marginTop: "5px",
+            }}
+          >
+            {deck.cards.length} {tx("deck.cards")}
+          </span>
+        </span>
+
+        <span style={{ color: "#A0A0A5", fontSize: "20px" }}>›</span>
+      </button>
+
+      <select
+        value={deck.folderId || ""}
+        onChange={(event) =>
+          moveDeck(deck.name, event.target.value || null)
+        }
+        title="フォルダを移動"
+        style={{
+          maxWidth: "105px",
+          minWidth: "0",
+          padding: "8px 5px",
+          border: "1px solid #E5E5EA",
+          borderRadius: "8px",
+          fontSize: "11px",
+          background: "#FFFFFF",
+        }}
+      >
+        <option value="">{tx("folder.uncategorized")}</option>
+        {folders.map((folder) => (
+          <option key={folder.id} value={folder.id}>
+            {folder.name}
+          </option>
+        ))}
+      </select>
+
+      <button
+        onClick={() => deleteDeck(deck.name)}
+        style={{
+          border: "none",
+          background: "transparent",
+          color: "#C62828",
+          cursor: "pointer",
+          fontSize: "12px",
+          flexShrink: 0,
+        }}
+      >
+        削除
+      </button>
+    </div>
+  );
+
   return (
-    <main style={{ maxWidth: "680px", margin: "35px auto", padding: "20px", fontFamily: 'sans-serif', color: "#1D1D1F" }}>
-      <header style={{ marginBottom: "24px", paddingBottom: "17px", borderBottom: "1px solid #E5E5EA", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
+    <main
+      style={{
+        minHeight: "100vh",
+        background: "#F7F7F5",
+        maxWidth: "900px",
+        margin: "0 auto",
+        padding: "35px 20px 60px",
+        fontFamily: "sans-serif",
+        color: "#1D1D1F",
+      }}
+    >
+      <header
+        style={{
+          marginBottom: "28px",
+          paddingBottom: "20px",
+          borderBottom: "1px solid #E5E5EA",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: "12px",
+        }}
+      >
         <div>
-          <p style={{ margin: 0, color: "#8E8E93", fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em" }}>YOUR LIBRARY</p>
-          <h1 style={{ margin: "5px 0 0", fontSize: "25px", fontWeight: 700 }}>{tx("deck.manage")}</h1>
-          <p style={{ margin: "5px 0 0", color: "#8E8E93", fontSize: "13px", lineHeight: 1.5 }}>{tx("deck.description")}</p>
+          <p
+            style={{
+              margin: 0,
+              color: "#8E8E93",
+              fontSize: "11px",
+              fontWeight: 700,
+              letterSpacing: "0.12em",
+            }}
+          >
+            YOUR LIBRARY
+          </p>
+
+          <h1
+            style={{
+              margin: "6px 0 0",
+              fontSize: "27px",
+              fontWeight: 700,
+              letterSpacing: "-0.03em",
+            }}
+          >
+            {tx("deck.manage")}
+          </h1>
+
+          <p
+            style={{
+              margin: "7px 0 0",
+              color: "#8E8E93",
+              fontSize: "13px",
+              lineHeight: 1.6,
+            }}
+          >
+            {tx("deck.description")}
+          </p>
         </div>
-        <button onClick={() => setShowThemeSettings(true)} style={secondaryButtonStyle}>テーマ</button>
+
+        <button
+          onClick={() => setShowThemeSettings(true)}
+          style={secondaryButtonStyle}
+        >
+          テーマ
+        </button>
       </header>
 
-      {/* フォルダ一覧（フォルダ自体の上下並び替えボタン付き） */}
+      {/* フォルダ一覧 */}
       {folders.map((folder, folderIndex) => {
-        const folderDecks = sortDecks(decks.filter((deck) => deck.folderId === folder.id));
+        const folderDecks = sortDecks(
+          decks.filter((deck) => deck.folderId === folder.id)
+        );
 
         return (
-          <section key={folder.id} style={{ border: "1px solid #E5E5EA", borderRadius: "16px", padding: "18px", marginBottom: "16px", background: "#FFFFFF" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <h2 style={{ margin: 0, fontSize: "16px", fontWeight: 700 }}>📂 {folder.name}</h2>
-                <div style={{ display: "flex", gap: "2px", marginLeft: "8px" }}>
-                  <button onClick={() => moveFolderOrder(folderIndex, "up")} disabled={folderIndex === 0} style={{ padding: "2px 6px", fontSize: "11px", cursor: "pointer", border: "1px solid #ddd", borderRadius: "4px", background: "#f9f9f9" }} title="上に移動">▲</button>
-                  <button onClick={() => moveFolderOrder(folderIndex, "down")} disabled={folderIndex === folders.length - 1} style={{ padding: "2px 6px", fontSize: "11px", cursor: "pointer", border: "1px solid #ddd", borderRadius: "4px", background: "#f9f9f9" }} title="下に移動">▼</button>
+          <section
+            key={folder.id}
+            style={{
+              border: "1px solid #E5E5EA",
+              borderRadius: "16px",
+              padding: "18px",
+              marginBottom: "16px",
+              background: "#FFFFFF",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "15px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                }}
+              >
+                <h2
+                  style={{
+                    margin: 0,
+                    fontSize: "16px",
+                    fontWeight: 700,
+                  }}
+                >
+                  {folder.name}
+                </h2>
+
+                <div style={{ display: "flex", gap: "4px" }}>
+                  <button
+                    onClick={() =>
+                      moveFolderOrder(folderIndex, "up")
+                    }
+                    disabled={folderIndex === 0}
+                    style={{
+                      padding: "4px 7px",
+                      fontSize: "10px",
+                      cursor: "pointer",
+                      border: "1px solid #E5E5EA",
+                      borderRadius: "5px",
+                      background: "#FAFAFC",
+                    }}
+                    title="上に移動"
+                  >
+                    ▲
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      moveFolderOrder(folderIndex, "down")
+                    }
+                    disabled={folderIndex === folders.length - 1}
+                    style={{
+                      padding: "4px 7px",
+                      fontSize: "10px",
+                      cursor: "pointer",
+                      border: "1px solid #E5E5EA",
+                      borderRadius: "5px",
+                      background: "#FAFAFC",
+                    }}
+                    title="下に移動"
+                  >
+                    ▼
+                  </button>
                 </div>
               </div>
 
-              <button onClick={() => deleteFolder(folder.id)} style={{ border: "none", background: "transparent", color: "#C62828", cursor: "pointer", fontSize: "13px" }}>
+              <button
+                onClick={() => deleteFolder(folder.id)}
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  color: "#C62828",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                }}
+              >
                 {tx("deck.delete")}
               </button>
             </div>
 
             {folderDecks.length === 0 ? (
-              <p style={{ fontSize: "13px", color: "#8E8E93", margin: "8px 0" }}>デッキがありません</p>
+              <p
+                style={{
+                  fontSize: "13px",
+                  color: "#8E8E93",
+                  margin: "8px 0",
+                }}
+              >
+                デッキがありません
+              </p>
             ) : (
-              folderDecks.map((deck, deckIndex) => (
-                <div key={deck.name} style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-                  
-                  {/* デッキの上下並び替えボタン（スワイプ感覚の入れ替え） */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "1px" }}>
-                    <button onClick={() => moveDeckOrder(folderDecks, deckIndex, "up")} disabled={deckIndex === 0} style={{ padding: "1px 4px", fontSize: "9px", cursor: "pointer", border: "1px solid #ddd", borderRadius: "3px", background: "#f9f9f9" }} title="上に移動">▲</button>
-                    <button onClick={() => moveDeckOrder(folderDecks, deckIndex, "down")} disabled={deckIndex === folderDecks.length - 1} style={{ padding: "1px 4px", fontSize: "9px", cursor: "pointer", border: "1px solid #ddd", borderRadius: "3px", background: "#f9f9f9" }} title="下に移動">▼</button>
-                  </div>
-
-                  {/* 優先順位（金銀銅メダル選択） */}
-                  <select
-                    value={deck.priority || "none"}
-                    onChange={(e) => changeDeckPriority(deck.name, e.target.value as DeckPriority)}
-                    title="優先順位（メダル）を変更"
-                    style={{ padding: "8px 4px", border: "1px solid #E5E5EA", borderRadius: "8px", fontSize: "14px", background: "#FFFFFF", cursor: "pointer" }}
-                  >
-                    <option value="gold">🥇 金</option>
-                    <option value="silver">🥈 銀</option>
-                    <option value="bronze">🥉 銅</option>
-                    <option value="none">⚪ なし</option>
-                  </select>
-
-                  <button onClick={() => { setCurrentDeck(deck.name); setDeckOpen(true); }} style={{ flex: 1, padding: "12px 15px", textAlign: "left", background: "#FAFAFC", border: "1px solid #E5E5EA", borderRadius: "10px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
-                    <span style={{ fontSize: "14px", fontWeight: 600 }}>{deck.name}</span>
-                    <span style={{ fontSize: "12px", color: "#8E8E93", whiteSpace: "nowrap" }}>{deck.cards.length} {tx("deck.cards")}</span>
-                  </button>
-
-                  {/* フォルダ移動 */}
-                  <select
-                    value={deck.folderId || ""}
-                    onChange={(e) => moveDeck(deck.name, e.target.value || null)}
-                    title="フォルダを移動"
-                    style={{ maxWidth: "110px", padding: "8px", border: "1px solid #E5E5EA", borderRadius: "8px", fontSize: "12px", background: "#FFFFFF" }}
-                  >
-                    <option value="">{tx("folder.uncategorized")}</option>
-                    {folders.map((item) => (
-                      <option key={item.id} value={item.id}>{item.name}</option>
-                    ))}
-                  </select>
-
-                  <button onClick={() => deleteDeck(deck.name)} style={{ border: "none", background: "transparent", color: "#C62828", cursor: "pointer", fontSize: "12px" }}>
-                    削除
-                  </button>
-                </div>
-              ))
+              folderDecks.map((deck, index) =>
+                renderDeckCard(deck, index, folderDecks)
+              )
             )}
           </section>
         );
@@ -1447,84 +2804,264 @@ export default function Page() {
 
       {/* 未分類デッキ */}
       {decks.some((deck) => deck.folderId === null) && (
-        <section style={{ border: "1px solid #E5E5EA", borderRadius: "16px", padding: "18px", marginBottom: "24px", background: "#FFFFFF" }}>
-          <h2 style={{ margin: "0 0 12px", fontSize: "16px", fontWeight: 700 }}>{tx("folder.uncategorized")}</h2>
+        <section
+          style={{
+            border: "1px solid #E5E5EA",
+            borderRadius: "16px",
+            padding: "18px",
+            marginBottom: "24px",
+            background: "#FFFFFF",
+          }}
+        >
+          <h2
+            style={{
+              margin: "0 0 15px",
+              fontSize: "16px",
+              fontWeight: 700,
+            }}
+          >
+            {tx("folder.uncategorized")}
+          </h2>
 
           {(() => {
-            const uncategorizedDecks = sortDecks(decks.filter((deck) => deck.folderId === null));
-            return uncategorizedDecks.map((deck, deckIndex) => (
-              <div key={deck.name} style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
-                
-                <div style={{ display: "flex", flexDirection: "column", gap: "1px" }}>
-                  <button onClick={() => moveDeckOrder(uncategorizedDecks, deckIndex, "up")} disabled={deckIndex === 0} style={{ padding: "1px 4px", fontSize: "9px", cursor: "pointer", border: "1px solid #ddd", borderRadius: "3px", background: "#f9f9f9" }}>▲</button>
-                  <button onClick={() => moveDeckOrder(uncategorizedDecks, deckIndex, "down")} disabled={deckIndex === uncategorizedDecks.length - 1} style={{ padding: "1px 4px", fontSize: "9px", cursor: "pointer", border: "1px solid #ddd", borderRadius: "3px", background: "#f9f9f9" }}>▼</button>
-                </div>
+            const uncategorizedDecks = sortDecks(
+              decks.filter((deck) => deck.folderId === null)
+            );
 
-                <select
-                  value={deck.priority || "none"}
-                  onChange={(e) => changeDeckPriority(deck.name, e.target.value as DeckPriority)}
-                  title="優先順位（メダル）を変更"
-                  style={{ padding: "8px 4px", border: "1px solid #E5E5EA", borderRadius: "8px", fontSize: "14px", background: "#FFFFFF", cursor: "pointer" }}
-                >
-                  <option value="gold">🥇 金</option>
-                  <option value="silver">🥈 銀</option>
-                  <option value="bronze">🥉 銅</option>
-                  <option value="none">⚪ なし</option>
-                </select>
-
-                <button onClick={() => { setCurrentDeck(deck.name); setDeckOpen(true); }} style={{ flex: 1, padding: "12px 15px", textAlign: "left", background: "#FAFAFC", border: "1px solid #E5E5EA", borderRadius: "10px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: "14px", fontWeight: 600 }}>{deck.name}</span>
-                  <span style={{ fontSize: "12px", color: "#8E8E93" }}>{deck.cards.length} {tx("deck.cards")}</span>
-                </button>
-
-                <select
-                  value={deck.folderId || ""}
-                  onChange={(e) => moveDeck(deck.name, e.target.value || null)}
-                  title="フォルダを移動"
-                  style={{ maxWidth: "110px", padding: "8px", border: "1px solid #E5E5EA", borderRadius: "8px", fontSize: "12px", background: "#FFFFFF" }}
-                >
-                  <option value="">{tx("folder.move")}</option>
-                  {folders.map((item) => (
-                    <option key={item.id} value={item.id}>{item.name}</option>
-                  ))}
-                </select>
-
-                <button onClick={() => deleteDeck(deck.name)} style={{ border: "none", background: "transparent", color: "#C62828", cursor: "pointer", fontSize: "12px" }}>
-                  削除
-                </button>
-              </div>
-            ));
+            return uncategorizedDecks.map((deck, index) =>
+              renderDeckCard(deck, index, uncategorizedDecks)
+            );
           })()}
         </section>
       )}
 
       {/* 新しいフォルダ作成 */}
-      <section style={{ marginTop: "28px", padding: "18px", background: "#FFFFFF", border: "1px solid #E5E5EA", borderRadius: "16px" }}>
-        <h3 style={{ margin: "0 0 10px", fontSize: "15px" }}>{tx("folder.new")}</h3>
+      <section
+        style={{
+          marginTop: "28px",
+          padding: "18px",
+          background: "#FFFFFF",
+          border: "1px solid #E5E5EA",
+          borderRadius: "16px",
+        }}
+      >
+        <h3 style={{ margin: "0 0 12px", fontSize: "15px" }}>
+          {tx("folder.new")}
+        </h3>
+
         <div style={{ display: "flex", gap: "8px" }}>
-          <input placeholder={tx("folder.example")} value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)} style={{ ...inputStyle, flex: 1, marginBottom: 0 }} />
-          <button onClick={addFolder} style={primaryButtonStyle}>{tx("folder.create")}</button>
+          <input
+            placeholder={tx("folder.example")}
+            value={newFolderName}
+            onChange={(event) => setNewFolderName(event.target.value)}
+            style={{
+              ...inputStyle,
+              flex: 1,
+              marginBottom: 0,
+            }}
+          />
+
+          <button onClick={addFolder} style={primaryButtonStyle}>
+            {tx("folder.create")}
+          </button>
         </div>
       </section>
 
-      {/* 新しいデッキ作成 */}
-      <section style={{ marginTop: "16px", padding: "18px", background: "#FFFFFF", border: "1px solid #E5E5EA", borderRadius: "16px" }}>
-        <h3 style={{ margin: "0 0 12px", fontSize: "15px" }}>{tx("deck.new")}</h3>
-        <input placeholder={tx("deck.exampleName")} value={newDeckName} onChange={(e) => setNewDeckName(e.target.value)} style={inputStyle} />
-        <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
-          <select value={newDeckLanguage} onChange={(e) => setNewDeckLanguage(e.target.value)} style={{ ...inputStyle, flex: 1, marginBottom: 0 }}>
+      {/* 新しいデッキ作成前（表紙画像設定対応） */}
+      <section
+        style={{
+          marginTop: "16px",
+          padding: "22px",
+          background: "#FFFFFF",
+          border: "1px solid #E5E5EA",
+          borderRadius: "16px",
+        }}
+      >
+        <h3 style={{ margin: "0 0 18px", fontSize: "16px" }}>
+          {tx("deck.new")}
+        </h3>
+
+        <input
+          placeholder={tx("deck.exampleName")}
+          value={newDeckName}
+          onChange={(event) => setNewDeckName(event.target.value)}
+          style={inputStyle}
+        />
+
+        <div
+          style={{
+            display: "flex",
+            gap: "8px",
+            marginBottom: "20px",
+          }}
+        >
+          <select
+            value={newDeckLanguage}
+            onChange={(event) =>
+              setNewDeckLanguage(event.target.value)
+            }
+            style={{
+              ...inputStyle,
+              flex: 1,
+              marginBottom: 0,
+            }}
+          >
             {languageOptions.map(([code, label]) => (
-              <option key={code} value={code}>{label}</option>
+              <option key={code} value={code}>
+                {label}
+              </option>
             ))}
           </select>
-          <select value={newDeckFolderId || ""} onChange={(e) => setNewDeckFolderId(e.target.value || null)} style={{ ...inputStyle, flex: 1, marginBottom: 0 }}>
+
+          <select
+            value={newDeckFolderId || ""}
+            onChange={(event) =>
+              setNewDeckFolderId(event.target.value || null)
+            }
+            style={{
+              ...inputStyle,
+              flex: 1,
+              marginBottom: 0,
+            }}
+          >
             <option value="">{tx("deck.noFolder")}</option>
             {folders.map((folder) => (
-              <option key={folder.id} value={folder.id}>{folder.name}</option>
+              <option key={folder.id} value={folder.id}>
+                {folder.name}
+              </option>
             ))}
           </select>
         </div>
-        <button onClick={addDeck} style={{ ...primaryButtonStyle, width: "100%" }}>{tx("deck.create")}</button>
+
+        <div style={{ marginBottom: "20px" }}>
+          <p
+            style={{
+              fontSize: "13px",
+              fontWeight: 600,
+              margin: "0 0 10px",
+            }}
+          >
+            デッキの表紙画像
+          </p>
+
+          {coverPreview ? (
+            <div style={{ marginBottom: "12px" }}>
+              <img
+                src={coverPreview}
+                alt="表紙プレビュー"
+                style={{
+                  width: "130px",
+                  height: "130px",
+                  objectFit: "cover",
+                  borderRadius: "13px",
+                  border: "1px solid #E5E5EA",
+                }}
+              />
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCoverFile(null);
+                  setCoverPreview("");
+                }}
+                style={{
+                  display: "block",
+                  marginTop: "8px",
+                  border: "none",
+                  background: "transparent",
+                  color: "#B46A6A",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                }}
+              >
+                画像を取り消す
+              </button>
+            </div>
+          ) : (
+            <div
+              style={{
+                width: "130px",
+                height: "130px",
+                borderRadius: "13px",
+                border: "1px dashed #D5D5DA",
+                background: "#FAFAFC",
+                display: "grid",
+                placeItems: "center",
+                color: "#A0A0A5",
+                marginBottom: "12px",
+                fontSize: "30px",
+              }}
+            >
+              ＋
+            </div>
+          )}
+
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/*"
+            onChange={selectCoverImage}
+            style={{ display: "none" }}
+          />
+
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={selectCoverImage}
+            style={{ display: "none" }}
+          />
+
+          <div
+            style={{
+              display: "flex",
+              gap: "8px",
+              flexWrap: "wrap",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => imageInputRef.current?.click()}
+              style={secondaryButtonStyle}
+            >
+              画像を選択
+            </button>
+
+            <button
+              type="button"
+              onClick={() => cameraInputRef.current?.click()}
+              style={secondaryButtonStyle}
+            >
+              カメラで撮影
+            </button>
+          </div>
+
+          <p
+            style={{
+              fontSize: "11px",
+              color: "#8E8E93",
+              marginTop: "9px",
+            }}
+          >
+            JPG・PNGなどの画像（5MB以下）
+          </p>
+        </div>
+
+        <button
+          onClick={addDeck}
+          disabled={uploadingCover}
+          style={{
+            ...primaryButtonStyle,
+            width: "100%",
+            opacity: uploadingCover ? 0.6 : 1,
+            cursor: uploadingCover ? "wait" : "pointer",
+          }}
+        >
+          {uploadingCover
+            ? "画像を保存しています…"
+            : tx("deck.create")}
+        </button>
       </section>
     </main>
   );

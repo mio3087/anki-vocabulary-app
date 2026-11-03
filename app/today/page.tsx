@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import {
+  arrayUnion,
   collection,
   doc,
   onSnapshot,
@@ -12,20 +13,34 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
-import {
-  useAppLanguage,
-  type AppLanguage,
-} from "@/app/component/AppLanguage";
+import { useAppLanguage, type AppLanguage } from "@/app/component/AppLanguage";
+
+type StudyRange = {
+  start: number;
+  end: number;
+  date: string;
+};
+
+type Material = {
+  id: string;
+  name: string;
+  language: string;
+  type: "book" | "deck";
+  total: number;
+  studyRanges: StudyRange[];
+};
 
 type Plan = {
   id: string;
   deckName: string;
+  materialId?: string;
   totalItems: number;
   startDate: string;
   deadline: string;
   rounds: number;
   weekdays: number[];
   createdAt: string;
+  status?: "pending" | "completed" | "postponed";
 };
 
 type TaskStatus = "未着手" | "進行中" | "完了";
@@ -47,10 +62,15 @@ type StudyTask = {
   repeatDays: number[];
 };
 
+type RangeInput = {
+  start: string;
+  end: string;
+};
+
 const PLAN_STORAGE_KEY = "anki-study-plans-v1";
 
-const muted = "#777C74";
-const line = "#DCDDD6";
+const line = "#E7E8E3";
+const muted = "#858A82";
 const accent = "var(--anki-theme-color)";
 const accentDark = "var(--anki-theme-dark)";
 
@@ -64,426 +84,377 @@ const localeMap: Record<AppLanguage, string> = {
   it: "it-IT",
 };
 
-type Translation = {
-  title: string;
-  taskManagement: string;
-  progress: string;
-  taskRegister: string;
-  studyPlan: string;
-  achievement: string;
-  completedTasks: string;
-  completedOf: string;
-  remaining: string;
-  items: string;
-  incompleteTasks: string;
-  plans: string;
-  dailyTarget: string;
-  itemsPerDay: string;
-  todayTasks: string;
-  allTasks: string;
-  loading: string;
-  loginRequired: string;
-  loginDescription: string;
-  noTasks: string;
-  noTasksDescription: string;
-  addTask: string;
-  taskError: string;
-  updateLogin: string;
-  updateError: string;
-  tryAgain: string;
-  noPlans: string;
-  noPlansDescription: string;
-  managePlans: string;
-  createPlan: string;
-  planError: string;
-  todayPlan: string;
-  deadline: string;
-  rounds: string;
-  target: string;
-  scheduledEdit: string;
-  taskCompleted: string;
-  taskNotCompleted: string;
-  statusNotStarted: string;
-  statusInProgress: string;
-  statusCompleted: string;
-  typeMaterial: string;
-  typeVocabulary: string;
-  unitWord: string;
-  unitPage: string;
-  unitMinute: string;
-  unitChapter: string;
-  unitTime: string;
-  untitled: string;
-  footer: string;
-  footerRight: string;
-  todayLabel: string;
-  weekdays: string[];
-};
-
-const translations: {
-  ja: Translation;
-} & Partial<Record<Exclude<AppLanguage, "ja">, Translation>> = {
+const copy = {
   ja: {
     title: "今日のノルマ",
+    today: "今日",
     taskManagement: "タスク管理",
-    progress: "達成状況",
-    taskRegister: "今日やること",
-    studyPlan: "今日の学習計画",
-    achievement: "達成率",
-    completedTasks: "完了タスク",
-    completedOf: "完了 / 全タスク",
+    overview: "TODAY AT A GLANCE",
+    completion: "タスク達成率",
+    completed: "完了",
     remaining: "残り",
-    items: "件",
-    incompleteTasks: "未完了のタスク",
-    plans: "学習計画",
-    dailyTarget: "目標",
-    itemsPerDay: "項目 / 日",
-    todayTasks: "今日やること",
-    allTasks: "すべてのタスク",
-    loading: "タスクを読み込んでいます...",
-    loginRequired: "ログインが必要です",
-    loginDescription: "ログインすると、登録したタスクがここに表示されます。",
-    noTasks: "今日のタスクはありません",
-    noTasksDescription: "タスク管理から予定を追加すると、ここに表示されます。",
-    addTask: "タスクを追加する",
-    taskError: "タスクを読み込めませんでした。",
-    updateLogin: "タスクの更新にはログインが必要です。",
-    updateError: "更新できませんでした。もう一度お試しください。",
-    tryAgain: "もう一度お試しください。",
-    noPlans: "今日対象の計画はありません",
-    noPlansDescription: "学習計画で期間と学習曜日を設定してください。",
-    managePlans: "学習計画を管理",
-    createPlan: "計画を作成する",
-    planError: "学習計画を読み込めませんでした。",
-    todayPlan: "本日の目標",
+    plans: "今日の学習計画",
+    planManage: "計画を管理",
+    noPlans: "今日の学習計画はありません",
+    noPlansDescription: "学習計画から教材と学習期間を設定できます。",
+    createPlan: "学習計画を作成",
     deadline: "期限",
-    rounds: "周",
-    target: "目標",
-    scheduledEdit: "予定の編集はタスク管理・学習計画から行えます。",
-    taskCompleted: "完了にする",
-    taskNotCompleted: "未完了に戻す",
-    statusNotStarted: "未着手",
-    statusInProgress: "進行中",
-    statusCompleted: "完了",
-    typeMaterial: "教材の学習",
-    typeVocabulary: "単語の暗記・復習",
-    unitWord: "単語",
-    unitPage: "ページ",
-    unitMinute: "分",
-    unitChapter: "章",
-    unitTime: "回",
+    round: "周",
+    dailyGoal: "今日の目標",
+    actual: "今日の実績",
+    record: "学習範囲を記録",
+    start: "開始",
+    end: "終了",
+    save: "記録する",
+    saving: "保存中...",
+    progress: "達成状況",
+    achieved: "今日の目標を達成しました",
+    notAchieved: "目標まであと",
+    over: "目標達成",
+    materialMissing: "教材が見つかりません",
+    materialMissingDescription: "教材管理で教材を登録し、学習計画から選択してください。",
+    materials: "教材管理",
+    invalidRange: "教材の範囲内で、開始と終了を正しく入力してください。",
+    saved: "学習範囲を記録しました。",
+    saveError: "記録できませんでした。もう一度お試しください。",
+    tasks: "今日やること",
+    allTasks: "すべてのタスク",
+    noTasks: "今日のタスクはありません",
+    noTasksDescription: "タスク管理から予定を追加できます。",
+    addTask: "タスクを追加",
+    loading: "読み込み中...",
+    login: "ログインが必要です",
+    loginDescription: "ログインすると学習計画とタスクが表示されます。",
+    taskError: "タスクを読み込めませんでした。",
+    updateError: "タスクを更新できませんでした。",
+    markDone: "完了にする",
+    markUndone: "未完了に戻す",
+    notStarted: "未着手",
+    inProgress: "進行中",
+    done: "完了",
+    materialStudy: "教材の学習",
+    vocabulary: "単語の暗記・復習",
+    words: "単語",
+    pages: "ページ",
+    minutes: "分",
+    chapters: "章",
+    times: "回",
     untitled: "名称未設定",
     footer: "YOUR ANKI / PERSONAL LEARNING SYSTEM",
-    footerRight: "予定の編集はタスク管理・学習計画から行えます。",
-    todayLabel: "今日",
-    weekdays: ["日", "月", "火", "水", "木", "金", "土"],
+    footerRight: "学習範囲を記録すると教材の進捗にも反映されます。",
+    items: "件",
+    days: "学習日",
   },
-
   en: {
     title: "Today's Goals",
-    taskManagement: "Task Management",
-    progress: "PROGRESS",
-    taskRegister: "Today's Tasks",
-    studyPlan: "Today's Study Plan",
-    achievement: "Completion",
-    completedTasks: "Completed",
-    completedOf: "Completed / Total",
+    today: "TODAY",
+    taskManagement: "Tasks",
+    overview: "TODAY AT A GLANCE",
+    completion: "Task completion",
+    completed: "Completed",
     remaining: "Remaining",
-    items: "tasks",
-    incompleteTasks: "Incomplete tasks",
-    plans: "Study Plans",
-    dailyTarget: "Target",
-    itemsPerDay: "items / day",
-    todayTasks: "Today's Tasks",
-    allTasks: "All Tasks",
-    loading: "Loading tasks...",
-    loginRequired: "Login Required",
-    loginDescription: "Log in to see your registered tasks here.",
+    plans: "Today's Study Plan",
+    planManage: "Manage plans",
+    noPlans: "No study plans for today",
+    noPlansDescription: "Create a plan to set your materials and study period.",
+    createPlan: "Create a study plan",
+    deadline: "Deadline",
+    round: "rounds",
+    dailyGoal: "Today's goal",
+    actual: "Today's progress",
+    record: "Record study range",
+    start: "From",
+    end: "To",
+    save: "Save record",
+    saving: "Saving...",
+    progress: "Progress",
+    achieved: "Today's goal achieved",
+    notAchieved: "Remaining",
+    over: "Goal achieved",
+    materialMissing: "Material not found",
+    materialMissingDescription: "Add a material and select it in your study plan.",
+    materials: "Materials",
+    invalidRange: "Enter a valid range within the material's limits.",
+    saved: "Study range recorded.",
+    saveError: "Could not save. Please try again.",
+    tasks: "Today's Tasks",
+    allTasks: "All tasks",
     noTasks: "No tasks for today",
-    noTasksDescription: "Add a task in Task Management to see it here.",
-    addTask: "Add a Task",
+    noTasksDescription: "Add tasks in Task Management.",
+    addTask: "Add a task",
+    loading: "Loading...",
+    login: "Login required",
+    loginDescription: "Log in to see your study plans and tasks.",
     taskError: "Could not load tasks.",
-    updateLogin: "Please log in to update tasks.",
     updateError: "Could not update the task.",
-    tryAgain: "Please try again.",
-    noPlans: "No plans scheduled for today",
-    noPlansDescription: "Set a study period and study days in Study Plan.",
-    managePlans: "Manage Study Plans",
-    createPlan: "Create a Plan",
-    planError: "Could not load study plans.",
-    todayPlan: "Today's Target",
-    deadline: "DEADLINE",
-    rounds: "rounds",
-    target: "TARGET",
-    scheduledEdit: "Edit your schedule in Task Management or Study Plan.",
-    taskCompleted: "Mark as completed",
-    taskNotCompleted: "Mark as incomplete",
-    statusNotStarted: "Not Started",
-    statusInProgress: "In Progress",
-    statusCompleted: "Completed",
-    typeMaterial: "Study Materials",
-    typeVocabulary: "Vocabulary Memorization & Review",
-    unitWord: "words",
-    unitPage: "pages",
-    unitMinute: "min",
-    unitChapter: "chapters",
-    unitTime: "times",
+    markDone: "Mark as done",
+    markUndone: "Mark as incomplete",
+    notStarted: "Not started",
+    inProgress: "In progress",
+    done: "Completed",
+    materialStudy: "Study materials",
+    vocabulary: "Vocabulary review",
+    words: "words",
+    pages: "pages",
+    minutes: "min",
+    chapters: "chapters",
+    times: "times",
     untitled: "Untitled",
     footer: "YOUR ANKI / PERSONAL LEARNING SYSTEM",
-    footerRight: "Edit schedules in Task Management or Study Plan.",
-    todayLabel: "TODAY",
-    weekdays: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+    footerRight: "Recorded ranges are also reflected in material progress.",
+    items: "tasks",
+    days: "study days",
   },
-
   de: {
     title: "Heutige Lernziele",
-    taskManagement: "Aufgabenverwaltung",
-    progress: "FORTSCHRITT",
-    taskRegister: "Heutige Aufgaben",
-    studyPlan: "Heutiger Lernplan",
-    achievement: "Fortschritt",
-    completedTasks: "Abgeschlossen",
-    completedOf: "Erledigt / Gesamt",
-    remaining: "Verbleibend",
-    items: "Aufgaben",
-    incompleteTasks: "Offene Aufgaben",
-    plans: "Lernpläne",
-    dailyTarget: "Ziel",
-    itemsPerDay: "Einheiten / Tag",
-    todayTasks: "Heutige Aufgaben",
+    today: "HEUTE",
+    taskManagement: "Aufgaben",
+    overview: "TAGESÜBERSICHT",
+    completion: "Aufgabenfortschritt",
+    completed: "Erledigt",
+    remaining: "Offen",
+    plans: "Heutiger Lernplan",
+    planManage: "Pläne verwalten",
+    noPlans: "Keine Lernpläne für heute",
+    noPlansDescription: "Erstelle einen Lernplan mit Material und Zeitraum.",
+    createPlan: "Lernplan erstellen",
+    deadline: "Frist",
+    round: "Durchgänge",
+    dailyGoal: "Heutiges Ziel",
+    actual: "Heutiger Fortschritt",
+    record: "Lernbereich speichern",
+    start: "Von",
+    end: "Bis",
+    save: "Speichern",
+    saving: "Speichern...",
+    progress: "Fortschritt",
+    achieved: "Heutiges Ziel erreicht",
+    notAchieved: "Noch offen",
+    over: "Ziel erreicht",
+    materialMissing: "Lernmaterial nicht gefunden",
+    materialMissingDescription: "Füge Material hinzu und wähle es im Lernplan aus.",
+    materials: "Materialien",
+    invalidRange: "Gib einen gültigen Bereich innerhalb des Materials ein.",
+    saved: "Lernbereich gespeichert.",
+    saveError: "Speichern fehlgeschlagen. Bitte erneut versuchen.",
+    tasks: "Heutige Aufgaben",
     allTasks: "Alle Aufgaben",
-    loading: "Aufgaben werden geladen...",
-    loginRequired: "Anmeldung erforderlich",
-    loginDescription: "Melde dich an, um deine Aufgaben hier zu sehen.",
     noTasks: "Keine Aufgaben für heute",
-    noTasksDescription: "Füge in der Aufgabenverwaltung eine Aufgabe hinzu.",
+    noTasksDescription: "Füge Aufgaben in der Aufgabenverwaltung hinzu.",
     addTask: "Aufgabe hinzufügen",
+    loading: "Wird geladen...",
+    login: "Anmeldung erforderlich",
+    loginDescription: "Melde dich an, um Lernpläne und Aufgaben zu sehen.",
     taskError: "Aufgaben konnten nicht geladen werden.",
-    updateLogin: "Bitte melde dich an, um Aufgaben zu aktualisieren.",
-    updateError: "Die Aufgabe konnte nicht aktualisiert werden.",
-    tryAgain: "Bitte versuche es erneut.",
-    noPlans: "Für heute sind keine Lernpläne vorgesehen",
-    noPlansDescription: "Lege im Lernplan einen Zeitraum und Lerntage fest.",
-    managePlans: "Lernpläne verwalten",
-    createPlan: "Plan erstellen",
-    planError: "Lernpläne konnten nicht geladen werden.",
-    todayPlan: "Heutiges Ziel",
-    deadline: "FRIST",
-    rounds: "Durchgänge",
-    target: "ZIEL",
-    scheduledEdit: "Bearbeite deine Planung in der Aufgabenverwaltung oder im Lernplan.",
-    taskCompleted: "Als erledigt markieren",
-    taskNotCompleted: "Als offen markieren",
-    statusNotStarted: "Nicht begonnen",
-    statusInProgress: "In Bearbeitung",
-    statusCompleted: "Abgeschlossen",
-    typeMaterial: "Lernmaterial",
-    typeVocabulary: "Vokabeln lernen und wiederholen",
-    unitWord: "Wörter",
-    unitPage: "Seiten",
-    unitMinute: "Min.",
-    unitChapter: "Kapitel",
-    unitTime: "Mal",
+    updateError: "Aufgabe konnte nicht aktualisiert werden.",
+    markDone: "Erledigt",
+    markUndone: "Wieder öffnen",
+    notStarted: "Nicht begonnen",
+    inProgress: "In Bearbeitung",
+    done: "Erledigt",
+    materialStudy: "Lernmaterial",
+    vocabulary: "Vokabeln lernen",
+    words: "Wörter",
+    pages: "Seiten",
+    minutes: "Min.",
+    chapters: "Kapitel",
+    times: "Mal",
     untitled: "Ohne Titel",
     footer: "YOUR ANKI / PERSONAL LEARNING SYSTEM",
-    footerRight: "Bearbeite deine Planung in der Aufgabenverwaltung oder im Lernplan.",
-    todayLabel: "HEUTE",
-    weekdays: ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"],
+    footerRight: "Gespeicherte Bereiche werden im Materialfortschritt berücksichtigt.",
+    items: "Aufgaben",
+    days: "Lerntage",
   },
-
   "zh-CN": {
     title: "今日目标",
+    today: "今日",
     taskManagement: "任务管理",
-    progress: "完成进度",
-    taskRegister: "今日任务",
-    studyPlan: "今日学习计划",
-    achievement: "完成率",
-    completedTasks: "已完成任务",
-    completedOf: "已完成 / 总任务",
+    overview: "今日概览",
+    completion: "任务完成率",
+    completed: "已完成",
     remaining: "剩余",
-    items: "项",
-    incompleteTasks: "未完成的任务",
-    plans: "学习计划",
-    dailyTarget: "目标",
-    itemsPerDay: "项目 / 天",
-    todayTasks: "今日任务",
-    allTasks: "全部任务",
-    loading: "正在加载任务...",
-    loginRequired: "需要登录",
-    loginDescription: "登录后即可在这里查看已添加的任务。",
-    noTasks: "今天没有任务",
-    noTasksDescription: "在任务管理中添加计划后，就会显示在这里。",
-    addTask: "添加任务",
-    taskError: "无法加载任务。",
-    updateLogin: "请登录后更新任务。",
-    updateError: "无法更新任务，请重试。",
-    tryAgain: "请重试。",
-    noPlans: "今天没有安排学习计划",
-    noPlansDescription: "请在学习计划中设置学习期间和学习星期。",
-    managePlans: "管理学习计划",
-    createPlan: "创建计划",
-    planError: "无法加载学习计划。",
-    todayPlan: "今日目标",
+    plans: "今日学习计划",
+    planManage: "管理计划",
+    noPlans: "今天没有学习计划",
+    noPlansDescription: "创建学习计划，设置教材和学习期间。",
+    createPlan: "创建学习计划",
     deadline: "截止日期",
-    rounds: "轮",
-    target: "目标",
-    scheduledEdit: "请在任务管理或学习计划中编辑安排。",
-    taskCompleted: "标记为已完成",
-    taskNotCompleted: "恢复为未完成",
-    statusNotStarted: "未开始",
-    statusInProgress: "进行中",
-    statusCompleted: "已完成",
-    typeMaterial: "教材学习",
-    typeVocabulary: "单词记忆与复习",
-    unitWord: "个单词",
-    unitPage: "页",
-    unitMinute: "分钟",
-    unitChapter: "章",
-    unitTime: "次",
+    round: "轮",
+    dailyGoal: "今日目标",
+    actual: "今日进度",
+    record: "记录学习范围",
+    start: "开始",
+    end: "结束",
+    save: "保存记录",
+    saving: "保存中...",
+    progress: "完成进度",
+    achieved: "已完成今日目标",
+    notAchieved: "还差",
+    over: "已达成目标",
+    materialMissing: "找不到教材",
+    materialMissingDescription: "请先在教材管理中添加教材，再从学习计划中选择。",
+    materials: "教材管理",
+    invalidRange: "请输入教材范围内的有效起止位置。",
+    saved: "已记录学习范围。",
+    saveError: "保存失败，请重试。",
+    tasks: "今日任务",
+    allTasks: "全部任务",
+    noTasks: "今天没有任务",
+    noTasksDescription: "可以在任务管理中添加任务。",
+    addTask: "添加任务",
+    loading: "正在加载...",
+    login: "需要登录",
+    loginDescription: "登录后即可查看学习计划和任务。",
+    taskError: "无法加载任务。",
+    updateError: "无法更新任务。",
+    markDone: "标记完成",
+    markUndone: "恢复未完成",
+    notStarted: "未开始",
+    inProgress: "进行中",
+    done: "已完成",
+    materialStudy: "教材学习",
+    vocabulary: "单词记忆与复习",
+    words: "个单词",
+    pages: "页",
+    minutes: "分钟",
+    chapters: "章",
+    times: "次",
     untitled: "未命名",
     footer: "YOUR ANKI / PERSONAL LEARNING SYSTEM",
-    footerRight: "请在任务管理或学习计划中编辑安排。",
-    todayLabel: "今日",
-    weekdays: ["日", "一", "二", "三", "四", "五", "六"],
+    footerRight: "记录的学习范围也会同步到教材进度。",
+    items: "项",
+    days: "学习日",
   },
-
   "zh-TW": {
     title: "今日目標",
+    today: "今日",
     taskManagement: "任務管理",
-    progress: "完成進度",
-    taskRegister: "今日任務",
-    studyPlan: "今日學習計畫",
-    achievement: "完成率",
-    completedTasks: "已完成任務",
-    completedOf: "已完成 / 總任務",
+    overview: "今日概覽",
+    completion: "任務完成率",
+    completed: "已完成",
     remaining: "剩餘",
-    items: "項",
-    incompleteTasks: "未完成的任務",
-    plans: "學習計畫",
-    dailyTarget: "目標",
-    itemsPerDay: "項目 / 天",
-    todayTasks: "今日任務",
-    allTasks: "全部任務",
-    loading: "正在載入任務...",
-    loginRequired: "需要登入",
-    loginDescription: "登入後即可在這裡查看已新增的任務。",
-    noTasks: "今天沒有任務",
-    noTasksDescription: "在任務管理中新增計畫後，就會顯示在這裡。",
-    addTask: "新增任務",
-    taskError: "無法載入任務。",
-    updateLogin: "請登入後更新任務。",
-    updateError: "無法更新任務，請重試。",
-    tryAgain: "請重試。",
-    noPlans: "今天沒有安排學習計畫",
-    noPlansDescription: "請在學習計畫中設定學習期間和學習星期。",
-    managePlans: "管理學習計畫",
-    createPlan: "建立計畫",
-    planError: "無法載入學習計畫。",
-    todayPlan: "今日目標",
+    plans: "今日學習計畫",
+    planManage: "管理計畫",
+    noPlans: "今天沒有學習計畫",
+    noPlansDescription: "建立學習計畫，設定教材和學習期間。",
+    createPlan: "建立學習計畫",
     deadline: "截止日期",
-    rounds: "輪",
-    target: "目標",
-    scheduledEdit: "請在任務管理或學習計畫中編輯安排。",
-    taskCompleted: "標記為已完成",
-    taskNotCompleted: "恢復為未完成",
-    statusNotStarted: "未開始",
-    statusInProgress: "進行中",
-    statusCompleted: "已完成",
-    typeMaterial: "教材學習",
-    typeVocabulary: "單字記憶與複習",
-    unitWord: "個單字",
-    unitPage: "頁",
-    unitMinute: "分鐘",
-    unitChapter: "章",
-    unitTime: "次",
+    round: "輪",
+    dailyGoal: "今日目標",
+    actual: "今日進度",
+    record: "記錄學習範圍",
+    start: "開始",
+    end: "結束",
+    save: "儲存記錄",
+    saving: "儲存中...",
+    progress: "完成進度",
+    achieved: "已完成今日目標",
+    notAchieved: "還差",
+    over: "已達成目標",
+    materialMissing: "找不到教材",
+    materialMissingDescription: "請先在教材管理中新增教材，再從學習計畫中選擇。",
+    materials: "教材管理",
+    invalidRange: "請輸入教材範圍內有效的起始與結束位置。",
+    saved: "已記錄學習範圍。",
+    saveError: "儲存失敗，請重試。",
+    tasks: "今日任務",
+    allTasks: "全部任務",
+    noTasks: "今天沒有任務",
+    noTasksDescription: "可以在任務管理中新增任務。",
+    addTask: "新增任務",
+    loading: "載入中...",
+    login: "需要登入",
+    loginDescription: "登入後即可查看學習計畫和任務。",
+    taskError: "無法載入任務。",
+    updateError: "無法更新任務。",
+    markDone: "標記完成",
+    markUndone: "恢復未完成",
+    notStarted: "未開始",
+    inProgress: "進行中",
+    done: "已完成",
+    materialStudy: "教材學習",
+    vocabulary: "單字記憶與複習",
+    words: "個單字",
+    pages: "頁",
+    minutes: "分鐘",
+    chapters: "章",
+    times: "次",
     untitled: "未命名",
     footer: "YOUR ANKI / PERSONAL LEARNING SYSTEM",
-    footerRight: "請在任務管理或學習計畫中編輯安排。",
-    todayLabel: "今日",
-    weekdays: ["日", "一", "二", "三", "四", "五", "六"],
+    footerRight: "記錄的學習範圍也會同步到教材進度。",
+    items: "項",
+    days: "學習日",
   },
-
   es: {
     title: "Objetivos de hoy",
-    taskManagement: "Gestión de tareas",
-    progress: "PROGRESO",
-    taskRegister: "Tareas de hoy",
-    studyPlan: "Plan de estudio de hoy",
-    achievement: "Completado",
-    completedTasks: "Tareas completadas",
-    completedOf: "Completadas / Total",
-    remaining: "Restantes",
-    items: "tareas",
-    incompleteTasks: "Tareas pendientes",
-    plans: "Planes de estudio",
-    dailyTarget: "Objetivo",
-    itemsPerDay: "elementos / día",
-    todayTasks: "Tareas de hoy",
-    allTasks: "Todas las tareas",
-    loading: "Cargando tareas...",
-    loginRequired: "Es necesario iniciar sesión",
-    loginDescription: "Inicia sesión para ver aquí tus tareas registradas.",
-    noTasks: "No hay tareas para hoy",
-    noTasksDescription: "Añade una tarea en Gestión de tareas para verla aquí.",
-    addTask: "Añadir tarea",
-    taskError: "No se pudieron cargar las tareas.",
-    updateLogin: "Inicia sesión para actualizar las tareas.",
-    updateError: "No se pudo actualizar la tarea.",
-    tryAgain: "Inténtalo de nuevo.",
-    noPlans: "No hay planes programados para hoy",
-    noPlansDescription: "Configura el periodo y los días de estudio en Plan de estudio.",
-    managePlans: "Gestionar planes",
+    today: "HOY",
+    taskManagement: "Tareas",
+    overview: "RESUMEN DE HOY",
+    completion: "Tareas completadas",
+    completed: "Completadas",
+    remaining: "Pendientes",
+    plans: "Plan de estudio de hoy",
+    planManage: "Gestionar planes",
+    noPlans: "No hay planes para hoy",
+    noPlansDescription: "Crea un plan y configura el material y las fechas.",
     createPlan: "Crear un plan",
-    planError: "No se pudieron cargar los planes de estudio.",
-    todayPlan: "Objetivo de hoy",
-    deadline: "FECHA LÍMITE",
-    rounds: "vueltas",
-    target: "OBJETIVO",
-    scheduledEdit: "Edita tu planificación en Gestión de tareas o Plan de estudio.",
-    taskCompleted: "Marcar como completada",
-    taskNotCompleted: "Marcar como pendiente",
-    statusNotStarted: "Sin empezar",
-    statusInProgress: "En curso",
-    statusCompleted: "Completada",
-    typeMaterial: "Estudio de materiales",
-    typeVocabulary: "Memorización y repaso de vocabulario",
-    unitWord: "palabras",
-    unitPage: "páginas",
-    unitMinute: "min",
-    unitChapter: "capítulos",
-    unitTime: "veces",
+    deadline: "Fecha límite",
+    round: "vueltas",
+    dailyGoal: "Objetivo de hoy",
+    actual: "Progreso de hoy",
+    record: "Registrar rango de estudio",
+    start: "Desde",
+    end: "Hasta",
+    save: "Guardar",
+    saving: "Guardando...",
+    progress: "Progreso",
+    achieved: "Objetivo de hoy alcanzado",
+    notAchieved: "Faltan",
+    over: "Objetivo alcanzado",
+    materialMissing: "No se encontró el material",
+    materialMissingDescription: "Añade un material y selecciónalo en tu plan.",
+    materials: "Materiales",
+    invalidRange: "Introduce un rango válido dentro de los límites del material.",
+    saved: "Rango de estudio registrado.",
+    saveError: "No se pudo guardar. Inténtalo de nuevo.",
+    tasks: "Tareas de hoy",
+    allTasks: "Todas las tareas",
+    noTasks: "No hay tareas para hoy",
+    noTasksDescription: "Añade tareas en Gestión de tareas.",
+    addTask: "Añadir tarea",
+    loading: "Cargando...",
+    login: "Es necesario iniciar sesión",
+    loginDescription: "Inicia sesión para ver tus planes y tareas.",
+    taskError: "No se pudieron cargar las tareas.",
+    updateError: "No se pudo actualizar la tarea.",
+    markDone: "Marcar como completada",
+    markUndone: "Marcar como pendiente",
+    notStarted: "Sin empezar",
+    inProgress: "En curso",
+    done: "Completada",
+    materialStudy: "Estudio de materiales",
+    vocabulary: "Repaso de vocabulario",
+    words: "palabras",
+    pages: "páginas",
+    minutes: "min",
+    chapters: "capítulos",
+    times: "veces",
     untitled: "Sin título",
     footer: "YOUR ANKI / PERSONAL LEARNING SYSTEM",
-    footerRight: "Edita tu planificación en Gestión de tareas o Plan de estudio.",
-    todayLabel: "HOY",
-    weekdays: ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"],
+    footerRight: "Los rangos registrados también actualizan el progreso del material.",
+    items: "tareas",
+    days: "días de estudio",
   },
 };
 
-const statusKeys: Record<TaskStatus, keyof Translation> = {
-  未着手: "statusNotStarted",
-  進行中: "statusInProgress",
-  完了: "statusCompleted",
-};
-
-const typeKeys: Record<TaskType, keyof Translation> = {
-  教材の学習: "typeMaterial",
-  "単語の暗記・復習": "typeVocabulary",
-};
-
-const unitKeys: Record<TaskUnit, keyof Translation> = {
-  単語: "unitWord",
-  ページ: "unitPage",
-  分: "unitMinute",
-  章: "unitChapter",
-  回: "unitTime",
+const statusLabel: Record<TaskStatus, keyof typeof copy.ja> = {
+  未着手: "notStarted",
+  進行中: "inProgress",
+  完了: "done",
 };
 
 function dateString(date = new Date()) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
-    2,
-    "0"
-  )}-${String(date.getDate()).padStart(2, "0")}`;
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function weekdayIndex(date = new Date()) {
@@ -497,21 +468,14 @@ function countStudyDays(start: string, end: string, weekdays: number[]) {
   const to = new Date(`${end}T12:00:00`);
   let count = 0;
 
-  for (
-    const date = new Date(from);
-    date <= to;
-    date.setDate(date.getDate() + 1)
-  ) {
+  for (const date = new Date(from); date <= to; date.setDate(date.getDate() + 1)) {
     if (weekdays.includes((date.getDay() + 6) % 7)) count++;
   }
 
   return count;
 }
 
-function normalizeTask(
-  id: string,
-  data: Record<string, unknown>
-): StudyTask {
+function normalizeTask(id: string, data: Record<string, unknown>): StudyTask {
   const units: TaskUnit[] = ["単語", "ページ", "分", "章", "回"];
   const statuses: TaskStatus[] = ["未着手", "進行中", "完了"];
   const repeats = ["なし", "毎日", "毎週"] as const;
@@ -519,29 +483,20 @@ function normalizeTask(
   return {
     id,
     title: typeof data.title === "string" ? data.title : "",
-    type:
-      data.type === "教材の学習"
-        ? "教材の学習"
-        : "単語の暗記・復習",
+    type: data.type === "教材の学習" ? "教材の学習" : "単語の暗記・復習",
     material: typeof data.material === "string" ? data.material : "",
     target: typeof data.target === "number" ? data.target : 0,
-    unit: units.includes(data.unit as TaskUnit)
-      ? (data.unit as TaskUnit)
-      : "単語",
+    unit: units.includes(data.unit as TaskUnit) ? (data.unit as TaskUnit) : "単語",
     startDate: typeof data.startDate === "string" ? data.startDate : "",
-    scheduledDate:
-      typeof data.scheduledDate === "string" ? data.scheduledDate : "",
+    scheduledDate: typeof data.scheduledDate === "string" ? data.scheduledDate : "",
     dueDate: typeof data.dueDate === "string" ? data.dueDate : "",
-    status: statuses.includes(data.status as TaskStatus)
-      ? (data.status as TaskStatus)
-      : "未着手",
+    status: statuses.includes(data.status as TaskStatus) ? (data.status as TaskStatus) : "未着手",
     repeat: repeats.includes(data.repeat as (typeof repeats)[number])
       ? (data.repeat as (typeof repeats)[number])
       : "なし",
     repeatDays: Array.isArray(data.repeatDays)
       ? data.repeatDays.filter(
-          (value): value is number =>
-            typeof value === "number" && value >= 0 && value <= 6
+          (value): value is number => typeof value === "number" && value >= 0 && value <= 6
         )
       : [],
   };
@@ -549,10 +504,7 @@ function normalizeTask(
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p
-      className="text-[10px] font-semibold uppercase tracking-[0.2em]"
-      style={{ color: muted }}
-    >
+    <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: muted }}>
       {children}
     </p>
   );
@@ -560,61 +512,53 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 export default function TodayPage() {
   const { language } = useAppLanguage();
-const tr: Translation = translations[language] ?? translations.ja;
+  const tr = copy[language] ?? copy.ja;
 
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [tasks, setTasks] = useState<StudyTask[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [notice, setNotice] = useState("");
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
+  const [savingPlanId, setSavingPlanId] = useState<string | null>(null);
+  const [rangeInputs, setRangeInputs] = useState<Record<string, RangeInput>>({});
+  const [rangeErrors, setRangeErrors] = useState<Record<string, string>>({});
 
   const today = dateString();
   const todayWeekday = weekdayIndex();
   const now = new Date();
+  const locale = localeMap[language] ?? "ja-JP";
 
-  const formattedDate = new Intl.DateTimeFormat(localeMap[language], {
+  const formattedDate = new Intl.DateTimeFormat(locale, {
     year: "numeric",
     month: "long",
     day: "numeric",
     weekday: "long",
   }).format(now);
 
-  const englishDate = new Intl.DateTimeFormat(localeMap[language], {
+  const englishDate = new Intl.DateTimeFormat(locale, {
     weekday: "long",
     day: "2-digit",
     month: "short",
     year: "numeric",
-  })
-    .format(now)
-    .toUpperCase();
+  }).format(now).toUpperCase();
 
-  const formatNumber = (value: number) =>
-    value.toLocaleString(localeMap[language]);
-
-  const translatedStatus = (status: TaskStatus) =>
-    tr[statusKeys[status]];
-
-  const translatedType = (type: TaskType) =>
-    tr[typeKeys[type]];
-
-  const translatedUnit = (unit: TaskUnit) =>
-    tr[unitKeys[unit]];
+  const formatNumber = (value: number) => value.toLocaleString(locale);
 
   useEffect(() => {
-    function refreshPlans() {
+    const refreshPlans = () => {
       try {
         const saved = localStorage.getItem(PLAN_STORAGE_KEY);
         const parsed = saved ? JSON.parse(saved) : [];
         setPlans(Array.isArray(parsed) ? parsed : []);
-        setErrorMessage("");
       } catch (error) {
         console.error("Study plan loading error:", error);
         setPlans([]);
-        setErrorMessage((translations[language] ?? translations.ja).planError);
       }
-    }
+    };
 
     refreshPlans();
     window.addEventListener("storage", refreshPlans);
@@ -624,56 +568,112 @@ const tr: Translation = translations[language] ?? translations.ja;
       window.removeEventListener("storage", refreshPlans);
       window.removeEventListener("focus", refreshPlans);
     };
-  }, [language]);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setAuthReady(true);
-    });
-
-    return unsubscribe;
   }, []);
 
   useEffect(() => {
-    if (!authReady) return;
+    return onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setAuthReady(true);
+    });
+  }, []);
 
-    if (!user) {
-      setTasks([]);
-      setLoading(false);
+  useEffect(() => {
+    if (!authReady || !user) {
+      if (authReady) {
+        setTasks([]);
+        setMaterials([]);
+        setLoading(false);
+      }
       return;
     }
 
     setLoading(true);
 
-    const unsubscribe = onSnapshot(
+    const unsubscribeTasks = onSnapshot(
       collection(db, "users", user.uid, "tasks"),
       (snapshot) => {
-        const nextTasks = snapshot.docs.map((taskDoc) =>
-          normalizeTask(
-            taskDoc.id,
-            taskDoc.data() as Record<string, unknown>
+        setTasks(
+          snapshot.docs.map((taskDoc) =>
+            normalizeTask(taskDoc.id, taskDoc.data() as Record<string, unknown>)
           )
         );
-
-        setTasks(nextTasks);
         setLoading(false);
-        setErrorMessage("");
       },
       (error) => {
         console.error("Task loading error:", error);
-        setErrorMessage((translations[language] ?? translations.ja).taskError);
+        setErrorMessage(tr.taskError);
         setLoading(false);
       }
     );
 
-    return unsubscribe;
-  }, [authReady, user, language]);
+    const unsubscribeMaterials = onSnapshot(
+      collection(db, "users", user.uid, "materials"),
+      (snapshot) => {
+        const nextMaterials: Material[] = snapshot.docs.map((materialDoc) => {
+          const data = materialDoc.data();
+          return {
+            id: materialDoc.id,
+            name: typeof data.name === "string" ? data.name : "",
+            language: typeof data.language === "string" ? data.language : "",
+            type: data.type === "deck" ? "deck" : "book",
+            total: typeof data.total === "number" ? data.total : 0,
+            studyRanges: Array.isArray(data.studyRanges)
+              ? data.studyRanges.filter(
+                  (range: unknown): range is StudyRange =>
+                    typeof range === "object" &&
+                    range !== null &&
+                    typeof (range as StudyRange).start === "number" &&
+                    typeof (range as StudyRange).end === "number" &&
+                    typeof (range as StudyRange).date === "string"
+                )
+              : [],
+          };
+        });
+
+        setMaterials(nextMaterials);
+      },
+      (error) => {
+        console.error("Material loading error:", error);
+      }
+    );
+
+    return () => {
+      unsubscribeTasks();
+      unsubscribeMaterials();
+    };
+  }, [authReady, user, tr.taskError]);
+
+  // 旧データの計画も、教材名が完全一致する教材が1件だけなら自動で紐付ける
+  useEffect(() => {
+    if (materials.length === 0 || plans.length === 0) return;
+
+    let changed = false;
+
+    const migrated = plans.map((plan) => {
+      if (plan.materialId) return plan;
+
+      const matches = materials.filter((material) => material.name === plan.deckName);
+      if (matches.length !== 1) return plan;
+
+      changed = true;
+      return {
+        ...plan,
+        materialId: matches[0].id,
+        totalItems: matches[0].total,
+      };
+    });
+
+    if (changed) {
+      setPlans(migrated);
+      localStorage.setItem(PLAN_STORAGE_KEY, JSON.stringify(migrated));
+    }
+  }, [materials, plans]);
 
   const todaysPlans = useMemo(
     () =>
       plans.filter(
         (plan) =>
+          plan.status !== "completed" &&
           plan.startDate <= today &&
           plan.deadline >= today &&
           plan.weekdays.includes(todayWeekday)
@@ -711,44 +711,61 @@ const tr: Translation = translations[language] ?? translations.ja;
         .sort((a, b) => {
           if (a.status === "完了" && b.status !== "完了") return 1;
           if (a.status !== "完了" && b.status === "完了") return -1;
-          return a.title.localeCompare(b.title, localeMap[language]);
+          return a.title.localeCompare(b.title, locale);
         }),
-    [tasks, today, todayWeekday, language]
+    [tasks, today, todayWeekday, locale]
   );
 
-  const completedCount = todaysTasks.filter(
-    (task) => task.status === "完了"
-  ).length;
-
+  const completedCount = todaysTasks.filter((task) => task.status === "完了").length;
   const totalCount = todaysTasks.length;
   const remainingCount = Math.max(0, totalCount - completedCount);
+  const taskProgress = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
-  const progress =
-    totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+  function getPlanMaterial(plan: Plan) {
+    if (plan.materialId) {
+      return materials.find((material) => material.id === plan.materialId);
+    }
 
-  const plannedDailyTotal = todaysPlans.reduce((sum, plan) => {
-    const studyDays = countStudyDays(
-      plan.startDate,
-      plan.deadline,
-      plan.weekdays
-    );
+    const matches = materials.filter((material) => material.name === plan.deckName);
+    return matches.length === 1 ? matches[0] : undefined;
+  }
 
-    if (studyDays === 0) return sum;
+  function getDailyTarget(plan: Plan, material?: Material) {
+    const total = material?.total ?? plan.totalItems;
+    const studyDays = countStudyDays(plan.startDate, plan.deadline, plan.weekdays);
+    return studyDays > 0 ? Math.ceil((total * plan.rounds) / studyDays) : 0;
+  }
 
-    return sum + Math.ceil((plan.totalItems * plan.rounds) / studyDays);
-  }, 0);
+  function getTodayActual(material?: Material) {
+    if (!material) return 0;
+
+    return material.studyRanges
+      .filter((range) => range.date === today)
+      .reduce((sum, range) => sum + Math.max(0, range.end - range.start + 1), 0);
+  }
+
+  function getUnit(material?: Material) {
+    if (!material) return language === "ja" ? "項目" : "items";
+
+    if (language === "ja") return material.type === "book" ? "ページ" : "単語";
+    if (language === "de") return material.type === "book" ? "Seiten" : "Wörter";
+    if (language === "es") return material.type === "book" ? "páginas" : "palabras";
+    if (language === "zh-CN") return material.type === "book" ? "页" : "个单词";
+    if (language === "zh-TW") return material.type === "book" ? "頁" : "個單字";
+    return material.type === "book" ? "pages" : "words";
+  }
+
+  function getStatusLabel(status: TaskStatus) {
+    return tr[statusLabel[status]];
+  }
 
   async function toggleTask(task: StudyTask) {
-    if (!user) {
-      setErrorMessage(tr.updateLogin);
-      return;
-    }
+    if (!user) return;
 
     setUpdatingTaskId(task.id);
     setErrorMessage("");
 
-    const nextStatus: TaskStatus =
-      task.status === "完了" ? "進行中" : "完了";
+    const nextStatus: TaskStatus = task.status === "完了" ? "進行中" : "完了";
 
     try {
       await updateDoc(doc(db, "users", user.uid, "tasks", task.id), {
@@ -763,419 +780,402 @@ const tr: Translation = translations[language] ?? translations.ja;
     }
   }
 
+  async function recordStudyRange(plan: Plan) {
+    if (!user) return;
+
+    const material = getPlanMaterial(plan);
+    const input = rangeInputs[plan.id] ?? { start: "", end: "" };
+    const start = Number(input.start);
+    const end = Number(input.end);
+
+    if (
+      !material ||
+      !Number.isInteger(start) ||
+      !Number.isInteger(end) ||
+      start < 1 ||
+      end < start ||
+      end > material.total
+    ) {
+      setRangeErrors((current) => ({ ...current, [plan.id]: tr.invalidRange }));
+      return;
+    }
+
+    setSavingPlanId(plan.id);
+    setRangeErrors((current) => ({ ...current, [plan.id]: "" }));
+    setNotice("");
+    setErrorMessage("");
+
+    try {
+      const newRange: StudyRange = { start, end, date: today };
+
+      await updateDoc(doc(db, "users", user.uid, "materials", material.id), {
+        studyRanges: arrayUnion(newRange),
+        updatedAt: serverTimestamp(),
+      });
+
+      setRangeInputs((current) => ({
+        ...current,
+        [plan.id]: { start: "", end: "" },
+      }));
+      setNotice(tr.saved);
+    } catch (error) {
+      console.error("Study range save error:", error);
+      setRangeErrors((current) => ({ ...current, [plan.id]: tr.saveError }));
+    } finally {
+      setSavingPlanId(null);
+    }
+  }
+
   return (
-    <main className="min-h-screen bg-[#F7F7F5] text-[#20231F]">
-      <div className="mx-auto max-w-6xl px-5 pb-12 pt-7 sm:px-8 md:px-12 md:pt-10">
-        <header
-          className="mb-10 border-b pb-7 sm:mb-12 sm:pb-9"
-          style={{ borderColor: line }}
-        >
-          <div className="flex flex-wrap items-end justify-between gap-5">
-            <div>
-              <SectionLabel>
-                DAILY OVERVIEW / {englishDate}
-              </SectionLabel>
-
-              <h1 className="mt-4 text-3xl font-semibold tracking-[-0.045em] sm:text-5xl">
-                {tr.title}
-              </h1>
-
-              <p className="mt-3 text-sm text-[#777C74]">
-                {formattedDate}
-              </p>
-            </div>
-
-            <Link
-              href="/tasks"
-              className="inline-flex items-center gap-3 border px-4 py-3 text-sm transition hover:bg-white"
-              style={{ borderColor: line }}
-            >
-              {tr.taskManagement}
-              <span aria-hidden="true">↗</span>
-            </Link>
+    <main className="min-h-screen bg-[#F7F8F6] text-[#242720]">
+      <div className="mx-auto max-w-6xl px-5 pb-14 pt-7 sm:px-8 md:px-12 md:pt-10">
+        <header className="mb-9 flex flex-wrap items-end justify-between gap-5">
+          <div>
+            <SectionLabel>{tr.today} / {englishDate}</SectionLabel>
+            <h1 className="mt-3 text-3xl font-semibold tracking-[-0.055em] sm:text-5xl">
+              {tr.title}
+            </h1>
+            <p className="mt-3 text-sm text-[#858A82]">{formattedDate}</p>
           </div>
+
+          <Link
+            href="/tasks"
+            className="inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-3 text-sm font-medium transition hover:bg-[#F1F2EF]"
+            style={{ borderColor: line }}
+          >
+            {tr.taskManagement}
+            <span aria-hidden="true">↗</span>
+          </Link>
         </header>
 
-        {errorMessage && (
-          <div
-            role="alert"
-            className="mb-6 border-l-2 bg-white px-4 py-3 text-sm text-[#8A5145]"
-            style={{ borderColor: "#A86B5C" }}
-          >
-            {errorMessage}
+        {!authReady || loading ? (
+          <div className="rounded-2xl border bg-white px-5 py-10 text-sm text-[#858A82]" style={{ borderColor: line }}>
+            {tr.loading}
           </div>
-        )}
-
-        <section className="mb-12">
-          <div className="mb-4 flex items-center justify-between">
-            <SectionLabel>01 / {tr.progress}</SectionLabel>
-            <span className="text-[10px] tracking-[0.12em] text-[#777C74]">
-              {tr.todayLabel}
-            </span>
+        ) : !user ? (
+          <div className="rounded-2xl border bg-white px-6 py-10" style={{ borderColor: line }}>
+            <h2 className="text-lg font-semibold">{tr.login}</h2>
+            <p className="mt-2 text-sm text-[#858A82]">{tr.loginDescription}</p>
           </div>
+        ) : (
+          <>
+            {errorMessage && (
+              <div role="alert" className="mb-5 rounded-xl border border-[#E7C9C2] bg-[#FFF8F6] px-4 py-3 text-sm text-[#925D51]">
+                {errorMessage}
+              </div>
+            )}
 
-          <div
-            className="grid grid-cols-2 border-l border-t sm:grid-cols-4"
-            style={{ borderColor: line }}
-          >
-            <article
-              className="min-h-[145px] border-b border-r p-4 sm:p-5"
-              style={{ borderColor: line }}
-            >
-              <p className="text-xs text-[#777C74]">
-                {tr.achievement}
-              </p>
+            {notice && (
+              <div role="status" className="mb-5 rounded-xl border border-[#D7E4D5] bg-[#F5FAF3] px-4 py-3 text-sm text-[#557451]">
+                {notice}
+              </div>
+            )}
 
-              <div className="mt-5 flex items-baseline gap-1">
-                <span className="font-mono text-4xl font-medium tracking-[-0.06em] sm:text-5xl">
-                  {progress}
-                </span>
-                <span className="text-sm text-[#777C74]">%</span>
+            <section className="mb-10">
+              <div className="mb-4 flex items-center justify-between">
+                <SectionLabel>{tr.overview}</SectionLabel>
+                <span className="text-xs text-[#858A82]">{tr.today}</span>
               </div>
 
-              <div
-                className="mt-4 h-[3px] w-full"
-                style={{ backgroundColor: "#E2E3DD" }}
-                role="progressbar"
-                aria-label={tr.achievement}
-                aria-valuenow={progress}
-                aria-valuemin={0}
-                aria-valuemax={100}
-              >
-                <div
-                  className="h-full transition-all"
-                  style={{
-                    width: `${progress}%`,
-                    backgroundColor: accent,
-                  }}
-                />
-              </div>
-            </article>
-
-            <article
-              className="min-h-[145px] border-b border-r p-4 sm:p-5"
-              style={{ borderColor: line }}
-            >
-              <p className="text-xs text-[#777C74]">
-                {tr.completedTasks}
-              </p>
-
-              <div className="mt-5 flex items-baseline gap-2">
-                <span className="font-mono text-4xl font-medium tracking-[-0.06em] sm:text-5xl">
-                  {String(completedCount).padStart(2, "0")}
-                </span>
-                <span className="text-xs text-[#777C74]">
-                  / {String(totalCount).padStart(2, "0")}
-                </span>
-              </div>
-
-              <p className="mt-4 text-[11px] text-[#777C74]">
-                {tr.completedOf}
-              </p>
-            </article>
-
-            <article
-              className="min-h-[145px] border-b border-r p-4 sm:p-5"
-              style={{ borderColor: line }}
-            >
-              <p className="text-xs text-[#777C74]">
-                {tr.remaining}
-              </p>
-
-              <div className="mt-5 flex items-baseline gap-2">
-                <span className="font-mono text-4xl font-medium tracking-[-0.06em] sm:text-5xl">
-                  {String(remainingCount).padStart(2, "0")}
-                </span>
-                <span className="text-xs text-[#777C74]">
-                  {tr.items}
-                </span>
-              </div>
-
-              <p className="mt-4 text-[11px] text-[#777C74]">
-                {tr.incompleteTasks}
-              </p>
-            </article>
-
-            <article
-              className="min-h-[145px] border-b border-r p-4 sm:p-5"
-              style={{ borderColor: line }}
-            >
-              <p className="text-xs text-[#777C74]">
-                {tr.plans}
-              </p>
-
-              <div className="mt-5 flex items-baseline gap-2">
-                <span className="font-mono text-4xl font-medium tracking-[-0.06em] sm:text-5xl">
-                  {String(todaysPlans.length).padStart(2, "0")}
-                </span>
-                <span className="text-xs text-[#777C74]">
-                  {tr.items}
-                </span>
-              </div>
-
-              <p className="mt-4 text-[11px] text-[#777C74]">
-                {tr.target} {formatNumber(plannedDailyTotal)}{" "}
-                {tr.itemsPerDay}
-              </p>
-            </article>
-          </div>
-        </section>
-
-        <section className="mb-12">
-          <div
-            className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b pb-4"
-            style={{ borderColor: line }}
-          >
-            <div>
-              <SectionLabel>02 / {tr.taskRegister}</SectionLabel>
-              <h2 className="mt-2 text-xl font-semibold tracking-tight">
-                {tr.todayTasks}
-              </h2>
-            </div>
-
-            <Link
-              href="/tasks"
-              className="text-xs hover:underline"
-              style={{ color: accentDark }}
-            >
-              {tr.allTasks} ↗
-            </Link>
-          </div>
-
-          {!authReady || loading ? (
-            <p className="py-8 text-sm text-[#777C74]">
-              {tr.loading}
-            </p>
-          ) : !user ? (
-            <div className="border-y py-8">
-              <p className="font-medium">{tr.loginRequired}</p>
-              <p className="mt-2 text-sm text-[#777C74]">
-                {tr.loginDescription}
-              </p>
-            </div>
-          ) : todaysTasks.length === 0 ? (
-            <div className="border-y py-10">
-              <p className="text-lg font-medium">{tr.noTasks}</p>
-              <p className="mt-2 text-sm text-[#777C74]">
-                {tr.noTasksDescription}
-              </p>
-
-              <Link
-                href="/tasks"
-                className="mt-5 inline-flex items-center gap-2 border px-4 py-3 text-sm hover:bg-white"
-                style={{ borderColor: line }}
-              >
-                {tr.addTask}
-                <span aria-hidden="true">↗</span>
-              </Link>
-            </div>
-          ) : (
-            <div className="border-t" style={{ borderColor: line }}>
-              {todaysTasks.map((task, index) => (
-                <article
-                  key={task.id}
-                  className="grid grid-cols-[28px_32px_minmax(0,1fr)_auto] items-start gap-3 border-b py-4 sm:grid-cols-[40px_32px_minmax(0,1fr)_auto] sm:gap-4 sm:py-5"
-                  style={{ borderColor: line }}
-                >
-                  <span className="pt-1 font-mono text-[11px] text-[#858A82]">
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-
-                  <button
-                    type="button"
-                    disabled={updatingTaskId === task.id}
-                    onClick={() => toggleTask(task)}
-                    aria-label={
-                      task.status === "完了"
-                        ? `${task.title}: ${tr.taskNotCompleted}`
-                        : `${task.title}: ${tr.taskCompleted}`
-                    }
-                    className="mt-0.5 flex h-6 w-6 items-center justify-center border text-xs transition disabled:opacity-50"
-                    style={
-                      task.status === "完了"
-                        ? {
-                            borderColor: accent,
-                            backgroundColor: accent,
-                            color: "#FFFFFF",
-                          }
-                        : {
-                            borderColor: "#BFC4BB",
-                            color: "transparent",
-                          }
-                    }
-                  >
-                    ✓
-                  </button>
-
-                  <div className="min-w-0">
-                    <p
-                      className={`break-words text-sm font-medium ${
-                        task.status === "完了"
-                          ? "text-[#858A82] line-through"
-                          : "text-[#20231F]"
-                      }`}
-                    >
-                      {task.title || tr.untitled}
-                    </p>
-
-                    <p className="mt-1 text-xs text-[#777C74]">
-                      {translatedType(task.type)}
-                      {task.material ? ` / ${task.material}` : ""}
-                    </p>
-
-                    {task.target > 0 && (
-                      <p
-                        className="mt-2 font-mono text-xs"
-                        style={{ color: accentDark }}
-                      >
-                        TARGET · {formatNumber(task.target)}{" "}
-                        {translatedUnit(task.unit)}
-                      </p>
-                    )}
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <div className="rounded-2xl border bg-white p-5" style={{ borderColor: line }}>
+                  <p className="text-xs text-[#858A82]">{tr.completion}</p>
+                  <div className="mt-4 flex items-baseline gap-1">
+                    <span className="font-mono text-4xl font-medium tracking-[-0.06em]">{taskProgress}</span>
+                    <span className="text-sm text-[#858A82]">%</span>
                   </div>
+                  <div className="mt-4 h-1 overflow-hidden rounded-full bg-[#ECEDE9]">
+                    <div className="h-full rounded-full transition-all" style={{ width: `${taskProgress}%`, backgroundColor: accent }} />
+                  </div>
+                </div>
 
-                  <span
-                    className={`whitespace-nowrap pt-1 text-[10px] ${
-                      task.status === "進行中"
-                        ? "text-[#92783F]"
-                        : task.status === "未着手"
-                          ? "text-[#777C74]"
-                          : ""
-                    }`}
-                    style={
-                      task.status === "完了"
-                        ? { color: accentDark }
-                        : undefined
-                    }
+                <div className="rounded-2xl border bg-white p-5" style={{ borderColor: line }}>
+                  <p className="text-xs text-[#858A82]">{tr.completed}</p>
+                  <p className="mt-4 font-mono text-4xl font-medium tracking-[-0.06em]">
+                    {String(completedCount).padStart(2, "0")}
+                    <span className="ml-2 text-sm text-[#858A82]">/ {String(totalCount).padStart(2, "0")}</span>
+                  </p>
+                  <p className="mt-3 text-xs text-[#858A82]">{tr.tasks}</p>
+                </div>
+
+                <div className="rounded-2xl border bg-white p-5" style={{ borderColor: line }}>
+                  <p className="text-xs text-[#858A82]">{tr.remaining}</p>
+                  <p className="mt-4 font-mono text-4xl font-medium tracking-[-0.06em]">
+                    {String(remainingCount).padStart(2, "0")}
+                  </p>
+                  <p className="mt-3 text-xs text-[#858A82]">{tr.tasks}</p>
+                </div>
+
+                <div className="rounded-2xl border bg-white p-5" style={{ borderColor: line }}>
+                  <p className="text-xs text-[#858A82]">{tr.plans}</p>
+                  <p className="mt-4 font-mono text-4xl font-medium tracking-[-0.06em]">
+                    {String(todaysPlans.length).padStart(2, "0")}
+                  </p>
+                  <p className="mt-3 text-xs text-[#858A82]">{tr.days}</p>
+                </div>
+              </div>
+            </section>
+
+            <section className="mb-11">
+              <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <SectionLabel>01 / {tr.plans}</SectionLabel>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em]">{tr.plans}</h2>
+                </div>
+
+                <Link href="/plan" className="text-sm font-medium hover:underline" style={{ color: accentDark }}>
+                  {tr.planManage} ↗
+                </Link>
+              </div>
+
+              {todaysPlans.length === 0 ? (
+                <div className="rounded-2xl border bg-white px-6 py-10" style={{ borderColor: line }}>
+                  <p className="text-lg font-semibold">{tr.noPlans}</p>
+                  <p className="mt-2 text-sm text-[#858A82]">{tr.noPlansDescription}</p>
+                  <Link
+                    href="/plan"
+                    className="mt-5 inline-flex rounded-xl px-4 py-3 text-sm font-medium text-white transition hover:opacity-90"
+                    style={{ backgroundColor: accent }}
                   >
-                    {translatedStatus(task.status)}
-                  </span>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
+                    {tr.createPlan} ↗
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {todaysPlans.map((plan, index) => {
+                    const material = getPlanMaterial(plan);
+                    const dailyTarget = getDailyTarget(plan, material);
+                    const actual = getTodayActual(material);
+                    const percentage = dailyTarget > 0 ? Math.min(100, Math.round((actual / dailyTarget) * 100)) : 0;
+                    const isAchieved = dailyTarget > 0 && actual >= dailyTarget;
+                    const unit = getUnit(material);
+                    const input = rangeInputs[plan.id] ?? { start: "", end: "" };
 
-        <section>
-          <div
-            className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b pb-4"
-            style={{ borderColor: line }}
-          >
-            <div>
-              <SectionLabel>03 / {tr.studyPlan}</SectionLabel>
-              <h2 className="mt-2 text-xl font-semibold tracking-tight">
-                {tr.studyPlan}
-              </h2>
-            </div>
+                    return (
+                      <article
+                        key={plan.id}
+                        className="overflow-hidden rounded-2xl border bg-white shadow-[0_2px_10px_rgba(30,35,25,0.025)]"
+                        style={{ borderColor: line }}
+                      >
+                        <div className="p-5 sm:p-7">
+                          <div className="flex flex-wrap items-start justify-between gap-4">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-semibold tracking-[0.16em] text-[#92978F]">
+                                  PLAN {String(index + 1).padStart(2, "0")}
+                                </span>
+                                {isAchieved && (
+                                  <span className="rounded-full bg-[#EFF5EC] px-2.5 py-1 text-[10px] font-medium text-[#557451]">
+                                    {tr.achieved}
+                                  </span>
+                                )}
+                              </div>
 
-            <Link
-              href="/plan"
-              className="text-xs hover:underline"
-              style={{ color: accentDark }}
-            >
-              {tr.managePlans} ↗
-            </Link>
-          </div>
+                              <h3 className="mt-3 break-words text-xl font-semibold tracking-[-0.035em] sm:text-2xl">
+                                {material?.name || plan.deckName || tr.untitled}
+                              </h3>
 
-          {todaysPlans.length === 0 ? (
-            <div className="border-y py-8">
-              <p className="font-medium">{tr.noPlans}</p>
-              <p className="mt-2 text-sm text-[#777C74]">
-                {tr.noPlansDescription}
-              </p>
+                              <p className="mt-2 text-xs text-[#858A82]">
+                                {plan.rounds} {tr.round}
+                                <span className="mx-2 text-[#C8CBC4]">·</span>
+                                {tr.deadline}: {plan.deadline}
+                              </p>
+                            </div>
 
-              <Link
-                href="/plan"
-                className="mt-5 inline-flex items-center gap-2 border px-4 py-3 text-sm hover:bg-white"
-                style={{ borderColor: line }}
-              >
-                {tr.createPlan}
-                <span aria-hidden="true">↗</span>
-              </Link>
-            </div>
-          ) : (
-            <div
-              className="grid grid-cols-1 border-l border-t sm:grid-cols-2"
-              style={{ borderColor: line }}
-            >
-              {todaysPlans.map((plan, index) => {
-                const studyDays = countStudyDays(
-                  plan.startDate,
-                  plan.deadline,
-                  plan.weekdays
-                );
+                            <Link href="/plan" className="shrink-0 rounded-lg border px-3 py-2 text-xs text-[#666C63] transition hover:bg-[#F7F8F6]" style={{ borderColor: line }}>
+                              {tr.planManage}
+                            </Link>
+                          </div>
 
-                const dailyTarget =
-                  studyDays > 0
-                    ? Math.ceil(
-                        (plan.totalItems * plan.rounds) / studyDays
-                      )
-                    : 0;
+                          {material ? (
+                            <>
+                              <div className="mt-7 grid grid-cols-2 gap-4 sm:grid-cols-3">
+                                <div className="rounded-xl bg-[#F7F8F6] p-4">
+                                  <p className="text-xs text-[#858A82]">{tr.dailyGoal}</p>
+                                  <p className="mt-2 font-mono text-3xl font-semibold tracking-[-0.05em]" style={{ color: accentDark }}>
+                                    {formatNumber(dailyTarget)}
+                                  </p>
+                                  <p className="mt-1 text-xs text-[#858A82]">{unit}</p>
+                                </div>
 
-                return (
-                  <article
-                    key={plan.id}
-                    className="border-b border-r p-5 sm:p-6"
+                                <div className="rounded-xl bg-[#F7F8F6] p-4">
+                                  <p className="text-xs text-[#858A82]">{tr.actual}</p>
+                                  <p className="mt-2 font-mono text-3xl font-semibold tracking-[-0.05em]">
+                                    {formatNumber(actual)}
+                                  </p>
+                                  <p className="mt-1 text-xs text-[#858A82]">{unit}</p>
+                                </div>
+
+                                <div className="col-span-2 rounded-xl bg-[#F7F8F6] p-4 sm:col-span-1">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <p className="text-xs text-[#858A82]">{tr.progress}</p>
+                                    <span className="font-mono text-sm font-medium">{percentage}%</span>
+                                  </div>
+                                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#E5E8E1]">
+                                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${percentage}%`, backgroundColor: isAchieved ? "#77966F" : accent }} />
+                                  </div>
+                                  <p className="mt-2 text-xs text-[#858A82]">
+                                    {isAchieved ? tr.over : `${tr.notAchieved} ${formatNumber(Math.max(0, dailyTarget - actual))} ${unit}`}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="mt-6 border-t pt-5" style={{ borderColor: line }}>
+                                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                  <p className="text-sm font-semibold">{tr.record}</p>
+                                  <Link href="/materials" className="text-xs text-[#858A82] hover:underline">
+                                    {tr.materials} ↗
+                                  </Link>
+                                </div>
+
+                                <div className="flex flex-wrap items-end gap-3">
+                                  <label className="min-w-0 flex-1">
+                                    <span className="mb-2 block text-xs text-[#858A82]">{tr.start}</span>
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      max={material.total}
+                                      value={input.start}
+                                      onChange={(event) =>
+                                        setRangeInputs((current) => ({
+                                          ...current,
+                                          [plan.id]: { ...input, start: event.target.value },
+                                        }))
+                                      }
+                                      placeholder="1"
+                                      className="h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none transition focus:ring-2"
+                                      style={{ borderColor: line, ["--tw-ring-color" as string]: accent }}
+                                    />
+                                  </label>
+
+                                  <label className="min-w-0 flex-1">
+                                    <span className="mb-2 block text-xs text-[#858A82]">{tr.end}</span>
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      max={material.total}
+                                      value={input.end}
+                                      onChange={(event) =>
+                                        setRangeInputs((current) => ({
+                                          ...current,
+                                          [plan.id]: { ...input, end: event.target.value },
+                                        }))
+                                      }
+                                      placeholder={String(material.total)}
+                                      className="h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none transition focus:ring-2"
+                                      style={{ borderColor: line, ["--tw-ring-color" as string]: accent }}
+                                    />
+                                  </label>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => recordStudyRange(plan)}
+                                    disabled={savingPlanId === plan.id}
+                                    className="h-11 w-full rounded-xl px-5 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                                    style={{ backgroundColor: accent }}
+                                  >
+                                    {savingPlanId === plan.id ? tr.saving : tr.save}
+                                  </button>
+                                </div>
+
+                                {rangeErrors[plan.id] && (
+                                  <p role="alert" className="mt-3 text-xs text-[#A45D50]">
+                                    {rangeErrors[plan.id]}
+                                  </p>
+                                )}
+                                <p className="mt-3 text-[11px] text-[#92978F]">
+                                  1 – {formatNumber(material.total)} {unit}
+                                </p>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="mt-6 rounded-xl border border-dashed p-5" style={{ borderColor: line }}>
+                              <p className="text-sm font-medium">{tr.materialMissing}</p>
+                              <p className="mt-1 text-xs text-[#858A82]">{tr.materialMissingDescription}</p>
+                              <Link href="/materials" className="mt-3 inline-flex text-xs font-medium hover:underline" style={{ color: accentDark }}>
+                                {tr.materials} ↗
+                              </Link>
+                            </div>
+                          )}
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            <section>
+              <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <SectionLabel>02 / {tr.tasks}</SectionLabel>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em]">{tr.tasks}</h2>
+                </div>
+                <Link href="/tasks" className="text-sm font-medium hover:underline" style={{ color: accentDark }}>
+                  {tr.allTasks} ↗
+                </Link>
+              </div>
+
+              {todaysTasks.length === 0 ? (
+                <div className="rounded-2xl border bg-white px-6 py-8" style={{ borderColor: line }}>
+                  <p className="font-medium">{tr.noTasks}</p>
+                  <p className="mt-2 text-sm text-[#858A82]">{tr.noTasksDescription}</p>
+                  <Link
+                    href="/tasks"
+                    className="mt-4 inline-flex rounded-xl border px-4 py-2.5 text-sm transition hover:bg-[#F7F8F6]"
                     style={{ borderColor: line }}
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <SectionLabel>
-                        PLAN {String(index + 1).padStart(2, "0")}
-                      </SectionLabel>
-
-                      <span className="text-[10px] text-[#777C74]">
-                        {tr.deadline} / {plan.deadline}
-                      </span>
-                    </div>
-
-                    <h3 className="mt-5 break-words text-base font-semibold">
-                      {plan.deckName || tr.untitled}
-                    </h3>
-
-                    <p className="mt-2 text-xs text-[#777C74]">
-                      {plan.rounds} {tr.rounds} ·{" "}
-                      {formatNumber(plan.totalItems)} {tr.items}
-                    </p>
-
-                    <div
-                      className="mt-6 flex items-end justify-between border-t pt-4"
-                      style={{ borderColor: line }}
+                    {tr.addTask} ↗
+                  </Link>
+                </div>
+              ) : (
+                <div className="overflow-hidden rounded-2xl border bg-white" style={{ borderColor: line }}>
+                  {todaysTasks.map((task, index) => (
+                    <article
+                      key={task.id}
+                      className="flex items-center gap-3 px-4 py-4 sm:px-5"
+                      style={{ borderBottom: index === todaysTasks.length - 1 ? "none" : `1px solid ${line}` }}
                     >
-                      <div>
-                        <p className="text-xs text-[#777C74]">
-                          {tr.todayPlan}
+                      <button
+                        type="button"
+                        disabled={updatingTaskId === task.id}
+                        onClick={() => toggleTask(task)}
+                        aria-label={task.status === "完了" ? tr.markUndone : tr.markDone}
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs transition disabled:opacity-50"
+                        style={
+                          task.status === "完了"
+                            ? { borderColor: accent, backgroundColor: accent, color: "#fff" }
+                            : { borderColor: "#C9CDC5", color: "transparent" }
+                        }
+                      >
+                        ✓
+                      </button>
+
+                      <div className="min-w-0 flex-1">
+                        <p className={`break-words text-sm font-medium ${task.status === "完了" ? "text-[#969B93] line-through" : ""}`}>
+                          {task.title || tr.untitled}
                         </p>
-
-                        <p
-                          className="mt-2 font-mono text-3xl font-medium tracking-[-0.05em]"
-                          style={{ color: accentDark }}
-                        >
-                          {formatNumber(dailyTarget)}
-
-                          <span className="ml-2 font-sans text-xs tracking-normal text-[#777C74]">
-                            {tr.items}
-                          </span>
+                        <p className="mt-1 text-xs text-[#858A82]">
+                          {task.type === "教材の学習" ? tr.materialStudy : tr.vocabulary}
+                          {task.material ? ` · ${task.material}` : ""}
+                          {task.target > 0 ? ` · ${formatNumber(task.target)} ${task.unit === "単語" ? tr.words : task.unit === "ページ" ? tr.pages : task.unit === "分" ? tr.minutes : task.unit === "章" ? tr.chapters : tr.times}` : ""}
                         </p>
                       </div>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          )}
-        </section>
 
-        <footer
-          className="mt-12 flex flex-wrap justify-between gap-3 border-t pt-5"
-          style={{ borderColor: line }}
-        >
-          <p className="text-[10px] tracking-[0.12em] text-[#777C74]">
-            YOUR ANKI / PERSONAL LEARNING SYSTEM
-          </p>
+                      <span className="shrink-0 text-xs text-[#858A82]">
+                        {getStatusLabel(task.status)}
+                      </span>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+          </>
+        )}
 
-          <p className="text-xs text-[#777C74]">
-            {tr.footerRight}
-          </p>
+        <footer className="mt-12 flex flex-wrap justify-between gap-3 border-t pt-5" style={{ borderColor: line }}>
+          <p className="text-[10px] font-medium tracking-[0.13em] text-[#92978F]">{tr.footer}</p>
+          <p className="text-xs text-[#92978F]">{tr.footerRight}</p>
         </footer>
       </div>
     </main>

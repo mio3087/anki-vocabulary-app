@@ -1,8 +1,8 @@
-
 "use client";
 
 import { useState, type CSSProperties } from "react";
 import { useAppLanguage } from "@/app/component/AppLanguage";
+import AnkiSidebar from "@/app/component/AnkiSidebar"; // 共通のサイドバーコンポーネントをインポート
 
 type Language = "ja" | "zh-CN" | "zh-TW" | "en" | "de" | "es";
 type Screen = "title" | "intro" | "guide";
@@ -31,17 +31,6 @@ const translations: Record<Language, Record<string, string>> = {
     guide3: "外交方針を選び、あなたの判断で物語を進めよう。",
     guide4: "表示言語はいつでも変更できます。",
     chooseStory: "50の物語から選ぶ",
-    menu: "メニュー",
-    menuOpen: "メニューを開く",
-    menuClose: "メニューを閉じる",
-    home: "ホーム",
-    today: "今日のノルマ",
-    plan: "学習計画",
-    tasks: "タスク管理",
-    materials: "教材管理",
-    calendar: "カレンダー",
-    stories: "50の物語",
-    story1: "戦国策",
   },
 
   "zh-CN": {
@@ -67,17 +56,6 @@ const translations: Record<Language, Record<string, string>> = {
     guide3: "选择外交策略，用你的决定推动故事发展。",
     guide4: "随时可以更改显示语言。",
     chooseStory: "从50个故事中选择",
-    menu: "菜单",
-    menuOpen: "打开菜单",
-    menuClose: "关闭菜单",
-    home: "首页",
-    today: "今日任务",
-    plan: "学习计划",
-    tasks: "任务管理",
-    materials: "教材管理",
-    calendar: "学习日历",
-    stories: "50个故事",
-    story1: "战国策",
   },
 
   "zh-TW": {
@@ -103,17 +81,6 @@ const translations: Record<Language, Record<string, string>> = {
     guide3: "選擇外交策略，用你的決定推動故事發展。",
     guide4: "隨時可以更改顯示語言。",
     chooseStory: "從50個故事中選擇",
-    menu: "選單",
-    menuOpen: "開啟選單",
-    menuClose: "關閉選單",
-    home: "首頁",
-    today: "今日任務",
-    plan: "學習計畫",
-    tasks: "任務管理",
-    materials: "教材管理",
-    calendar: "學習日曆",
-    stories: "50個故事",
-    story1: "戰國策",
   },
 
   en: {
@@ -139,17 +106,6 @@ const translations: Record<Language, Record<string, string>> = {
     guide3: "Choose diplomatic strategies to shape the story.",
     guide4: "You can change the display language at any time.",
     chooseStory: "Choose from 50 Stories",
-    menu: "MENU",
-    menuOpen: "Open menu",
-    menuClose: "Close menu",
-    home: "Home",
-    today: "Today's Goals",
-    plan: "Study Plan",
-    tasks: "Task Manager",
-    materials: "Study Materials",
-    calendar: "Calendar",
-    stories: "50 Stories",
-    story1: "Strategies of the Warring States",
   },
 
   de: {
@@ -175,17 +131,6 @@ const translations: Record<Language, Record<string, string>> = {
     guide3: "Wähle diplomatische Strategien und beeinflusse den Verlauf der Geschichte.",
     guide4: "Du kannst die Anzeigesprache jederzeit ändern.",
     chooseStory: "Aus 50 Geschichten wählen",
-    menu: "MENÜ",
-    menuOpen: "Menü öffnen",
-    menuClose: "Menü schließen",
-    home: "Startseite",
-    today: "Tagesziele",
-    plan: "Lernplan",
-    tasks: "Aufgabenverwaltung",
-    materials: "Lernmaterialien",
-    calendar: "Lernkalender",
-    stories: "50 Geschichten",
-    story1: "Die Strategien der Streitenden Reiche",
   },
 
   es: {
@@ -211,17 +156,6 @@ const translations: Record<Language, Record<string, string>> = {
     guide3: "Elige estrategias diplomáticas para cambiar el rumbo de la historia.",
     guide4: "Puedes cambiar el idioma de visualización en cualquier momento.",
     chooseStory: "Elegir entre 50 historias",
-    menu: "MENÚ",
-    menuOpen: "Abrir menú",
-    menuClose: "Cerrar menú",
-    home: "Inicio",
-    today: "Objetivos de hoy",
-    plan: "Plan de estudio",
-    tasks: "Gestión de tareas",
-    materials: "Materiales de estudio",
-    calendar: "Calendario",
-    stories: "50 historias",
-    story1: "Las estrategias de los Reinos Combatientes",
   },
 };
 
@@ -244,7 +178,6 @@ export default function Story1Page() {
   const t = translations[currentLanguage];
 
   const [screen, setScreen] = useState<Screen>("title");
-  const [menuOpen, setMenuOpen] = useState(false);
 
   const buttonStyle: CSSProperties = {
     display: "block",
@@ -280,17 +213,6 @@ export default function Story1Page() {
     boxShadow: "0 8px 24px rgba(0,0,0,0.22)",
   };
 
-  const navigationItems = [
-    { href: "/", icon: "⌂", label: t.home },
-    { href: "/today", icon: "✓", label: t.today },
-    { href: "/plan", icon: "▦", label: t.plan },
-    { href: "/tasks", icon: "☷", label: t.tasks },
-    { href: "/materials", icon: "▤", label: t.materials },
-    { href: "/calendar", icon: "▦", label: t.calendar },
-    { href: "/stories", icon: "📖", label: t.stories },
-    { href: "/story1", icon: "🏯", label: t.story1 },
-  ];
-
   return (
     <main
       style={{
@@ -303,144 +225,11 @@ export default function Story1Page() {
         fontFamily: "serif",
       }}
     >
-      {/* ハンバーガーメニュー */}
-      <button
-        type="button"
-        aria-label={menuOpen ? t.menuClose : t.menuOpen}
-        aria-expanded={menuOpen}
-        onClick={() => setMenuOpen((open) => !open)}
-        style={{
-          position: "fixed",
-          top: "18px",
-          left: "18px",
-          zIndex: 1002,
-          display: "flex",
-          width: "46px",
-          height: "46px",
-          padding: 0,
-          alignItems: "center",
-          justifyContent: "center",
-          flexDirection: "column",
-          gap: "5px",
-          border: "1px solid #dce1d9",
-          borderRadius: "15px",
-          background: "rgba(255,255,255,0.94)",
-          color: "#26372d",
-          boxShadow: "0 6px 20px rgba(0,0,0,0.18)",
-          cursor: "pointer",
-          backdropFilter: "blur(14px)",
-        }}
-      >
-        <span
-          style={{
-            width: "17px",
-            height: "2px",
-            background: "currentColor",
-            borderRadius: "2px",
-          }}
-        />
-        <span
-          style={{
-            width: "17px",
-            height: "2px",
-            background: "currentColor",
-            borderRadius: "2px",
-          }}
-        />
-        <span
-          style={{
-            width: "17px",
-            height: "2px",
-            background: "currentColor",
-            borderRadius: "2px",
-          }}
-        />
-      </button>
-
-      {menuOpen && (
-        <>
-          <button
-            type="button"
-            aria-label={t.menuClose}
-            onClick={() => setMenuOpen(false)}
-            style={{
-              position: "fixed",
-              inset: 0,
-              zIndex: 1000,
-              border: 0,
-              background: "rgba(0,0,0,0.45)",
-            }}
-          />
-
-          <nav
-            aria-label={t.menu}
-            style={{
-              position: "fixed",
-              top: "74px",
-              left: "18px",
-              zIndex: 1001,
-              width: "min(290px, calc(100vw - 36px))",
-              padding: "16px 12px",
-              border: "1px solid #e1e6dd",
-              borderRadius: "18px",
-              background: "#fdfdfb",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.28)",
-              boxSizing: "border-box",
-              fontFamily: "sans-serif",
-            }}
-          >
-            <p
-              style={{
-                margin: "4px 12px 12px",
-                color: "#7b857b",
-                fontSize: "11px",
-                fontWeight: 800,
-                letterSpacing: "2px",
-              }}
-            >
-              {t.menu}
-            </p>
-
-            {navigationItems.map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
-                onClick={() => setMenuOpen(false)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "12px",
-                  padding: "11px 12px",
-                  margin: "3px 0",
-                  borderRadius: "12px",
-                  color: "#30382f",
-                  textDecoration: "none",
-                  fontSize: "14px",
-                  fontWeight: 600,
-                }}
-              >
-                <span
-                  style={{
-                    display: "grid",
-                    placeItems: "center",
-                    width: "30px",
-                    height: "30px",
-                    borderRadius: "9px",
-                    background: "#eef2eb",
-                    color: "#4d6651",
-                  }}
-                >
-                  {item.icon}
-                </span>
-                {item.label}
-              </a>
-            ))}
-          </nav>
-        </>
-      )}
+      {/* 共通のサイドバー（ハンバーガーメニュー）を配置 */}
+      <AnkiSidebar />
 
       <div style={{ maxWidth: "720px", margin: "0 auto" }}>
-        {/* 言語はAnki全体の設定と連動 */}
+        {/* 言語設定表示 */}
         <div
           style={{
             textAlign: "right",
@@ -538,7 +327,7 @@ export default function Story1Page() {
                 boxShadow: "0 4px 14px rgba(0,0,0,0.3)",
               }}
             >
-              ⚔️ {t.start}　➜
+              ⚔️ {t.start} ➜
             </button>
 
             <button
@@ -685,11 +474,11 @@ export default function Story1Page() {
             <button
               onClick={() => setScreen("title")}
               style={{
-                ...secondaryButtonStyle,
+                style: secondaryButtonStyle,
                 marginTop: "24px",
                 background: "#20372d",
                 color: "#ffffff",
-              }}
+              } as CSSProperties}
             >
               {t.titleBack}
             </button>

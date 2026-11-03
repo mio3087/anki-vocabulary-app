@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -43,7 +42,10 @@ const squareButtonStyle = {
 
 const translations = {
   ja: {
-    "nav.study": "学習",
+    "nav.daily": "デイリー学習",
+    "nav.analysis": "分析・管理",
+    "nav.worldAndArchive": "世界観と記録",
+    "nav.games": "ゲーム",
     "nav.today": "今日のノルマ",
     "nav.studyData": "学習データ",
     "nav.realityCheck": "理解度分析",
@@ -54,7 +56,7 @@ const translations = {
     "nav.tasks": "タスク管理",
     "nav.world": "言語の世界",
     "nav.library": "ライブラリ",
-    "nav.games": "ゲーム",
+    "nav.gamesSection": "ゲーム",
     "nav.quest": "クエスト",
     "nav.armada": "アルマダ",
     "nav.story": "ストーリー",
@@ -70,7 +72,10 @@ const translations = {
     "sidebar.tagline": "Your language learning journey",
   },
   de: {
-    "nav.study": "Lernen",
+    "nav.daily": "Täglich",
+    "nav.analysis": "Analyse & Verwaltung",
+    "nav.worldAndArchive": "Welt & Archiv",
+    "nav.games": "Spiele",
     "nav.today": "Heutiges Lernziel",
     "nav.studyData": "Lernstatistik",
     "nav.realityCheck": "Lernanalyse",
@@ -81,7 +86,7 @@ const translations = {
     "nav.tasks": "Aufgaben",
     "nav.world": "Sprachenwelt",
     "nav.library": "Bibliothek",
-    "nav.games": "Spiele",
+    "nav.gamesSection": "Spiele",
     "nav.quest": "Quest",
     "nav.armada": "Armada",
     "nav.story": "Geschichte",
@@ -97,7 +102,10 @@ const translations = {
     "sidebar.tagline": "Your language learning journey",
   },
   en: {
-    "nav.study": "Study",
+    "nav.daily": "Daily Study",
+    "nav.analysis": "Analytics & Management",
+    "nav.worldAndArchive": "World & Collection",
+    "nav.games": "Games",
     "nav.today": "Today's Goals",
     "nav.studyData": "Study Data",
     "nav.realityCheck": "Understanding Analytics",
@@ -108,7 +116,7 @@ const translations = {
     "nav.tasks": "Tasks",
     "nav.world": "Language World",
     "nav.library": "Library",
-    "nav.games": "Games",
+    "nav.gamesSection": "Games",
     "nav.quest": "Quest",
     "nav.armada": "Armada",
     "nav.story": "Story",
@@ -124,7 +132,10 @@ const translations = {
     "sidebar.tagline": "Your language learning journey",
   },
   "zh-CN": {
-    "nav.study": "学习",
+    "nav.daily": "每日学习",
+    "nav.analysis": "分析与管理",
+    "nav.worldAndArchive": "世界与收藏",
+    "nav.games": "游戏",
     "nav.today": "今日目标",
     "nav.studyData": "学习数据",
     "nav.realityCheck": "理解度分析",
@@ -135,7 +146,7 @@ const translations = {
     "nav.tasks": "任务管理",
     "nav.world": "语言世界",
     "nav.library": "资料库",
-    "nav.games": "游戏",
+    "nav.gamesSection": "游戏",
     "nav.quest": "任务",
     "nav.armada": "舰队",
     "nav.story": "故事",
@@ -151,7 +162,10 @@ const translations = {
     "sidebar.tagline": "Your language learning journey",
   },
   "zh-TW": {
-    "nav.study": "學習",
+    "nav.daily": "每日學習",
+    "nav.analysis": "分析與管理",
+    "nav.worldAndArchive": "世界與收藏",
+    "nav.games": "遊戲",
     "nav.today": "今日目標",
     "nav.studyData": "學習資料",
     "nav.realityCheck": "理解度分析",
@@ -162,7 +176,7 @@ const translations = {
     "nav.tasks": "任務管理",
     "nav.world": "語言世界",
     "nav.library": "資料庫",
-    "nav.games": "遊戲",
+    "nav.gamesSection": "遊戲",
     "nav.quest": "任務",
     "nav.armada": "艦隊",
     "nav.story": "故事",
@@ -178,7 +192,10 @@ const translations = {
     "sidebar.tagline": "Your language learning journey",
   },
   es: {
-    "nav.study": "Estudio",
+    "nav.daily": "Estudio diario",
+    "nav.analysis": "Análisis y gestión",
+    "nav.worldAndArchive": "Mundo y colección",
+    "nav.games": "Juegos",
     "nav.today": "Objetivos de hoy",
     "nav.studyData": "Datos de estudio",
     "nav.realityCheck": "Análisis de comprensión",
@@ -189,7 +206,7 @@ const translations = {
     "nav.tasks": "Tareas",
     "nav.world": "Mundo de idiomas",
     "nav.library": "Biblioteca",
-    "nav.games": "Juegos",
+    "nav.gamesSection": "Juegos",
     "nav.quest": "Misión",
     "nav.armada": "Armada",
     "nav.story": "Historia",
@@ -205,7 +222,10 @@ const translations = {
     "sidebar.tagline": "Your language learning journey",
   },
   it: {
-    "nav.study": "Studio",
+    "nav.daily": "Studio giornaliero",
+    "nav.analysis": "Analisi e gestione",
+    "nav.worldAndArchive": "Mondo e raccolta",
+    "nav.games": "Giochi",
     "nav.today": "Obiettivi di oggi",
     "nav.studyData": "Dati di studio",
     "nav.realityCheck": "Analisi della comprensione",
@@ -216,7 +236,7 @@ const translations = {
     "nav.tasks": "Attività",
     "nav.world": "Mondo delle lingue",
     "nav.library": "Biblioteca",
-    "nav.games": "Giochi",
+    "nav.gamesSection": "Giochi",
     "nav.quest": "Missione",
     "nav.armada": "Armada",
     "nav.story": "Storia",
@@ -246,59 +266,37 @@ export default function AnkiSidebar() {
 
   const sections = [
     {
-      title: t("nav.study"),
+      title: t("nav.daily"),
       items: [
-        { label: t("nav.today"), href: "/today", icon: Sun },
-        {
-          label: t("nav.studyData"),
-          href: "/study-data",
-          icon: ChartNoAxesColumn,
-        },
-        {
-          label: t("nav.realityCheck"),
-          href: "/understanding-analytics",
-          icon: Brain,
-        },
-        {
-          label: t("nav.calendar"),
-          href: "/calendar",
-          icon: CalendarDays,
-        },
         { label: t("nav.decks"), href: "/", icon: Layers3 },
-        {
-          label: t("nav.materials"),
-          href: "/materials",
-          icon: BookOpen,
-        },
+        { label: t("nav.today"), href: "/today", icon: Sun },
         { label: t("nav.plan"), href: "/plan", icon: Route },
         { label: t("nav.tasks"), href: "/tasks", icon: ListChecks },
-        { label: t("nav.world"), href: "/language-world", icon: Map },
-        {
-          label: t("nav.library"),
-          href: "/library",
-          icon: Library,
-        },
       ],
     },
     {
-      title: t("nav.games"),
+      title: t("nav.analysis"),
+      items: [
+        { label: t("nav.calendar"), href: "/calendar", icon: CalendarDays },
+        { label: t("nav.realityCheck"), href: "/understanding-analytics", icon: Brain },
+        { label: t("nav.studyData"), href: "/study-data", icon: ChartNoAxesColumn },
+        { label: t("nav.materials"), href: "/materials", icon: BookOpen },
+      ],
+    },
+    {
+      title: t("nav.worldAndArchive"),
+      items: [
+        { label: t("nav.world"), href: "/language-world", icon: Map },
+        { label: t("nav.library"), href: "/library", icon: Library },
+        { label: t("nav.moments"), href: "/little-moments", icon: PawPrint },
+      ],
+    },
+    {
+      title: t("nav.gamesSection"),
       items: [
         { label: t("nav.quest"), href: "/game", icon: Swords },
-        {
-          label: t("nav.armada"),
-          href: "/armada",
-          icon: Sailboat,
-        },
-        {
-          label: t("nav.story"),
-          href: "/story1",
-          icon: Castle,
-        },
-        {
-          label: t("nav.moments"),
-          href: "/little-moments",
-          icon: PawPrint,
-        },
+        { label: t("nav.armada"), href: "/armada", icon: Sailboat },
+        { label: t("nav.story"), href: "/story1", icon: Castle },
       ],
     },
     {
@@ -363,6 +361,7 @@ export default function AnkiSidebar() {
   return (
     <>
       <div className="fixed left-4 top-4 z-[60]">
+        {/* font-sans を追加して親のフォント影響を防ぐ */}
         <button
           type="button"
           onClick={() => setOpen(true)}
@@ -371,7 +370,7 @@ export default function AnkiSidebar() {
           aria-controls="anki-sidebar"
           style={squareButtonStyle}
           className="rounded-2xl border border-stone-200/80
-            bg-[#F7F6F2]/95 text-stone-700
+            bg-[#F7F6F2]/95 text-stone-700 font-sans
             shadow-sm backdrop-blur
             transition-all duration-200
             hover:bg-white hover:shadow-md active:scale-95"
@@ -390,6 +389,7 @@ export default function AnkiSidebar() {
         />
       )}
 
+      {/* font-sans を追加してサイドバー全体のフォントを共通のゴシック体に固定 */}
       <aside
         id="anki-sidebar"
         aria-label={t("sidebar.mainMenu")}
@@ -397,7 +397,7 @@ export default function AnkiSidebar() {
         className={`fixed inset-y-0 left-0 z-[80]
           flex w-[min(340px,88vw)] flex-col
           border-r border-stone-200/80 bg-[#F7F6F2]
-          text-stone-800 shadow-2xl
+          text-stone-800 shadow-2xl font-sans
           transition-transform duration-300 ease-out
           ${
             open

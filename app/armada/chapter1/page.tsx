@@ -433,21 +433,7 @@ export default function ArmadaChapter1Page() {
         fontFamily: "Georgia, serif",
       }}
     >
-      <div style={{ maxWidth: 780, margin: "0 auto" }}>
-        <header
-          style={{
-            display: "flex",
-            justifyContent: "flex-start",
-            alignItems: "center",
-            gap: 12,
-            flexWrap: "wrap",
-            marginBottom: 24,
-          }}
-        >
-          <a href="/armada" style={{ color: "#f0d6ae" }}>
-            ← {t.back}
-          </a>
-        </header>
+      
 
         <section
           style={{
