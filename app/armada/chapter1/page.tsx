@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -229,10 +230,7 @@ const ui: Record<LanguageCode, Record<string, string>> = {
   },
 };
 
-const story: Record<
-  LanguageCode,
-  (title: string, chapter: number) => string
-> = {
+const story: Record<LanguageCode, (title: string, chapter: number) => string> = {
   ja: (title, n) =>
     `第${n}章「${title}」。艦内で新たな手がかりが見つかった。船員たちの証言は一致せず、誰かが重要な事実を隠しているようだ。あなたは限られた時間の中で情報を集め、仲間を危険から守らなければならない。`,
   es: (title, n) =>
@@ -433,259 +431,246 @@ export default function ArmadaChapter1Page() {
         fontFamily: "Georgia, serif",
       }}
     >
-      
+      <section
+        style={{
+          padding: "28px 22px",
+          border: "1px solid rgba(255,230,190,.4)",
+          borderRadius: 18,
+          background: "rgba(10,20,32,.42)",
+        }}
+      >
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 44 }}>⚓</div>
 
-        <section
-          style={{
-            padding: "28px 22px",
-            border: "1px solid rgba(255,230,190,.4)",
-            borderRadius: 18,
-            background: "rgba(10,20,32,.42)",
-          }}
-        >
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 44 }}>⚓</div>
+          <p
+            style={{
+              color: "#e8c58f",
+              letterSpacing: 3,
+              fontSize: 12,
+            }}
+          >
+            THE SPANISH ARMADA · 1588
+          </p>
 
-            <p
+          <p style={{ color: "#f0d6ae" }}>
+            {chapter + 1} / {chapters.length}
+          </p>
+
+          <div
+            style={{
+              height: 6,
+              background: "#42515b",
+              borderRadius: 6,
+              overflow: "hidden",
+              margin: "12px 0 24px",
+            }}
+          >
+            <div
               style={{
-                color: "#e8c58f",
-                letterSpacing: 3,
-                fontSize: 12,
+                height: "100%",
+                width: `${((chapter + 1) / chapters.length) * 100}%`,
+                background: "#d8ad70",
               }}
-            >
-              THE SPANISH ARMADA · 1588
+            />
+          </div>
+
+          <h1
+            style={{
+              fontSize: "clamp(28px, 6vw, 42px)",
+              lineHeight: 1.4,
+            }}
+          >
+            {title}
+          </h1>
+
+          {!started && (
+            <>
+              <p style={{ lineHeight: 1.9 }}>{t.intro}</p>
+
+              <button
+                style={buttonStyle}
+                onClick={() => setStarted(true)}
+              >
+                {t.start} ➜
+              </button>
+            </>
+          )}
+        </div>
+
+        {started && (
+          <>
+            <h2 style={{ color: "#e8c58f", marginTop: 28 }}>
+              📜 {t.mission}
+            </h2>
+
+            <p style={{ lineHeight: 2 }}>
+              {story[lang](title, chapter + 1)}
             </p>
 
-            <p style={{ color: "#f0d6ae" }}>
-              {chapter + 1} / {chapters.length}
-            </p>
+            <section style={panelStyle}>
+              <h3>🎧 {t.listen}</h3>
+
+              <p style={{ lineHeight: 1.8 }}>{phrase}</p>
+
+              <button
+                style={buttonStyle}
+                onClick={() => readAloud(phrase)}
+              >
+                ▶ {t.listen}
+              </button>
+            </section>
+
+            <section style={panelStyle}>
+              <h3>🎙️ {t.speak}</h3>
+
+              <p>
+                {t.hint}: {phrase}
+              </p>
+
+              <button
+                style={buttonStyle}
+                onClick={() => readAloud(phrase)}
+              >
+                🔊 {phrase}
+              </button>
+
+              <p
+                style={{
+                  fontSize: 13,
+                  lineHeight: 1.8,
+                  color: "#e2d5c3",
+                }}
+              >
+                {t.repeat}
+              </p>
+            </section>
+
+            <section style={panelStyle}>
+              <h3>🕵️ {t.choose}</h3>
+
+              {[t.option1, t.option2, t.option3].map(
+                (option, index) => (
+                  <button
+                    key={index}
+                    onClick={() => selectChoice(index)}
+                    style={{
+                      ...buttonStyle,
+                      display: "block",
+                      width: "100%",
+                      textAlign: "left",
+                      marginTop: 10,
+                      background:
+                        choice === index ? "#8b6948" : "#203d50",
+                    }}
+                  >
+                    {choice === index ? "✓ " : `${index + 1}. `}
+                    {option}
+                  </button>
+                )
+              )}
+
+              {choice !== null && (
+                <p
+                  role="status"
+                  style={{
+                    lineHeight: 1.9,
+                    color: "#f0d6ae",
+                  }}
+                >
+                  {choice === 1 ? t.clueFound : t.clueOther}
+                </p>
+              )}
+
+              <p style={{ color: "#e8c58f" }}>
+                {t.evidence}: {clues}
+              </p>
+            </section>
+
+            <section style={panelStyle}>
+              <h3>✍️ {t.writing}</h3>
+
+              <p style={{ lineHeight: 1.8 }}>
+                {t.writingGuide}
+              </p>
+
+              <textarea
+                value={diary}
+                onChange={(e) => setDiary(e.target.value)}
+                placeholder={t.placeholder}
+                rows={5}
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  padding: 12,
+                  borderRadius: 8,
+                  fontSize: 16,
+                  lineHeight: 1.7,
+                  background: "#fffaf0",
+                  color: "#182431",
+                }}
+              />
+
+              <button
+                style={buttonStyle}
+                onClick={() => setFeedback(t.done)}
+              >
+                {t.submit}
+              </button>
+
+              {feedback && (
+                <p
+                  role="status"
+                  style={{
+                    color: "#f0d6ae",
+                    lineHeight: 1.8,
+                  }}
+                >
+                  {feedback}
+                </p>
+              )}
+            </section>
 
             <div
               style={{
-                height: 6,
-                background: "#42515b",
-                borderRadius: 6,
-                overflow: "hidden",
-                margin: "12px 0 24px",
+                display: "flex",
+                gap: 12,
+                flexWrap: "wrap",
+                marginTop: 24,
               }}
             >
-              <div
-                style={{
-                  height: "100%",
-                  width: `${((chapter + 1) / chapters.length) * 100}%`,
-                  background: "#d8ad70",
-                }}
-              />
-            </div>
+              <button
+                style={buttonStyle}
+                disabled={chapter === 0}
+                onClick={() => moveChapter(chapter - 1)}
+              >
+                ← {t.previous}
+              </button>
 
-            <h1
-              style={{
-                fontSize: "clamp(28px, 6vw, 42px)",
-                lineHeight: 1.4,
-              }}
-            >
-              {title}
-            </h1>
-
-            {!started && (
-              <>
-                <p style={{ lineHeight: 1.9 }}>
-                  {t.intro}
-                </p>
-
+              {chapter < chapters.length - 1 ? (
                 <button
-                  style={buttonStyle}
-                  onClick={() => setStarted(true)}
-                >
-                  {t.start} ➜
-                </button>
-              </>
-            )}
-          </div>
-
-          {started && (
-            <>
-              <h2 style={{ color: "#e8c58f", marginTop: 28 }}>
-                📜 {t.mission}
-              </h2>
-
-              <p style={{ lineHeight: 2 }}>
-                {story[lang](title, chapter + 1)}
-              </p>
-
-              <section style={panelStyle}>
-                <h3>🎧 {t.listen}</h3>
-
-                <p style={{ lineHeight: 1.8 }}>
-                  {phrase}
-                </p>
-
-                <button
-                  style={buttonStyle}
-                  onClick={() => readAloud(phrase)}
-                >
-                  ▶ {t.listen}
-                </button>
-              </section>
-
-              <section style={panelStyle}>
-                <h3>🎙️ {t.speak}</h3>
-
-                <p>
-                  {t.hint}: {phrase}
-                </p>
-
-                <button
-                  style={buttonStyle}
-                  onClick={() => readAloud(phrase)}
-                >
-                  🔊 {phrase}
-                </button>
-
-                <p
                   style={{
-                    fontSize: 13,
-                    lineHeight: 1.8,
-                    color: "#e2d5c3",
-                  }}
-                >
-                  {t.repeat}
-                </p>
-              </section>
-
-              <section style={panelStyle}>
-                <h3>🕵️ {t.choose}</h3>
-
-                {[t.option1, t.option2, t.option3].map(
-                  (option, index) => (
-                    <button
-                      key={index}
-                      onClick={() => selectChoice(index)}
-                      style={{
-                        ...buttonStyle,
-                        display: "block",
-                        width: "100%",
-                        textAlign: "left",
-                        marginTop: 10,
-                        background:
-                          choice === index
-                            ? "#8b6948"
-                            : "#203d50",
-                      }}
-                    >
-                      {choice === index
-                        ? "✓ "
-                        : `${index + 1}. `}
-                      {option}
-                    </button>
-                  )
-                )}
-
-                {choice !== null && (
-                  <p
-                    role="status"
-                    style={{
-                      lineHeight: 1.9,
-                      color: "#f0d6ae",
-                    }}
-                  >
-                    {choice === 1
-                      ? t.clueFound
-                      : t.clueOther}
-                  </p>
-                )}
-
-                <p style={{ color: "#e8c58f" }}>
-                  {t.evidence}: {clues}
-                </p>
-              </section>
-
-              <section style={panelStyle}>
-                <h3>✍️ {t.writing}</h3>
-
-                <p style={{ lineHeight: 1.8 }}>
-                  {t.writingGuide}
-                </p>
-
-                <textarea
-                  value={diary}
-                  onChange={(e) => setDiary(e.target.value)}
-                  placeholder={t.placeholder}
-                  rows={5}
-                  style={{
-                    width: "100%",
-                    boxSizing: "border-box",
-                    padding: 12,
-                    borderRadius: 8,
-                    fontSize: 16,
-                    lineHeight: 1.7,
-                    background: "#fffaf0",
+                    ...buttonStyle,
+                    background: "#d8ad70",
                     color: "#182431",
                   }}
-                />
-
-                <button
-                  style={buttonStyle}
-                  onClick={() => setFeedback(t.done)}
+                  onClick={() => moveChapter(chapter + 1)}
                 >
-                  {t.submit}
+                  {t.next} ➜
                 </button>
-
-                {feedback && (
-                  <p
-                    role="status"
-                    style={{
-                      color: "#f0d6ae",
-                      lineHeight: 1.8,
-                    }}
-                  >
-                    {feedback}
-                  </p>
-                )}
-              </section>
-
-              <div
-                style={{
-                  display: "flex",
-                  gap: 12,
-                  flexWrap: "wrap",
-                  marginTop: 24,
-                }}
-              >
-                <button
-                  style={buttonStyle}
-                  disabled={chapter === 0}
-                  onClick={() => moveChapter(chapter - 1)}
+              ) : (
+                <p
+                  style={{
+                    color: "#f0d6ae",
+                    lineHeight: 1.8,
+                  }}
                 >
-                  ← {t.previous}
-                </button>
-
-                {chapter < chapters.length - 1 ? (
-                  <button
-                    style={{
-                      ...buttonStyle,
-                      background: "#d8ad70",
-                      color: "#182431",
-                    }}
-                    onClick={() => moveChapter(chapter + 1)}
-                  >
-                    {t.next} ➜
-                  </button>
-                ) : (
-                  <p
-                    style={{
-                      color: "#f0d6ae",
-                      lineHeight: 1.8,
-                    }}
-                  >
-                    {t.ending}
-                  </p>
-                )}
-              </div>
-            </>
-          )}
-        </section>
-      </div>
+                  {t.ending}
+                </p>
+              )}
+            </div>
+          </>
+        )}
+      </section>
     </main>
   );
 }
