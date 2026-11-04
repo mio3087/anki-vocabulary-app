@@ -49,6 +49,11 @@ type Deck = {
   order?: number;
 };
 
+type DuplicateCardGroup = {
+  key: string;
+  cards: Card[];
+};
+
 type StudyRecord = {
   id: string;
   date: string;
@@ -153,11 +158,6 @@ function createId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-/**
- * デッキアイコン画像を小さなJPEGに変換する。
- * Firebase Storageの設定に依存せず、既存のcoverImageUrlフィールドへ
- * Data URLとして保存できるようにする（Firestoreのドキュメント肥大化を防ぐ）。
- */
 async function compressDeckCover(file: File): Promise<string> {
   const objectUrl = URL.createObjectURL(file);
 
@@ -165,7 +165,7 @@ async function compressDeckCover(file: File): Promise<string> {
     const image = await new Promise<HTMLImageElement>((resolve, reject) => {
       const img = new Image();
       img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error("画像を読み込めませんでした。別の画像をお試しください。"));
+      img.onerror = () => reject(new Error("画像を読み込めませんでした。別の画像をお試しのうえ再度お試しください。"));
       img.src = objectUrl;
     });
 
@@ -180,7 +180,6 @@ async function compressDeckCover(file: File): Promise<string> {
     const context = canvas.getContext("2d");
     if (!context) throw new Error("画像の変換に失敗しました。");
 
-    // JPEG化で透過部分が黒くならないよう白背景にする。
     context.fillStyle = "#FFFFFF";
     context.fillRect(0, 0, width, height);
     context.drawImage(image, 0, 0, width, height);
@@ -222,11 +221,6 @@ function normalizeHex(value: string) {
 
 function getDeckSpeechKey(deckName: string) {
   return `anki-study-language-${encodeURIComponent(deckName)}`;
-}
-
-function getStatusLabel(status?: LearningStatus) {
-  if (status === "unlearned") return "未学習";
-  return statusOptions.find((item) => item.value === status)?.label || "未設定";
 }
 
 function prioritizeWeakCards(cards: Card[]) {
@@ -289,11 +283,9 @@ export default function Page() {
   const deckSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // デッキ作成時用
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
 
-  // デッキ詳細（編集）用
   const editImageInputRef = useRef<HTMLInputElement | null>(null);
   const editCameraInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -336,6 +328,10 @@ export default function Page() {
     rate: string;
     durationSec: number;
   } | null>(null);
+
+  // デッキ内重複チェックモーダル用
+  const [showDeckDuplicateModal, setShowDeckDuplicateModal] = useState(false);
+  const [editingDuplicateCard, setEditingDuplicateCard] = useState<Card | null>(null);
 
   const [newDeckName, setNewDeckName] = useState("");
   const [newDeckLanguage, setNewDeckLanguage] = useState("zh-CN");
@@ -625,6 +621,134 @@ export default function Page() {
     );
   };
 
+  // 現在開いているデッキ内での重複抽出
+  const getDeckDuplicateGroups = (deckCards: Card[]): DuplicateCardGroup[] => {
+    const map = new Map<string, Card[]>();
+
+    for (const card of deckCards) {
+      const key = card.front.trim().toLowerCase();
+      if (!key) continue;
+
+      if (!map.has(key)) {
+        map.set(key, []);
+      }
+      map.get(key)!.push(card);
+    }
+
+    const result: DuplicateCardGroup[] = [];
+    for (const [key, cards] of map.entries()) {
+      if (cards.length > 1) {
+        result.push({ key, cards });
+      }
+    }
+
+    return result;
+  };
+
+  // 現在のデッキ内で重複カードを個別削除
+  const deleteDuplicateCardInCurrentDeck = async (cardId: string) => {
+    const deck = decks.find((item) => item.name === currentDeck);
+    if (!deck) return;
+
+    const card = deck.cards.find((c) => c.id === cardId);
+    if (!card) return;
+
+    if (!confirm(`「${card.front}」をこのデッキから削除しますか？`)) {
+      return;
+    }
+
+    const updatedDeck: Deck = {
+      ...deck,
+      cards: deck.cards.filter((c) => c.id !== cardId),
+    };
+
+    try {
+      await persistDeck(updatedDeck);
+      updateDeckState(updatedDeck);
+      if (editingDuplicateCard?.id === cardId) {
+        setEditingDuplicateCard(null);
+      }
+    } catch (error) {
+      console.error(error);
+      alert("カードの削除に失敗しました。");
+    }
+  };
+
+  // 現在のデッキ内で重複カードを編集保存
+  const saveDuplicateCardEditInCurrentDeck = async (updatedCard: Card) => {
+    const deck = decks.find((item) => item.name === currentDeck);
+    if (!deck) return;
+
+    const updatedDeck: Deck = {
+      ...deck,
+      cards: deck.cards.map((c) => (c.id === updatedCard.id ? updatedCard : c)),
+    };
+
+    try {
+      await persistDeck(updatedDeck);
+      updateDeckState(updatedDeck);
+      setEditingDuplicateCard(null);
+      alert("カードを更新しました。");
+    } catch (error) {
+      console.error(error);
+      alert("カードの更新に失敗しました。");
+    }
+  };
+
+  // 現在のデッキ内で表面・ピンイン・訳が完全に一致する重複カードを一括削除
+  const autoRemoveExactDuplicatesInCurrentDeck = async () => {
+    const deck = decks.find((item) => item.name === currentDeck);
+    if (!deck) return;
+
+    if (
+      !confirm(
+        `デッキ「${deck.name}」内で、内容（表面・読み・訳）が完全に一致する重複カードを自動削除しますか？\n（各グループの最初の1枚だけを残します）`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const seen = new Set<string>();
+      const keptCards: Card[] = [];
+      let removedCount = 0;
+
+      for (const card of deck.cards) {
+        const signature = [
+          card.front.trim().toLowerCase(),
+          card.pinyin.trim().toLowerCase(),
+          card.japanese.trim().toLowerCase(),
+        ].join("|||");
+
+        if (seen.has(signature)) {
+          removedCount++;
+        } else {
+          seen.add(signature);
+          keptCards.push(card);
+        }
+      }
+
+      if (removedCount === 0) {
+        alert("完全一致する重複カードはありませんでした。");
+        return;
+      }
+
+      const updatedDeck: Deck = {
+        ...deck,
+        cards: keptCards,
+      };
+
+      await persistDeck(updatedDeck);
+      updateDeckState(updatedDeck);
+      setEditingDuplicateCard(null);
+
+      alert(`完全一致する重複カードを ${removedCount} 件 一括削除しました！`);
+    } catch (error) {
+      console.error("一括削除エラー:", error);
+      alert("完全重複の一括削除に失敗しました。");
+    }
+  };
+
   const moveFolderOrder = async (index: number, direction: "up" | "down") => {
     const targetIndex = direction === "up" ? index - 1 : index + 1;
 
@@ -690,14 +814,12 @@ export default function Page() {
     }
   };
 
-  // デッキ新規作成時の画像選択ハンドラー
   const selectCoverImage = (event: ChangeEvent<HTMLInputElement>) => {
     const input = event.currentTarget;
     const file = input.files?.[0] ?? null;
 
     if (!file) return;
 
-    // iOSではMIME typeが空になる場合があるため、空の場合は許可する。
     if (file.type && !file.type.startsWith("image/")) {
       alert("画像ファイルを選択してください。");
       input.value = "";
@@ -705,7 +827,7 @@ export default function Page() {
     }
 
     if (file.size > 10 * 1024 * 1024) {
-      alert("元元画像は10MB以下にしてください。");
+      alert("元画像は10MB以下にしてください。");
       input.value = "";
       return;
     }
@@ -715,7 +837,6 @@ export default function Page() {
     input.value = "";
   };
 
-  // 作成後（デッキ詳細画面）のアイコン画像更新ハンドラー
   const updateExistingDeckCover = async (
     event: ChangeEvent<HTMLInputElement>
   ) => {
@@ -731,7 +852,7 @@ export default function Page() {
     }
 
     if (file.size > 10 * 1024 * 1024) {
-      alert("元元画像は10MB以下にしてください。");
+      alert("元画像は10MB以下にしてください。");
       input.value = "";
       return;
     }
@@ -746,7 +867,6 @@ export default function Page() {
     setUploadingCover(true);
 
     try {
-      // 写真を圧縮してData URL化し、デッキ自身のFirestoreドキュメントに保存する。
       const coverImageUrl = await compressDeckCover(file);
       const updatedDeck: Deck = {
         ...deck,
@@ -1127,7 +1247,6 @@ export default function Page() {
       return alert(tx("alert.noWords"));
     }
 
-    // 学習レベルで対象カードを絞り込む。
     const filteredCards =
       studyStatusFilter === "all"
         ? deck.cards
@@ -1451,7 +1570,6 @@ export default function Page() {
     );
   }
 
-  // テーマカラー設定
   if (showThemeSettings) {
     return (
       <main
@@ -1580,7 +1698,6 @@ export default function Page() {
     );
   }
 
-  // カード学習画面
   if (studyMode) {
     if (!currentCard) return null;
 
@@ -2076,7 +2193,7 @@ export default function Page() {
     );
   }
 
-  // デッキ詳細画面（デッキ作成後の管理画面）
+  // デッキ詳細画面（単語一覧・重複チェック）
   if (deckOpen) {
     const deck = decks.find((item) => item.name === currentDeck);
     if (!deck) return null;
@@ -2098,6 +2215,8 @@ export default function Page() {
               .toLowerCase()
               .includes(normalizedSearch)
           );
+
+    const currentDeckDuplicates = getDeckDuplicateGroups(deck.cards);
 
     return (
       <main
@@ -2189,15 +2308,342 @@ export default function Page() {
             </div>
           </div>
 
-          <button
-            onClick={() => setShowThemeSettings(true)}
-            style={secondaryButtonStyle}
-          >
-            テーマ
-          </button>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button
+              onClick={() => setShowDeckDuplicateModal(true)}
+              style={{
+                ...secondaryButtonStyle,
+                borderColor: currentDeckDuplicates.length > 0 ? "#E8B4B4" : "#E5E5EA",
+                background: currentDeckDuplicates.length > 0 ? "#FDF2F2" : "#FFFFFF",
+                color: currentDeckDuplicates.length > 0 ? "#A93226" : "#1D1D1F",
+              }}
+            >
+              重複チェック
+              {currentDeckDuplicates.length > 0 && (
+                <span
+                  style={{
+                    marginLeft: "6px",
+                    background: "#A93226",
+                    color: "#FFFFFF",
+                    borderRadius: "10px",
+                    padding: "2px 6px",
+                    fontSize: "11px",
+                    fontWeight: 700,
+                  }}
+                >
+                  {currentDeckDuplicates.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setShowThemeSettings(true)}
+              style={secondaryButtonStyle}
+            >
+              テーマ
+            </button>
+          </div>
         </div>
 
-        {/* 作成後のアイコン画像変更エリア */}
+        {/* 単一デッキ内の重複チェックモーダル */}
+        {showDeckDuplicateModal && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.4)",
+              backdropFilter: "blur(6px)",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              zIndex: 9999,
+              padding: "20px",
+            }}
+          >
+            <div
+              style={{
+                width: "100%",
+                maxWidth: "720px",
+                maxHeight: "85vh",
+                background: "#FFFFFF",
+                borderRadius: "20px",
+                padding: "24px",
+                boxShadow: "0 20px 40px rgba(0,0,0,0.15)",
+                display: "flex",
+                flexDirection: "column",
+                boxSizing: "border-box",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "16px",
+                  paddingBottom: "12px",
+                  borderBottom: "1px solid #E5E5EA",
+                  gap: "10px",
+                }}
+              >
+                <div>
+                  <h2 style={{ margin: 0, fontSize: "19px", fontWeight: 700 }}>
+                    「{deck.name}」の重複チェック
+                  </h2>
+                  <p style={{ margin: "4px 0 0", fontSize: "12px", color: "#8E8E93" }}>
+                    表記ズレの個別編集・削除、または完全一致カードの一括削除を行えます。
+                  </p>
+                </div>
+
+                <div style={{ display: "flex", gap: "8px" }}>
+                  {currentDeckDuplicates.length > 0 && (
+                    <button
+                      onClick={autoRemoveExactDuplicatesInCurrentDeck}
+                      style={{
+                        padding: "9px 13px",
+                        background: "#A93226",
+                        color: "#FFFFFF",
+                        border: "none",
+                        borderRadius: "10px",
+                        fontWeight: 600,
+                        fontSize: "12px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      完全重複を一括削除
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => {
+                      setShowDeckDuplicateModal(false);
+                      setEditingDuplicateCard(null);
+                    }}
+                    style={secondaryButtonStyle}
+                  >
+                    閉じる
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ flex: 1, overflowY: "auto", paddingRight: "4px" }}>
+                {currentDeckDuplicates.length === 0 ? (
+                  <div
+                    style={{
+                      padding: "40px 20px",
+                      textAlign: "center",
+                      color: "#8E8E93",
+                      fontSize: "14px",
+                    }}
+                  >
+                    🎉 このデッキ内に重複する単語はありません！
+                  </div>
+                ) : (
+                  currentDeckDuplicates.map((group) => (
+                    <div
+                      key={group.key}
+                      style={{
+                        marginBottom: "16px",
+                        padding: "16px",
+                        background: "#FAFAFC",
+                        border: "1px solid #E5E5EA",
+                        borderRadius: "14px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "16px",
+                          fontWeight: 700,
+                          marginBottom: "12px",
+                          color: "#A93226",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                        }}
+                      >
+                        <span>重複キーワード: 「{group.cards[0].front}」</span>
+                        <span style={{ fontSize: "12px", color: "#8E8E93", fontWeight: 500 }}>
+                          ({group.cards.length}枚)
+                        </span>
+                      </div>
+
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+                          gap: "10px",
+                        }}
+                      >
+                        {group.cards.map((card) => {
+                          const isEditing = editingDuplicateCard?.id === card.id;
+
+                          return (
+                            <div
+                              key={card.id}
+                              style={{
+                                padding: "12px",
+                                background: "#FFFFFF",
+                                border: "1px solid #E5E5EA",
+                                borderRadius: "10px",
+                                display: "flex",
+                                flexDirection: "column",
+                                justifyContent: "space-between",
+                              }}
+                            >
+                              <div>
+                                {!isEditing ? (
+                                  <>
+                                    <div
+                                      style={{
+                                        fontSize: "16px",
+                                        fontWeight: 700,
+                                        marginBottom: "4px",
+                                      }}
+                                    >
+                                      {card.front}
+                                    </div>
+                                    <div
+                                      style={{
+                                        fontSize: "12px",
+                                        color: "#8E8E93",
+                                        marginBottom: "4px",
+                                      }}
+                                    >
+                                      読み: {card.pinyin || "未設定"}
+                                    </div>
+                                    <div style={{ fontSize: "13px", color: "#1D1D1F" }}>
+                                      訳: {card.japanese || "未設定"}
+                                    </div>
+                                    {card.example && (
+                                      <div
+                                        style={{
+                                          fontSize: "11px",
+                                          color: "#666",
+                                          marginTop: "4px",
+                                          fontStyle: "italic",
+                                        }}
+                                      >
+                                        例: {card.example}
+                                      </div>
+                                    )}
+                                  </>
+                                ) : (
+                                  <div>
+                                    <label style={{ fontSize: "11px", color: "#8E8E93" }}>表面</label>
+                                    <input
+                                      value={editingDuplicateCard.front}
+                                      onChange={(e) =>
+                                        setEditingDuplicateCard({
+                                          ...editingDuplicateCard,
+                                          front: e.target.value,
+                                        })
+                                      }
+                                      style={{ ...inputStyle, padding: "6px 8px", fontSize: "13px", marginBottom: "6px" }}
+                                    />
+
+                                    <label style={{ fontSize: "11px", color: "#8E8E93" }}>ピンイン・読み</label>
+                                    <input
+                                      value={editingDuplicateCard.pinyin}
+                                      onChange={(e) =>
+                                        setEditingDuplicateCard({
+                                          ...editingDuplicateCard,
+                                          pinyin: e.target.value,
+                                        })
+                                      }
+                                      style={{ ...inputStyle, padding: "6px 8px", fontSize: "13px", marginBottom: "6px" }}
+                                    />
+
+                                    <label style={{ fontSize: "11px", color: "#8E8E93" }}>日本語訳</label>
+                                    <input
+                                      value={editingDuplicateCard.japanese}
+                                      onChange={(e) =>
+                                        setEditingDuplicateCard({
+                                          ...editingDuplicateCard,
+                                          japanese: e.target.value,
+                                        })
+                                      }
+                                      style={{ ...inputStyle, padding: "6px 8px", fontSize: "13px", marginBottom: "6px" }}
+                                    />
+
+                                    <label style={{ fontSize: "11px", color: "#8E8E93" }}>例文</label>
+                                    <input
+                                      value={editingDuplicateCard.example}
+                                      onChange={(e) =>
+                                        setEditingDuplicateCard({
+                                          ...editingDuplicateCard,
+                                          example: e.target.value,
+                                        })
+                                      }
+                                      style={{ ...inputStyle, padding: "6px 8px", fontSize: "13px", marginBottom: "6px" }}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+
+                              <div
+                                style={{
+                                  display: "flex",
+                                  gap: "6px",
+                                  marginTop: "10px",
+                                  paddingTop: "8px",
+                                  borderTop: "1px solid #F0F0F2",
+                                }}
+                              >
+                                {!isEditing ? (
+                                  <button
+                                    onClick={() => setEditingDuplicateCard({ ...card })}
+                                    style={{
+                                      ...secondaryButtonStyle,
+                                      flex: 1,
+                                      padding: "6px 8px",
+                                      fontSize: "12px",
+                                    }}
+                                  >
+                                    編集
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() =>
+                                      saveDuplicateCardEditInCurrentDeck(editingDuplicateCard)
+                                    }
+                                    style={{
+                                      ...primaryButtonStyle,
+                                      flex: 1,
+                                      padding: "6px 8px",
+                                      fontSize: "12px",
+                                    }}
+                                  >
+                                    保存
+                                  </button>
+                                )}
+
+                                <button
+                                  onClick={() => deleteDuplicateCardInCurrentDeck(card.id)}
+                                  style={{
+                                    padding: "6px 8px",
+                                    background: "#FDF2F2",
+                                    border: "1px solid #F3D0D0",
+                                    color: "#A93226",
+                                    borderRadius: "8px",
+                                    cursor: "pointer",
+                                    fontWeight: 600,
+                                    fontSize: "12px",
+                                  }}
+                                >
+                                  削除
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         <div
           style={{
             marginTop: "16px",
@@ -2310,7 +2756,7 @@ export default function Page() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
             {([
               ["2", "正解・不正解"],
-              ["4", "苦手・うろ覚え・覚えた・完璧"],
+              ["4", "苦手・うろ覚え\n覚えた・完璧"],
             ] as const).map(([value, label]) => (
               <button
                 key={value}
@@ -2346,7 +2792,7 @@ export default function Page() {
               [30, "30問"],
               [50, "50問"],
               [100, "100問"],
-              [300, "300問"],
+              [300, "300问"],
               [500, "500問"],
               [1000, "1000問"],
               ["all", "全範囲"],
@@ -2684,14 +3130,12 @@ export default function Page() {
     );
   }
 
-  // デッキ一覧の並び順
   const sortDecks = (deckList: Deck[]) => {
     return [...deckList].sort(
       (a, b) => (a.order ?? 0) - (b.order ?? 0)
     );
   };
 
-  // デッキカード
   const renderDeckCard = (deck: Deck, deckIndex: number, list: Deck[]) => (
     <div
       key={deck.name}
@@ -2933,7 +3377,6 @@ export default function Page() {
         </button>
       </header>
 
-      {/* フォルダ一覧 */}
       {folders.map((folder, folderIndex) => {
         const folderDecks = sortDecks(
           decks.filter((deck) => deck.folderId === folder.id)
@@ -3047,7 +3490,6 @@ export default function Page() {
         );
       })}
 
-      {/* 未分類デッキ */}
       {decks.some((deck) => deck.folderId === null) && (
         <section
           style={{
@@ -3080,7 +3522,6 @@ export default function Page() {
         </section>
       )}
 
-      {/* 新しいフォルダ作成 */}
       <section
         style={{
           marginTop: "28px",
@@ -3112,7 +3553,6 @@ export default function Page() {
         </div>
       </section>
 
-      {/* 新しいデッキ作成前（表紙画像設定対応） */}
       <section
         style={{
           marginTop: "16px",
