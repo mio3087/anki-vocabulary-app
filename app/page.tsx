@@ -10,12 +10,6 @@ import {
   getDocs,
   setDoc,
 } from "firebase/firestore";
-import {
-  getStorage,
-  ref,
-  uploadBytes,
-  getDownloadURL,
-} from "firebase/storage";
 
 type Folder = {
   id: string;
@@ -157,6 +151,68 @@ function createId() {
     return crypto.randomUUID();
   }
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+/**
+ * デッキアイコン画像を小さなJPEGに変換する。
+ * Firebase Storageの設定に依存せず、既存のcoverImageUrlフィールドへ
+ * Data URLとして保存できるようにする（Firestoreのドキュメント肥大化を防ぐ）。
+ */
+async function compressDeckCover(file: File): Promise<string> {
+  const objectUrl = URL.createObjectURL(file);
+
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("画像を読み込めませんでした。別の画像をお試しください。"));
+      img.src = objectUrl;
+    });
+
+    const maxSide = 384;
+    const scale = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight));
+    const width = Math.max(1, Math.round(image.naturalWidth * scale));
+    const height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("画像の変換に失敗しました。");
+
+    // JPEG化で透過部分が黒くならないよう白背景にする。
+    context.fillStyle = "#FFFFFF";
+    context.fillRect(0, 0, width, height);
+    context.drawImage(image, 0, 0, width, height);
+
+    let quality = 0.78;
+    let blob: Blob | null = null;
+
+    while (quality >= 0.42) {
+      blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, "image/jpeg", quality)
+      );
+      if (blob && blob.size <= 180 * 1024) break;
+      quality -= 0.08;
+    }
+
+    if (!blob) throw new Error("画像をJPEGに変換できませんでした。");
+    if (blob.size > 220 * 1024) {
+      throw new Error("画像サイズを小さくできませんでした。別の写真をお試しください。");
+    }
+
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === "string") resolve(reader.result);
+        else reject(new Error("画像データを読み取れませんでした。"));
+      };
+      reader.onerror = () => reject(new Error("画像データの読み取りに失敗しました。"));
+      reader.readAsDataURL(blob);
+    });
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
 }
 
 function normalizeHex(value: string) {
@@ -634,39 +690,29 @@ export default function Page() {
     }
   };
 
-  // 共通のFirebase Storage画像アップロード関数
-  const uploadImageToStorage = async (file: File) => {
-    const storage = getStorage(db.app);
-    const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const imageRef = ref(
-      storage,
-      `deck-covers/${createId()}-${safeFileName}`
-    );
-    await uploadBytes(imageRef, file);
-    return await getDownloadURL(imageRef);
-  };
-
   // デッキ新規作成時の画像選択ハンドラー
   const selectCoverImage = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.currentTarget.files?.[0];
-    event.currentTarget.value = "";
+    const input = event.currentTarget;
+    const file = input.files?.[0] ?? null;
 
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
+    // iOSではMIME typeが空になる場合があるため、空の場合は許可する。
+    if (file.type && !file.type.startsWith("image/")) {
       alert("画像ファイルを選択してください。");
+      input.value = "";
       return;
     }
 
     if (file.size > 10 * 1024 * 1024) {
-      alert("画像は10MB以下にしてください。");
+      alert("元元画像は10MB以下にしてください。");
+      input.value = "";
       return;
     }
 
     setCoverFile(file);
-
-    const previewUrl = URL.createObjectURL(file);
-    setCoverPreview(previewUrl);
+    setCoverPreview(URL.createObjectURL(file));
+    input.value = "";
   };
 
   // 作成後（デッキ詳細画面）のアイコン画像更新ハンドラー
@@ -678,7 +724,6 @@ export default function Page() {
 
     if (!file) return;
 
-    // iOSでMIME typeが空になるケースもあるため、空の場合は許可する。
     if (file.type && !file.type.startsWith("image/")) {
       alert("画像ファイルを選択してください。");
       input.value = "";
@@ -686,7 +731,7 @@ export default function Page() {
     }
 
     if (file.size > 10 * 1024 * 1024) {
-      alert("画像は10MB以下にしてください。");
+      alert("元元画像は10MB以下にしてください。");
       input.value = "";
       return;
     }
@@ -694,16 +739,15 @@ export default function Page() {
     const deck = decks.find((item) => item.name === currentDeck);
     if (!deck) {
       input.value = "";
+      alert("更新するデッキが見つかりませんでした。");
       return;
     }
 
-    const previewUrl = URL.createObjectURL(file);
-    setEditCoverPreview(previewUrl);
     setUploadingCover(true);
 
     try {
-      // Firestoreと同じFirebase AppのStorageへアップロードする。
-      const coverImageUrl = await uploadImageToStorage(file);
+      // 写真を圧縮してData URL化し、デッキ自身のFirestoreドキュメントに保存する。
+      const coverImageUrl = await compressDeckCover(file);
       const updatedDeck: Deck = {
         ...deck,
         coverImageUrl,
@@ -711,20 +755,15 @@ export default function Page() {
 
       await persistDeck(updatedDeck);
       updateDeckState(updatedDeck);
-
       setEditCoverPreview("");
-      URL.revokeObjectURL(previewUrl);
-      alert("デッキのアイコン画像を更新しました。");
+      alert("デッキのアイコン画像を保存しました。");
     } catch (error) {
-      console.error("画像更新エラー:", error);
-      setEditCoverPreview("");
-      URL.revokeObjectURL(previewUrl);
+      console.error("デッキアイコン保存エラー:", error);
       alert(
-        "画像を保存できませんでした。Firebase Storageの設定・通信状況を確認してください。\n" +
-          String(error)
+        "写真を保存できませんでした。\n" +
+          (error instanceof Error ? error.message : String(error))
       );
     } finally {
-      // 同じ写真をもう一度選べるよう、処理後にinputをリセットする。
       input.value = "";
       setUploadingCover(false);
     }
@@ -745,7 +784,7 @@ export default function Page() {
       let coverImageUrl = "";
 
       if (coverFile) {
-        coverImageUrl = await uploadImageToStorage(coverFile);
+        coverImageUrl = await compressDeckCover(coverFile);
       }
 
       const newDeck: Deck = {
@@ -2271,7 +2310,7 @@ export default function Page() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
             {([
               ["2", "正解・不正解"],
-              ["4", "苦手・うろ覚え・</br> 覚えた・完璧"],
+              ["4", "苦手・うろ覚え・覚えた・完璧"],
             ] as const).map(([value, label]) => (
               <button
                 key={value}
