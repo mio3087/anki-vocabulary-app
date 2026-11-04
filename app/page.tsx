@@ -2336,12 +2336,7 @@ export default function Page() {
               )}
             </button>
 
-            <button
-              onClick={() => setShowThemeSettings(true)}
-              style={secondaryButtonStyle}
-            >
-              テーマ
-            </button>
+        
           </div>
         </div>
 
@@ -3369,12 +3364,7 @@ export default function Page() {
           </p>
         </div>
 
-        <button
-          onClick={() => setShowThemeSettings(true)}
-          style={secondaryButtonStyle}
-        >
-          テーマ
-        </button>
+    
       </header>
 
       {folders.map((folder, folderIndex) => {
