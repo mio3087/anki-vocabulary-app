@@ -2271,7 +2271,7 @@ export default function Page() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
             {([
               ["2", "正解・不正解"],
-              ["4", "苦手・うろ覚え・覚えた・完璧"],
+              ["4", "苦手・うろ覚え・</br> 覚えた・完璧"],
             ] as const).map(([value, label]) => (
               <button
                 key={value}
