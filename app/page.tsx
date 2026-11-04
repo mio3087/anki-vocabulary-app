@@ -169,11 +169,8 @@ function getDeckSpeechKey(deckName: string) {
 }
 
 function getStatusLabel(status?: LearningStatus) {
+  if (status === "unlearned") return "未学習";
   return statusOptions.find((item) => item.value === status)?.label || "未設定";
-}
-
-function getStatusStyle(status?: LearningStatus) {
-  return statusOptions.find((item) => item.value === status);
 }
 
 function prioritizeWeakCards(cards: Card[]) {
@@ -256,6 +253,7 @@ export default function Page() {
   const [currentDeck, setCurrentDeck] = useState("");
   const [deckOpen, setDeckOpen] = useState(false);
   const [answerMode, setAnswerMode] = useState<"2" | "4">("2");
+  const [studyLimit, setStudyLimit] = useState<30 | 50 | 100 | "all">(30);
 
   const [speechLanguage, setSpeechLanguage] = useState("zh-CN");
 
@@ -1063,7 +1061,13 @@ export default function Page() {
       return alert(tx("alert.noWords"));
     }
 
-    setStudyCards(prioritizeWeakCards(deck.cards));
+    const prioritizedCards = prioritizeWeakCards(deck.cards);
+    const selectedCards =
+      studyLimit === "all"
+        ? prioritizedCards
+        : prioritizedCards.slice(0, studyLimit);
+
+    setStudyCards(selectedCards);
     setStudyIndex(0);
     setShowAnswer(false);
     setStudyCorrect(0);
@@ -1493,10 +1497,6 @@ export default function Page() {
     if (!currentCard) return null;
 
     const currentAnswered = studyCorrect + studyIncorrect;
-    const activeStatusStyle = getStatusStyle(
-      currentCard.learningStatus
-    );
-
     return (
       <main
         style={{
@@ -1787,6 +1787,39 @@ export default function Page() {
                 style={inputStyle}
               />
 
+              {editingCardId && (
+                <div style={{ margin: "8px 0 16px", padding: "14px", background: "#FAFAFC", border: "1px solid #E5E5EA", borderRadius: "12px" }}>
+                  <div style={{ fontSize: "13px", fontWeight: 700, marginBottom: "9px" }}>暗記レベルを変更</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "7px" }}>
+                    {[
+                      { value: "unlearned" as LearningStatus, label: "未学習", days: null },
+                      { value: "weak" as LearningStatus, label: "苦手", days: 1 },
+                      { value: "vague" as LearningStatus, label: "うろ覚え", days: 3 },
+                      { value: "learned" as LearningStatus, label: "覚えた", days: 5 },
+                      { value: "perfect" as LearningStatus, label: "完璧", days: 7 },
+                    ].map((status) => (
+                      <button
+                        key={status.value}
+                        type="button"
+                        onClick={() => updateLearningStatus(editingCardId, status.value)}
+                        style={{
+                          padding: "10px 8px",
+                          borderRadius: "9px",
+                          border: currentCard.learningStatus === status.value ? "2px solid #718675" : "1px solid #E5E5EA",
+                          background: currentCard.learningStatus === status.value ? "#F1F5F1" : "#FFFFFF",
+                          color: "#1D1D1F",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {status.label}{status.days ? ` · ${status.days}日後` : ""}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div style={{ display: "flex", gap: "8px" }}>
                 <button
                   onClick={saveCard}
@@ -1805,90 +1838,7 @@ export default function Page() {
             </div>
           )}
 
-          <section
-            style={{
-              marginTop: "22px",
-              padding: "17px",
-              borderRadius: "14px",
-              background: "#FAFAFC",
-              border: "1px solid #E5E5EA",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: "10px",
-                marginBottom: "12px",
-              }}
-            >
-              <strong style={{ fontSize: "14px" }}>
-                このカードの暗記レベル
-              </strong>
-
-              <span
-                style={{
-                  fontSize: "12px",
-                  color: activeStatusStyle?.color || "#8E8E93",
-                  background: activeStatusStyle?.background || "#F2F2F7",
-                  border: `1px solid ${activeStatusStyle?.border || "#E5E5EA"}`,
-                  borderRadius: "20px",
-                  padding: "5px 10px",
-                  fontWeight: 600,
-                }}
-              >
-                {getStatusLabel(currentCard.learningStatus)}
-              </span>
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                gap: "9px",
-              }}
-            >
-              {statusOptions.map((status) => {
-                const active = currentCard.learningStatus === status.value;
-
-                return (
-                  <button
-                    key={status.value}
-                    type="button"
-                    onClick={() =>
-                      updateLearningStatus(currentCard.id, status.value)
-                    }
-                    style={{
-                      padding: "13px 8px",
-                      borderRadius: "11px",
-                      border: `1px solid ${
-                        active ? status.color : status.border
-                      }`,
-                      background: status.background,
-                      color: status.color,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                    }}
-                  >
-                    <div>{status.label}</div>
-                    <div
-                      style={{
-                        marginTop: "4px",
-                        fontSize: "11px",
-                        fontWeight: 400,
-                        opacity: 0.8,
-                      }}
-                    >
-                      {status.days}日後に復習
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-
-          {showAnswer && (
+          {showAnswer && answerMode === "2" && (
             <div
               style={{
                 display: "grid",
@@ -1898,7 +1848,7 @@ export default function Page() {
               }}
             >
               <button
-                onClick={() => answerCard(false)}
+                onClick={() => answerCard(false, "weak", 1)}
                 style={{
                   padding: "16px 10px",
                   borderRadius: "12px",
@@ -1910,10 +1860,11 @@ export default function Page() {
                 }}
               >
                 ✕ 不正解
+                <span style={{ display: "block", fontSize: "11px", fontWeight: 400, marginTop: "4px" }}>翌日復習</span>
               </button>
 
               <button
-                onClick={() => answerCard(true)}
+                onClick={() => answerCard(true, "learned", 5)}
                 style={{
                   padding: "16px 10px",
                   borderRadius: "12px",
@@ -1925,7 +1876,47 @@ export default function Page() {
                 }}
               >
                 ◯ 正解
+                <span style={{ display: "block", fontSize: "11px", fontWeight: 400, marginTop: "4px" }}>5日後復習</span>
               </button>
+            </div>
+          )}
+
+          {showAnswer && answerMode === "4" && (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                gap: "10px",
+                marginTop: "18px",
+              }}
+            >
+              {statusOptions.map((status) => (
+                <button
+                  key={status.value}
+                  type="button"
+                  onClick={() =>
+                    answerCard(
+                      status.value === "learned" || status.value === "perfect",
+                      status.value,
+                      status.days
+                    )
+                  }
+                  style={{
+                    padding: "15px 10px",
+                    borderRadius: "12px",
+                    border: `1px solid ${status.border}`,
+                    background: status.background,
+                    color: status.color,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  {status.label}
+                  <span style={{ display: "block", fontSize: "11px", fontWeight: 400, marginTop: "4px" }}>
+                    {status.days}日後に復習
+                  </span>
+                </button>
+              ))}
             </div>
           )}
         </div>
@@ -2211,12 +2202,83 @@ export default function Page() {
           </select>
         </div>
 
+        <section
+          style={{
+            marginTop: "18px",
+            padding: "16px",
+            border: "1px solid #E5E5EA",
+            borderRadius: "14px",
+            background: "#FFFFFF",
+          }}
+        >
+          <div style={{ fontSize: "13px", fontWeight: 700, marginBottom: "10px" }}>
+            回答方式
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "8px" }}>
+            {([
+              ["2", "正解・不正解"],
+              ["4", "苦手・うろ覚え・覚えた・完璧"],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setAnswerMode(value)}
+                style={{
+                  padding: "11px 8px",
+                  borderRadius: "10px",
+                  border: answerMode === value ? "2px solid #718675" : "1px solid #E5E5EA",
+                  background: answerMode === value ? "#F1F5F1" : "#FFFFFF",
+                  color: "#1D1D1F",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ fontSize: "13px", fontWeight: 700, margin: "16px 0 10px" }}>
+            学習する枚数
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "7px" }}>
+            {([
+              [30, "30問"],
+              [50, "50問"],
+              [100, "100問"],
+              ["all", "全範囲"],
+            ] as const).map(([value, label]) => (
+              <button
+                key={String(value)}
+                type="button"
+                onClick={() => setStudyLimit(value)}
+                style={{
+                  padding: "11px 4px",
+                  borderRadius: "10px",
+                  border: studyLimit === value ? "2px solid #718675" : "1px solid #E5E5EA",
+                  background: studyLimit === value ? "#F1F5F1" : "#FFFFFF",
+                  color: "#1D1D1F",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <p style={{ margin: "9px 0 0", color: "#8E8E93", fontSize: "11px" }}>
+            デッキ内のカードが選択枚数より少ない場合は、全カードを学習します。
+          </p>
+        </section>
+
         <button
           onClick={startStudy}
           style={{
             ...primaryButtonStyle,
             width: "100%",
-            marginTop: "5px",
+            marginTop: "12px",
             padding: "16px",
             fontSize: "16px",
           }}
@@ -2300,6 +2362,44 @@ export default function Page() {
               }
               style={inputStyle}
             />
+
+            {editingCardId && (() => {
+              const editingCard = deck.cards.find((item) => item.id === editingCardId);
+              if (!editingCard) return null;
+              const manualStatuses = [
+                { value: "unlearned" as LearningStatus, label: "未学習", days: null },
+                { value: "weak" as LearningStatus, label: "苦手", days: 1 },
+                { value: "vague" as LearningStatus, label: "うろ覚え", days: 3 },
+                { value: "learned" as LearningStatus, label: "覚えた", days: 5 },
+                { value: "perfect" as LearningStatus, label: "完璧", days: 7 },
+              ];
+              return (
+                <div style={{ margin: "8px 0 16px", padding: "14px", background: "#FAFAFC", border: "1px solid #E5E5EA", borderRadius: "12px" }}>
+                  <div style={{ fontSize: "13px", fontWeight: 700, marginBottom: "9px" }}>暗記レベルを変更</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "7px" }}>
+                    {manualStatuses.map((status) => (
+                      <button
+                        key={status.value}
+                        type="button"
+                        onClick={() => updateLearningStatus(editingCard.id, status.value)}
+                        style={{
+                          padding: "10px 8px",
+                          borderRadius: "9px",
+                          border: editingCard.learningStatus === status.value ? "2px solid #718675" : "1px solid #E5E5EA",
+                          background: editingCard.learningStatus === status.value ? "#F1F5F1" : "#FFFFFF",
+                          color: "#1D1D1F",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {status.label}{status.days ? ` · ${status.days}日後` : ""}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
 
             <div style={{ display: "flex", gap: "10px" }}>
               <button
