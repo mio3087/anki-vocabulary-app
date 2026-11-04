@@ -253,7 +253,12 @@ export default function Page() {
   const [currentDeck, setCurrentDeck] = useState("");
   const [deckOpen, setDeckOpen] = useState(false);
   const [answerMode, setAnswerMode] = useState<"2" | "4">("2");
-  const [studyLimit, setStudyLimit] = useState<30 | 50 | 100 | "all">(30);
+  const [studyLimit, setStudyLimit] = useState<
+    30 | 50 | 100 | 300 | 500 | 1000 | "all"
+  >(30);
+  const [studyStatusFilter, setStudyStatusFilter] = useState<
+    "all" | "unlearned" | "weak" | "vague"
+  >("all");
 
   const [speechLanguage, setSpeechLanguage] = useState("zh-CN");
 
@@ -284,6 +289,7 @@ export default function Page() {
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverPreview, setCoverPreview] = useState("");
   const [uploadingCover, setUploadingCover] = useState(false);
+  const [editCoverPreview, setEditCoverPreview] = useState("");
 
   const [showCardForm, setShowCardForm] = useState(false);
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
@@ -630,7 +636,7 @@ export default function Page() {
 
   // 共通のFirebase Storage画像アップロード関数
   const uploadImageToStorage = async (file: File) => {
-    const storage = getStorage();
+    const storage = getStorage(db.app);
     const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const imageRef = ref(
       storage,
@@ -652,8 +658,8 @@ export default function Page() {
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      alert("画像は5MB以下にしてください。");
+    if (file.size > 10 * 1024 * 1024) {
+      alert("画像は10MB以下にしてください。");
       return;
     }
 
@@ -663,29 +669,40 @@ export default function Page() {
     setCoverPreview(previewUrl);
   };
 
-  // 作成後（デッキ詳細画面）の画像更新・追加ハンドラー
-  const updateExistingDeckCover = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.currentTarget.files?.[0];
-    event.currentTarget.value = "";
+  // 作成後（デッキ詳細画面）のアイコン画像更新ハンドラー
+  const updateExistingDeckCover = async (
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
+    const input = event.currentTarget;
+    const file = input.files?.item(0) ?? null;
 
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
+    // iOSでMIME typeが空になるケースもあるため、空の場合は許可する。
+    if (file.type && !file.type.startsWith("image/")) {
       alert("画像ファイルを選択してください。");
+      input.value = "";
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      alert("画像は5MB以下にしてください。");
+    if (file.size > 10 * 1024 * 1024) {
+      alert("画像は10MB以下にしてください。");
+      input.value = "";
       return;
     }
 
     const deck = decks.find((item) => item.name === currentDeck);
-    if (!deck) return;
+    if (!deck) {
+      input.value = "";
+      return;
+    }
 
+    const previewUrl = URL.createObjectURL(file);
+    setEditCoverPreview(previewUrl);
     setUploadingCover(true);
 
     try {
+      // Firestoreと同じFirebase AppのStorageへアップロードする。
       const coverImageUrl = await uploadImageToStorage(file);
       const updatedDeck: Deck = {
         ...deck,
@@ -694,11 +711,21 @@ export default function Page() {
 
       await persistDeck(updatedDeck);
       updateDeckState(updatedDeck);
+
+      setEditCoverPreview("");
+      URL.revokeObjectURL(previewUrl);
       alert("デッキのアイコン画像を更新しました。");
     } catch (error) {
       console.error("画像更新エラー:", error);
-      alert("画像の更新に失敗しました。\n" + String(error));
+      setEditCoverPreview("");
+      URL.revokeObjectURL(previewUrl);
+      alert(
+        "画像を保存できませんでした。Firebase Storageの設定・通信状況を確認してください。\n" +
+          String(error)
+      );
     } finally {
+      // 同じ写真をもう一度選べるよう、処理後にinputをリセットする。
+      input.value = "";
       setUploadingCover(false);
     }
   };
@@ -1061,7 +1088,29 @@ export default function Page() {
       return alert(tx("alert.noWords"));
     }
 
-    const prioritizedCards = prioritizeWeakCards(deck.cards);
+    // 学習レベルで対象カードを絞り込む。
+    const filteredCards =
+      studyStatusFilter === "all"
+        ? deck.cards
+        : deck.cards.filter(
+            (card) =>
+              (card.learningStatus ?? "unlearned") === studyStatusFilter
+          );
+
+    if (filteredCards.length === 0) {
+      const filterLabel =
+        studyStatusFilter === "unlearned"
+          ? "未学習"
+          : studyStatusFilter === "weak"
+            ? "苦手"
+            : studyStatusFilter === "vague"
+              ? "うろ覚え"
+              : "対象";
+      alert(`${filterLabel}のカードはありません。`);
+      return;
+    }
+
+    const prioritizedCards = prioritizeWeakCards(filteredCards);
     const selectedCards =
       studyLimit === "all"
         ? prioritizedCards
@@ -2048,9 +2097,9 @@ export default function Page() {
               minWidth: 0,
             }}
           >
-            {deck.coverImageUrl ? (
+            {editCoverPreview || deck.coverImageUrl ? (
               <img
-                src={deck.coverImageUrl}
+                src={editCoverPreview || deck.coverImageUrl || ""}
                 alt=""
                 style={{
                   width: "76px",
@@ -2146,7 +2195,7 @@ export default function Page() {
             style={{ display: "none" }}
           />
 
-          <div style={{ display: "flex", gap: "8px" }}>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
             <button
               type="button"
               disabled={uploadingCover}
@@ -2173,6 +2222,11 @@ export default function Page() {
               カメラで撮影
             </button>
           </div>
+          {uploadingCover && (
+            <p style={{ margin: "10px 0 0", fontSize: "12px", color: "#718675" }}>
+              写真を保存しています…
+            </p>
+          )}
         </div>
 
         <div style={{ marginTop: "16px" }}>
@@ -2242,11 +2296,20 @@ export default function Page() {
           <div style={{ fontSize: "13px", fontWeight: 700, margin: "16px 0 10px" }}>
             学習する枚数
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "7px" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+              gap: "7px",
+            }}
+          >
             {([
               [30, "30問"],
               [50, "50問"],
               [100, "100問"],
+              [300, "300問"],
+              [500, "500問"],
+              [1000, "1000問"],
               ["all", "全範囲"],
             ] as const).map(([value, label]) => (
               <button
@@ -2256,7 +2319,10 @@ export default function Page() {
                 style={{
                   padding: "11px 4px",
                   borderRadius: "10px",
-                  border: studyLimit === value ? "2px solid #718675" : "1px solid #E5E5EA",
+                  border:
+                    studyLimit === value
+                      ? "2px solid #718675"
+                      : "1px solid #E5E5EA",
                   background: studyLimit === value ? "#F1F5F1" : "#FFFFFF",
                   color: "#1D1D1F",
                   fontSize: "12px",
@@ -2268,8 +2334,48 @@ export default function Page() {
               </button>
             ))}
           </div>
+
+          <div style={{ fontSize: "13px", fontWeight: 700, margin: "18px 0 10px" }}>
+            学習する暗記レベル
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gap: "7px",
+            }}
+          >
+            {([
+              ["all", "すべて"],
+              ["unlearned", "未学習だけ"],
+              ["weak", "苦手だけ"],
+              ["vague", "うろ覚えだけ"],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setStudyStatusFilter(value)}
+                style={{
+                  padding: "11px 8px",
+                  borderRadius: "10px",
+                  border:
+                    studyStatusFilter === value
+                      ? "2px solid #718675"
+                      : "1px solid #E5E5EA",
+                  background:
+                    studyStatusFilter === value ? "#F1F5F1" : "#FFFFFF",
+                  color: "#1D1D1F",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <p style={{ margin: "9px 0 0", color: "#8E8E93", fontSize: "11px" }}>
-            デッキ内のカードが選択枚数より少ない場合は、全カードを学習します。
+            選択した暗記レベルのカードから、指定した枚数を出題します。対象が指定枚数より少ない場合は、対象カードをすべて学習します。
           </p>
         </section>
 
@@ -3144,7 +3250,7 @@ export default function Page() {
               marginTop: "9px",
             }}
           >
-            JPG・PNGなどの画像（5MB以下）
+            JPG・PNGなどの画像（10MB以下）
           </p>
         </div>
 
