@@ -52,6 +52,8 @@ type Exam = {
 type CalendarData = {
   logs: StudyLog[];
   exams: Exam[];
+  freezeCount?: number;
+  usedFreezeDates?: string[];
 };
 
 const STORAGE_KEY = "anki-calendar-data-v1";
@@ -59,6 +61,8 @@ const STORAGE_KEY = "anki-calendar-data-v1";
 const EMPTY_DATA: CalendarData = {
   logs: [],
   exams: [],
+  freezeCount: 1,
+  usedFreezeDates: [],
 };
 
 const translations: Record<LanguageCode, any> = {
@@ -155,6 +159,12 @@ const translations: Record<LanguageCode, any> = {
     plan: "学習計画",
     decks: "教材・デッキ",
     footer: "Make progress, one little step at a time.",
+    freezeTicketTitle: "🛡️ お休みチケット (Streak Freeze)",
+    freezeTicketDesc: "チケットを使うと、この日をお休みにしても連続記録が守られます。",
+    useFreezeBtn: "この日にお休みチケットを使う",
+    freezeUsedLabel: "🛡️ お休み適用中",
+    freezeCancelBtn: "解除する",
+    freezeCountLabel: "所持: {n}枚",
     dateFormat: (y: number, m: number, d: number) => `${y}年${m}月${d}日`,
     monthFormat: (y: number, m: number) => `${y}年${m}月`,
     monthNames: [
@@ -268,6 +278,12 @@ const translations: Record<LanguageCode, any> = {
     plan: "Study plan",
     decks: "Materials & decks",
     footer: "Make progress, one little step at a time.",
+    freezeTicketTitle: "🛡️ Streak Freeze",
+    freezeTicketDesc: "Protect your streak on this day even if you take a break.",
+    useFreezeBtn: "Use Streak Freeze on this day",
+    freezeUsedLabel: "🛡️ Protected",
+    freezeCancelBtn: "Cancel",
+    freezeCountLabel: "Tickets: {n}",
     dateFormat: (y: number, m: number, d: number) => `${y}/${m}/${d}`,
     monthFormat: (y: number, m: number) => `${m}/${y}`,
     monthNames: [
@@ -381,6 +397,12 @@ const translations: Record<LanguageCode, any> = {
     plan: "Lernplan",
     decks: "Materialien & Decks",
     footer: "Make progress, one little step at a time.",
+    freezeTicketTitle: "🛡️ Streak-Schutz",
+    freezeTicketDesc: "Schütze deine Serie an diesem Tag.",
+    useFreezeBtn: "Streak-Schutz aktivieren",
+    freezeUsedLabel: "🛡️ Geschützt",
+    freezeCancelBtn: "Abbrechen",
+    freezeCountLabel: "Tickets: {n}",
     dateFormat: (y: number, m: number, d: number) => `${d}.${m}.${y}`,
     monthFormat: (y: number, m: number) => `${m}/${y}`,
     monthNames: [
@@ -494,6 +516,12 @@ const translations: Record<LanguageCode, any> = {
     plan: "Plan de estudio",
     decks: "Materiales y mazos",
     footer: "Make progress, one little step at a time.",
+    freezeTicketTitle: "🛡️ Protector de racha",
+    freezeTicketDesc: "Protege tu racha en este día.",
+    useFreezeBtn: "Usar protector de racha",
+    freezeUsedLabel: "🛡️ Protegido",
+    freezeCancelBtn: "Cancelar",
+    freezeCountLabel: "Tickets: {n}",
     dateFormat: (y: number, m: number, d: number) => `${d}/${m}/${y}`,
     monthFormat: (y: number, m: number) => `${m}/${y}`,
     monthNames: [
@@ -607,6 +635,12 @@ const translations: Record<LanguageCode, any> = {
     plan: "学习计划",
     decks: "教材与卡组",
     footer: "Make progress, one little step at a time.",
+    freezeTicketTitle: "🛡️ 请假卡 (Streak Freeze)",
+    freezeTicketDesc: "使用请假卡保护这一天的打卡连击。",
+    useFreezeBtn: "在此日期使用请假卡",
+    freezeUsedLabel: "🛡️ 已受保护",
+    freezeCancelBtn: "取消",
+    freezeCountLabel: "请假卡: {n}张",
     dateFormat: (y: number, m: number, d: number) => `${y}年${m}月${d}日`,
     monthFormat: (y: number, m: number) => `${y}年${m}月`,
     monthNames: [
@@ -720,6 +754,12 @@ const translations: Record<LanguageCode, any> = {
     plan: "學習計畫",
     decks: "教材與牌組",
     footer: "Make progress, one little step at a time.",
+    freezeTicketTitle: "🛡️ 請假卡 (Streak Freeze)",
+    freezeTicketDesc: "使用請假卡保護這一天的打卡連擊不中斷。",
+    useFreezeBtn: "在此日期使用請假卡",
+    freezeUsedLabel: "🛡️ 已受保護",
+    freezeCancelBtn: "取消",
+    freezeCountLabel: "請假卡: {n}張",
     dateFormat: (y: number, m: number, d: number) => `${y}年${m}月${d}日`,
     monthFormat: (y: number, m: number) => `${y}年${m}月`,
     monthNames: [
@@ -769,6 +809,8 @@ function readLocalData(): CalendarData {
     return {
       logs: Array.isArray(parsed.logs) ? parsed.logs : [],
       exams: Array.isArray(parsed.exams) ? parsed.exams : [],
+      freezeCount: typeof parsed.freezeCount === "number" ? parsed.freezeCount : 1,
+      usedFreezeDates: Array.isArray(parsed.usedFreezeDates) ? parsed.usedFreezeDates : [],
     };
   } catch {
     return EMPTY_DATA;
@@ -828,6 +870,8 @@ export default function CalendarPage() {
   const [tasks, setTasks] = useState<StudyTask[]>([]);
   const [logs, setLogs] = useState<StudyLog[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
+  const [freezeCount, setFreezeCount] = useState<number>(1);
+  const [usedFreezeDates, setUsedFreezeDates] = useState<string[]>([]);
 
   const [user, setUser] = useState<User | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -859,7 +903,7 @@ export default function CalendarPage() {
     return t.daysLeft.replace("{n}", String(n));
   }
 
-  // 認証状態と学習記録・試験日の読み込み
+  // 認証状態と学習記録・試験日・お休みチケットの読み込み
   useEffect(() => {
     let active = true;
 
@@ -887,6 +931,8 @@ export default function CalendarPage() {
             data = {
               logs: Array.isArray(saved.logs) ? saved.logs : [],
               exams: Array.isArray(saved.exams) ? saved.exams : [],
+              freezeCount: typeof saved.freezeCount === "number" ? saved.freezeCount : 1,
+              usedFreezeDates: Array.isArray(saved.usedFreezeDates) ? saved.usedFreezeDates : [],
             };
           }
         } else {
@@ -897,6 +943,8 @@ export default function CalendarPage() {
 
         setLogs(data.logs);
         setExams(data.exams);
+        setFreezeCount(data.freezeCount ?? 1);
+        setUsedFreezeDates(data.usedFreezeDates ?? []);
         setLoaded(true);
       } catch (error) {
         console.error("Calendar loading error:", error);
@@ -906,6 +954,8 @@ export default function CalendarPage() {
         const fallback = readLocalData();
         setLogs(fallback.logs);
         setExams(fallback.exams);
+        setFreezeCount(fallback.freezeCount ?? 1);
+        setUsedFreezeDates(fallback.usedFreezeDates ?? []);
         setMessage(t.loadingError);
         setLoaded(true);
       }
@@ -949,14 +999,14 @@ export default function CalendarPage() {
     return () => unsubscribe();
   }, [user]);
 
-  // 学習記録・試験日だけを保存する
+  // 学習記録・試験日・お休みチケット情報の保存
   useEffect(() => {
     if (!loaded) return;
 
     let active = true;
 
     async function saveData() {
-      const data: CalendarData = { logs, exams };
+      const data: CalendarData = { logs, exams, freezeCount, usedFreezeDates };
 
       if (!user) {
         try {
@@ -1003,7 +1053,7 @@ export default function CalendarPage() {
     return () => {
       active = false;
     };
-  }, [logs, exams, loaded, user]);
+  }, [logs, exams, freezeCount, usedFreezeDates, loaded, user]);
 
   const selectedLog = logs.find((log) => log.date === selectedDate);
 
@@ -1066,11 +1116,12 @@ export default function CalendarPage() {
 
   const monthLogs = logs.filter((log) => log.date.startsWith(monthPrefix));
 
-  const studyDays = new Set(
-    monthLogs
+  const studyDays = new Set([
+    ...monthLogs
       .filter((log) => log.words > 0 || log.pages > 0 || log.minutes > 0)
-      .map((log) => log.date)
-  ).size;
+      .map((log) => log.date),
+    ...usedFreezeDates.filter((d) => d.startsWith(monthPrefix)),
+  ]).size;
 
   const totalWords = monthLogs.reduce((sum, log) => sum + log.words, 0);
   const totalPages = monthLogs.reduce((sum, log) => sum + log.pages, 0);
@@ -1243,8 +1294,21 @@ export default function CalendarPage() {
     setExams((current) => current.filter((exam) => exam.id !== id));
   }
 
+  // お休みチケット（Streak Freeze）の切り替え処理
+  function toggleFreezeDate(date: string) {
+    if (usedFreezeDates.includes(date)) {
+      setUsedFreezeDates((current) => current.filter((d) => d !== date));
+      setFreezeCount((current) => current + 1);
+    } else {
+      if (freezeCount <= 0) return;
+      setUsedFreezeDates((current) => [...current, date]);
+      setFreezeCount((current) => current - 1);
+    }
+  }
+
   const inputClass = "field";
   const selectedDateLabel = formatDate(selectedDate);
+  const isSelectedProtected = usedFreezeDates.includes(selectedDate);
 
   return (
     <main className="calendar-page">
@@ -1256,6 +1320,11 @@ export default function CalendarPage() {
               ANKI <span className="brand-muted">/ YOUR LEARNING</span>
             </span>
           </Link>
+          <div className="topbar-right" style={{ marginLeft: "auto" }}>
+            <div className="freeze-badge" style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 12px", background: "var(--accent-soft)", borderRadius: "10px", fontSize: "11px", fontWeight: "700", color: "var(--accent-dark)" }}>
+              <span>🛡️ {t.freezeCountLabel.replace("{n}", String(freezeCount))}</span>
+            </div>
+          </div>
         </header>
 
         <section className="hero">
@@ -1432,6 +1501,7 @@ export default function CalendarPage() {
                         dayLog.pages > 0 ||
                         dayLog.minutes > 0)
                   );
+                  const isProtected = usedFreezeDates.includes(date);
 
                   const isSelected = date === selectedDate;
                   const isToday = date === today;
@@ -1465,6 +1535,13 @@ export default function CalendarPage() {
                       )}
 
                       <div className="day-markers">
+                        {isProtected && (
+                          <span
+                            className="marker marker-freeze"
+                            title={t.freezeTicketTitle}
+                            style={{ background: "#e5a942" }}
+                          />
+                        )}
                         {hasStudy && (
                           <span
                             className="marker marker-study"
@@ -1504,6 +1581,9 @@ export default function CalendarPage() {
               <div className="calendar-legend">
                 <span>
                   <i className="legend-dot legend-study" /> {t.studyRecord}
+                </span>
+                <span>
+                  <i className="legend-dot" style={{ background: "#e5a942", display: "inline-block", width: "5px", height: "5px", borderRadius: "50%" }} /> {t.freezeTicketTitle}
                 </span>
                 <span>
                   <i className="legend-dot legend-task" /> {t.task}
@@ -1678,90 +1758,131 @@ export default function CalendarPage() {
                 </form>
               </section>
 
-              <section className="panel log-panel">
-                <div className="panel-heading">
-                  <div>
-                    <p className="eyebrow">DAILY JOURNAL</p>
-                    <h2>{t.journal}</h2>
-                    <p className="muted">{selectedDateLabel}</p>
-                  </div>
-                  <span className="journal-icon">✎</span>
-                </div>
-
-                <p className="section-description">
-                  {t.journalDescription}
-                </p>
-
-                <form
-                  className="stack-form"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    saveLog();
-                  }}
-                >
-                  <div className="form-row three-columns">
-                    <label className="form-field">
-                      <span>{t.wordCount}</span>
-                      <input
-                        className={inputClass}
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={words}
-                        onChange={(event) => setWords(event.target.value)}
-                      />
-                    </label>
-                    <label className="form-field">
-                      <span>{t.pageCount}</span>
-                      <input
-                        className={inputClass}
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={pages}
-                        onChange={(event) => setPages(event.target.value)}
-                      />
-                    </label>
-                    <label className="form-field">
-                      <span>{t.minutes}</span>
-                      <input
-                        className={inputClass}
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={minutes}
-                        onChange={(event) => setMinutes(event.target.value)}
-                      />
-                    </label>
+              <div className="right-stack" style={{ display: "grid", gap: "20px" }}>
+                <section className="panel log-panel">
+                  <div className="panel-heading">
+                    <div>
+                      <p className="eyebrow">DAILY JOURNAL</p>
+                      <h2>{t.journal}</h2>
+                      <p className="muted">{selectedDateLabel}</p>
+                    </div>
+                    <span className="journal-icon">✎</span>
                   </div>
 
-                  <label className="form-field">
-                    <span>{t.dailyNote}</span>
-                    <textarea
-                      className={`${inputClass} note-field`}
-                      rows={4}
-                      value={note}
-                      onChange={(event) => setNote(event.target.value)}
-                      placeholder={t.notePlaceholder}
-                      maxLength={2000}
-                    />
-                  </label>
+                  <p className="section-description">
+                    {t.journalDescription}
+                  </p>
 
-                  <button
-                    className="button button-primary button-full"
-                    type="submit"
+                  <form
+                    className="stack-form"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      saveLog();
+                    }}
                   >
-                    {t.saveRecord}
-                  </button>
-                </form>
+                    <div className="form-row three-columns">
+                      <label className="form-field">
+                        <span>{t.wordCount}</span>
+                        <input
+                          className={inputClass}
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={words}
+                          onChange={(event) => setWords(event.target.value)}
+                        />
+                      </label>
+                      <label className="form-field">
+                        <span>{t.pageCount}</span>
+                        <input
+                          className={inputClass}
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={pages}
+                          onChange={(event) => setPages(event.target.value)}
+                        />
+                      </label>
+                      <label className="form-field">
+                        <span>{t.minutes}</span>
+                        <input
+                          className={inputClass}
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={minutes}
+                          onChange={(event) => setMinutes(event.target.value)}
+                        />
+                      </label>
+                    </div>
 
-                {selectedHasStudy && (
-                  <div className="saved-indicator">
-                    <span className="saved-dot" />
-                    {t.savedRecord}
+                    <label className="form-field">
+                      <span>{t.dailyNote}</span>
+                      <textarea
+                        className={`${inputClass} note-field`}
+                        rows={4}
+                        value={note}
+                        onChange={(event) => setNote(event.target.value)}
+                        placeholder={t.notePlaceholder}
+                        maxLength={2000}
+                      />
+                    </label>
+
+                    <button
+                      className="button button-primary button-full"
+                      type="submit"
+                    >
+                      {t.saveRecord}
+                    </button>
+                  </form>
+
+                  {selectedHasStudy && (
+                    <div className="saved-indicator">
+                      <span className="saved-dot" />
+                      {t.savedRecord}
+                    </div>
+                  )}
+                </section>
+
+                {/* お休みチケット（Streak Freeze）ウィジェット */}
+                <section className="panel freeze-panel" style={{ padding: "20px 25px" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+                    <div>
+                      <p className="eyebrow" style={{ margin: "0 0 4px" }}>STREAK PROTECTION</p>
+                      <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 650 }}>{t.freezeTicketTitle}</h3>
+                    </div>
+                    <span style={{ fontSize: "20px" }}>🛡️</span>
                   </div>
-                )}
-              </section>
+                  <p className="section-description" style={{ margin: "0 0 14px" }}>
+                    {t.freezeTicketDesc}
+                  </p>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}>
+                    <span style={{ fontSize: "11px", color: "#686b62", fontWeight: 600 }}>
+                      {selectedDate}
+                    </span>
+                    {isSelectedProtected ? (
+                      <button
+                        type="button"
+                        className="button button-subtle"
+                        onClick={() => toggleFreezeDate(selectedDate)}
+                        style={{ fontSize: "11px", minHeight: "34px", borderColor: "#e5a942", color: "#b37b12" }}
+                      >
+                        {t.freezeUsedLabel} ({t.freezeCancelBtn})
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="button button-primary"
+                        disabled={freezeCount <= 0}
+                        onClick={() => toggleFreezeDate(selectedDate)}
+                        style={{ fontSize: "11px", minHeight: "34px" }}
+                      >
+                        {t.useFreezeBtn}
+                      </button>
+                    )}
+                  </div>
+                </section>
+              </div>
             </div>
 
             <section className="panel exams-panel">
@@ -1788,10 +1909,10 @@ export default function CalendarPage() {
 
                     return (
                       <article className="exam-row" key={exam.id}>
-                      <div className="exam-date-block">
-  <span>{Number(exam.date.slice(5, 7))}</span>
-  <strong>{Number(exam.date.slice(8, 10))}</strong>
-</div>
+                        <div className="exam-date-block">
+                          <span>{Number(exam.date.slice(5, 7))}</span>
+                          <strong>{Number(exam.date.slice(8, 10))}</strong>
+                        </div>
                         <div className="exam-info">
                           <strong>{exam.name}</strong>
                           <span>{exam.date.replaceAll("-", " / ")}</span>
@@ -3108,24 +3229,11 @@ export default function CalendarPage() {
             gap: 14px;
           }
         }
-
-        @media (prefers-reduced-motion: reduce) {
-          .anki-menu-trigger,
-          .anki-menu-trigger span,
-          .anki-menu-link {
-            transition: none;
-          }
-
-          .anki-menu-panel {
-            animation: none;
-          }
-        }
       `}</style>
     </main>
   );
 }
 
-// 旧カレンダー形式のタスクを、ブラウザ保存から誤って消さないために保持する
 function readLegacyTasks(): unknown[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);

@@ -1,16 +1,16 @@
-
 "use client";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import {
-  arrayUnion,
   collection,
   doc,
   onSnapshot,
   serverTimestamp,
   updateDoc,
+  getDoc,
+  setDoc,
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useAppLanguage, type AppLanguage } from "@/app/component/AppLanguage";
@@ -62,17 +62,80 @@ type StudyTask = {
   repeatDays: number[];
 };
 
-type RangeInput = {
-  start: string;
-  end: string;
+type QuoteCard = {
+  id: string;
+  quote: string;
+  author: string;
+  translation: string;
+  language: string;
+  rarity: "Common" | "Rare" | "SSR";
 };
 
-const PLAN_STORAGE_KEY = "anki-study-plans-v1";
+type UserGamificationStats = {
+  streak: number;
+  xp: number;
+  level: number;
+  lastDate: string;
+  freezeCount: number; // お休みチケット所持数
+  unlockedCards: string[]; // 獲得した名言カードID
+};
 
+// ガチャで手に入る名言リスト
+const QUOTE_DATABASE: QuoteCard[] = [
+  {
+    id: "de-1",
+    quote: "Aller Anfang ist schwer.",
+    author: "German Proverb",
+    translation: "どんな始まりも難易度が高い（はじめの一歩が一番難しい）。",
+    language: "Deutsch",
+    rarity: "Common",
+  },
+  {
+    id: "it-1",
+    quote: "Chi va piano, va sano e va lontano.",
+    author: "Italian Proverb",
+    translation: "着実に進む者が、健全に遠くまで到達する。",
+    language: "Italiano",
+    rarity: "Common",
+  },
+  {
+    id: "zh-1",
+    quote: "千里之行，始於足下。",
+    author: "老子 (Laozi)",
+    translation: "千里の行も足元の一歩から始まる。",
+    language: "中文",
+    rarity: "Rare",
+  },
+  {
+    id: "en-1",
+    quote: "The limits of my language mean the limits of my world.",
+    author: "Ludwig Wittgenstein",
+    translation: "私の言語の限界が、私の世界の限界を意味する。",
+    language: "English",
+    rarity: "SSR",
+  },
+  {
+    id: "de-2",
+    quote: "Übung macht den Meister.",
+    author: "German Proverb",
+    translation: "練習が巨匠を作る（継続は力なり）。",
+    language: "Deutsch",
+    rarity: "Common",
+  },
+  {
+    id: "it-2",
+    quote: "La virtù è la sua propria ricompensa.",
+    author: "Cicero",
+    translation: "美徳それ自体がご褒美である。",
+    language: "Italiano",
+    rarity: "Rare",
+  },
+];
+
+const PLAN_STORAGE_KEY = "anki-study-plans-v1";
 const line = "#E7E8E3";
 const muted = "#858A82";
 const accent = "var(--anki-theme-color)";
-const accentDark = "var(--anki-theme-dark)";
 
 const localeMap: Record<AppLanguage, string> = {
   ja: "ja-JP",
@@ -94,31 +157,7 @@ const copy = {
     completed: "完了",
     remaining: "残り",
     plans: "今日の学習計画",
-    planManage: "計画を管理",
-    noPlans: "今日の学習計画はありません",
-    noPlansDescription: "学習計画から教材と学習期間を設定できます。",
-    createPlan: "学習計画を作成",
-    deadline: "期限",
-    round: "周",
-    dailyGoal: "今日の目標",
-    actual: "今日の実績",
-    record: "学習範囲を記録",
-    start: "開始",
-    end: "終了",
-    save: "記録する",
-    saving: "保存中...",
-    progress: "達成状況",
-    achieved: "今日の目標を達成しました",
-    notAchieved: "目標まであと",
-    over: "目標達成",
-    materialMissing: "教材が見つかりません",
-    materialMissingDescription: "教材管理で教材を登録し、学習計画から選択してください。",
-    materials: "教材管理",
-    invalidRange: "教材の範囲内で、開始と終了を正しく入力してください。",
-    saved: "学習範囲を記録しました。",
-    saveError: "記録できませんでした。もう一度お試しください。",
     tasks: "今日やること",
-    allTasks: "すべてのタスク",
     noTasks: "今日のタスクはありません",
     noTasksDescription: "タスク管理から予定を追加できます。",
     addTask: "タスクを追加",
@@ -132,24 +171,21 @@ const copy = {
     notStarted: "未着手",
     inProgress: "進行中",
     done: "完了",
-    materialStudy: "教材の学習",
-    vocabulary: "単語の暗記・復習",
-    words: "単語",
-    pages: "ページ",
-    minutes: "分",
-    chapters: "章",
-    times: "回",
     untitled: "名称未設定",
-    footer: "YOUR ANKI / PERSONAL LEARNING SYSTEM",
-    footerRight: "学習範囲を記録すると教材の進捗にも反映されます。",
-    items: "件",
     days: "学習日",
-    totalProgress: "教材全体の進捗",
-    paceAhead: "計画より先行",
-    paceOnTrack: "順調",
-    paceBehind: "計画より遅れ",
-    expected: "計画上の到達地点",
-    studied: "学習済み",
+    streakTitle: "連続学習ストリーク",
+    streakDays: "日連続",
+    freezeLabel: "お休みチケット",
+    drawGacha: "100 XPで名言ガチャを引く",
+    gachaTitle: "🎁 名言カードGET！",
+    gachaCostError: "XPが足りません！タスクを完了して100 XP貯めましょう。",
+    close: "閉じる",
+    levelLabel: "Lv.",
+    xpLabel: "XP",
+    allCompletedBonus: "🎁 今日のタスク全クリアボーナス！ +50 XP 獲得！",
+    motivationCheer: "今日も一歩前進！あなたのペースで積み重ねましょう。",
+    motivationHalf: "半分以上クリア！その調子です！",
+    motivationDone: "今日の目標を完全制覇しました！素晴らしい集中力です！🎉",
   },
   en: {
     title: "Today's Goals",
@@ -160,31 +196,7 @@ const copy = {
     completed: "Completed",
     remaining: "Remaining",
     plans: "Today's Study Plan",
-    planManage: "Manage plans",
-    noPlans: "No study plans for today",
-    noPlansDescription: "Create a plan to set your materials and study period.",
-    createPlan: "Create a study plan",
-    deadline: "Deadline",
-    round: "rounds",
-    dailyGoal: "Today's goal",
-    actual: "Today's progress",
-    record: "Record study range",
-    start: "From",
-    end: "To",
-    save: "Save record",
-    saving: "Saving...",
-    progress: "Progress",
-    achieved: "Today's goal achieved",
-    notAchieved: "Remaining",
-    over: "Goal achieved",
-    materialMissing: "Material not found",
-    materialMissingDescription: "Add a material and select it in your study plan.",
-    materials: "Materials",
-    invalidRange: "Enter a valid range within the material's limits.",
-    saved: "Study range recorded.",
-    saveError: "Could not save. Please try again.",
     tasks: "Today's Tasks",
-    allTasks: "All tasks",
     noTasks: "No tasks for today",
     noTasksDescription: "Add tasks in Task Management.",
     addTask: "Add a task",
@@ -198,24 +210,21 @@ const copy = {
     notStarted: "Not started",
     inProgress: "In progress",
     done: "Completed",
-    materialStudy: "Study materials",
-    vocabulary: "Vocabulary review",
-    words: "words",
-    pages: "pages",
-    minutes: "min",
-    chapters: "chapters",
-    times: "times",
     untitled: "Untitled",
-    footer: "YOUR ANKI / PERSONAL LEARNING SYSTEM",
-    footerRight: "Recorded ranges are also reflected in material progress.",
-    items: "tasks",
     days: "study days",
-    totalProgress: "Overall material progress",
-    paceAhead: "Ahead of plan",
-    paceOnTrack: "On track",
-    paceBehind: "Behind plan",
-    expected: "Planned progress",
-    studied: "Studied",
+    streakTitle: "Study Streak",
+    streakDays: "days straight",
+    freezeLabel: "Streak Freeze",
+    drawGacha: "Draw Quote Card (100 XP)",
+    gachaTitle: "🎁 Quote Card Unlocked!",
+    gachaCostError: "Not enough XP! Complete tasks to earn 100 XP.",
+    close: "Close",
+    levelLabel: "Lv.",
+    xpLabel: "XP",
+    allCompletedBonus: "🎁 Daily Completion Bonus! Earned +50 XP!",
+    motivationCheer: "One step forward today! Keep building your habit.",
+    motivationHalf: "Over half way there! Keep going!",
+    motivationDone: "All tasks completed! Amazing focus today! 🎉",
   },
   de: {
     title: "Heutige Lernziele",
@@ -226,31 +235,7 @@ const copy = {
     completed: "Erledigt",
     remaining: "Offen",
     plans: "Heutiger Lernplan",
-    planManage: "Pläne verwalten",
-    noPlans: "Keine Lernpläne für heute",
-    noPlansDescription: "Erstelle einen Lernplan mit Material und Zeitraum.",
-    createPlan: "Lernplan erstellen",
-    deadline: "Frist",
-    round: "Durchgänge",
-    dailyGoal: "Heutiges Ziel",
-    actual: "Heutiger Fortschritt",
-    record: "Lernbereich speichern",
-    start: "Von",
-    end: "Bis",
-    save: "Speichern",
-    saving: "Speichern...",
-    progress: "Fortschritt",
-    achieved: "Heutiges Ziel erreicht",
-    notAchieved: "Noch offen",
-    over: "Ziel erreicht",
-    materialMissing: "Lernmaterial nicht gefunden",
-    materialMissingDescription: "Füge Material hinzu und wähle es im Lernplan aus.",
-    materials: "Materialien",
-    invalidRange: "Gib einen gültigen Bereich innerhalb des Materials ein.",
-    saved: "Lernbereich gespeichert.",
-    saveError: "Speichern fehlgeschlagen. Bitte erneut versuchen.",
     tasks: "Heutige Aufgaben",
-    allTasks: "Alle Aufgaben",
     noTasks: "Keine Aufgaben für heute",
     noTasksDescription: "Füge Aufgaben in der Aufgabenverwaltung hinzu.",
     addTask: "Aufgabe hinzufügen",
@@ -264,24 +249,21 @@ const copy = {
     notStarted: "Nicht begonnen",
     inProgress: "In Bearbeitung",
     done: "Erledigt",
-    materialStudy: "Lernmaterial",
-    vocabulary: "Vokabeln lernen",
-    words: "Wörter",
-    pages: "Seiten",
-    minutes: "Min.",
-    chapters: "Kapitel",
-    times: "Mal",
     untitled: "Ohne Titel",
-    footer: "YOUR ANKI / PERSONAL LEARNING SYSTEM",
-    footerRight: "Gespeicherte Bereiche werden im Materialfortschritt berücksichtigt.",
-    items: "Aufgaben",
     days: "Lerntage",
-    totalProgress: "Gesamtfortschritt",
-    paceAhead: "Dem Plan voraus",
-    paceOnTrack: "Im Zeitplan",
-    paceBehind: "Hinter dem Plan",
-    expected: "Geplanter Fortschritt",
-    studied: "Gelernt",
+    streakTitle: "Lernserie",
+    streakDays: "Tage in Folge",
+    freezeLabel: "Streak-Schutz",
+    drawGacha: "Zitat-Karte ziehen (100 XP)",
+    gachaTitle: "🎁 Zitat-Karte freigeschaltet!",
+    gachaCostError: "Nicht genug XP! Schließe Aufgaben ab.",
+    close: "Schließen",
+    levelLabel: "Lv.",
+    xpLabel: "XP",
+    allCompletedBonus: "🎁 Tagesbonus erhalten! +50 XP!",
+    motivationCheer: "Einen Schritt nach dem anderen. Bleib dran!",
+    motivationHalf: "Über die Hälfte geschafft! Weiter so!",
+    motivationDone: "Alle Aufgaben für heute abgeschlossen! Tolle Arbeit! 🎉",
   },
   "zh-CN": {
     title: "今日目标",
@@ -292,31 +274,7 @@ const copy = {
     completed: "已完成",
     remaining: "剩余",
     plans: "今日学习计划",
-    planManage: "管理计划",
-    noPlans: "今天没有学习计划",
-    noPlansDescription: "创建学习计划，设置教材和学习期间。",
-    createPlan: "创建学习计划",
-    deadline: "截止日期",
-    round: "轮",
-    dailyGoal: "今日目标",
-    actual: "今日进度",
-    record: "记录学习范围",
-    start: "开始",
-    end: "结束",
-    save: "保存记录",
-    saving: "保存中...",
-    progress: "完成进度",
-    achieved: "已完成今日目标",
-    notAchieved: "还差",
-    over: "已达成目标",
-    materialMissing: "找不到教材",
-    materialMissingDescription: "请先在教材管理中添加教材，再从学习计划中选择。",
-    materials: "教材管理",
-    invalidRange: "请输入教材范围内的有效起止位置。",
-    saved: "已记录学习范围。",
-    saveError: "保存失败，请重试。",
     tasks: "今日任务",
-    allTasks: "全部任务",
     noTasks: "今天没有任务",
     noTasksDescription: "可以在任务管理中添加任务。",
     addTask: "添加任务",
@@ -330,24 +288,21 @@ const copy = {
     notStarted: "未开始",
     inProgress: "进行中",
     done: "已完成",
-    materialStudy: "教材学习",
-    vocabulary: "单词记忆与复习",
-    words: "个单词",
-    pages: "页",
-    minutes: "分钟",
-    chapters: "章",
-    times: "次",
     untitled: "未命名",
-    footer: "YOUR ANKI / PERSONAL LEARNING SYSTEM",
-    footerRight: "记录的学习范围也会同步到教材进度。",
-    items: "项",
     days: "学习日",
-    totalProgress: "教材总进度",
-    paceAhead: "领先计划",
-    paceOnTrack: "进度正常",
-    paceBehind: "落后计划",
-    expected: "计划应达到",
-    studied: "已学习",
+    streakTitle: "连续学习打卡",
+    streakDays: "天连续",
+    freezeLabel: "保命卡",
+    drawGacha: "消耗 100 XP 抽取名言卡",
+    gachaTitle: "🎁 获得名言卡片！",
+    gachaCostError: "XP 不足！请先完成任务积累 100 XP。",
+    close: "关闭",
+    levelLabel: "Lv.",
+    xpLabel: "XP",
+    allCompletedBonus: "🎁 今日任务全勤通关！获得 +50 XP 奖励！",
+    motivationCheer: "每天进步一点点，保持节奏！",
+    motivationHalf: "已经完成过半啦，加油！",
+    motivationDone: "太棒了！今日任务全部完美完成！🎉",
   },
   "zh-TW": {
     title: "今日目標",
@@ -358,31 +313,7 @@ const copy = {
     completed: "已完成",
     remaining: "剩餘",
     plans: "今日學習計畫",
-    planManage: "管理計畫",
-    noPlans: "今天沒有學習計畫",
-    noPlansDescription: "建立學習計畫，設定教材和學習期間。",
-    createPlan: "建立學習計畫",
-    deadline: "截止日期",
-    round: "輪",
-    dailyGoal: "今日目標",
-    actual: "今日進度",
-    record: "記錄學習範圍",
-    start: "開始",
-    end: "結束",
-    save: "儲存記錄",
-    saving: "儲存中...",
-    progress: "完成進度",
-    achieved: "已完成今日目標",
-    notAchieved: "還差",
-    over: "已達成目標",
-    materialMissing: "找不到教材",
-    materialMissingDescription: "請先在教材管理中新增教材，再從學習計畫中選擇。",
-    materials: "教材管理",
-    invalidRange: "請輸入教材範圍內有效的起始與結束位置。",
-    saved: "已記錄學習範圍。",
-    saveError: "儲存失敗，請重試。",
     tasks: "今日任務",
-    allTasks: "全部任務",
     noTasks: "今天沒有任務",
     noTasksDescription: "可以在任務管理中新增任務。",
     addTask: "新增任務",
@@ -396,24 +327,21 @@ const copy = {
     notStarted: "未開始",
     inProgress: "進行中",
     done: "已完成",
-    materialStudy: "教材學習",
-    vocabulary: "單字記憶與複習",
-    words: "個單字",
-    pages: "頁",
-    minutes: "分鐘",
-    chapters: "章",
-    times: "次",
     untitled: "未命名",
-    footer: "YOUR ANKI / PERSONAL LEARNING SYSTEM",
-    footerRight: "記錄的學習範圍也會同步到教材進度。",
-    items: "項",
     days: "學習日",
-    totalProgress: "教材總進度",
-    paceAhead: "超前進度",
-    paceOnTrack: "進度正常",
-    paceBehind: "落後進度",
-    expected: "計畫應達到",
-    studied: "已學習",
+    streakTitle: "連續學習打卡",
+    streakDays: "天連續",
+    freezeLabel: "保命卡",
+    drawGacha: "消耗 100 XP 抽取名言卡",
+    gachaTitle: "🎁 獲得名言卡片！",
+    gachaCostError: "XP 不足！請先完成任務積累 100 XP。",
+    close: "關閉",
+    levelLabel: "Lv.",
+    xpLabel: "XP",
+    allCompletedBonus: "🎁 今日任務全勤通關！獲得 +50 XP 獎勵！",
+    motivationCheer: "每天進步一點點，保持節奏！",
+    motivationHalf: "已經完成過半啦，加油！",
+    motivationDone: "太棒了！今日任務全部完美完成！🎉",
   },
   es: {
     title: "Objetivos de hoy",
@@ -424,31 +352,7 @@ const copy = {
     completed: "Completadas",
     remaining: "Pendientes",
     plans: "Plan de estudio de hoy",
-    planManage: "Gestionar planes",
-    noPlans: "No hay planes para hoy",
-    noPlansDescription: "Crea un plan y configura el material y las fechas.",
-    createPlan: "Crear un plan",
-    deadline: "Fecha límite",
-    round: "vueltas",
-    dailyGoal: "Objetivo de hoy",
-    actual: "Progreso de hoy",
-    record: "Registrar rango de estudio",
-    start: "Desde",
-    end: "Hasta",
-    save: "Guardar",
-    saving: "Guardando...",
-    progress: "Progreso",
-    achieved: "Objetivo de hoy alcanzado",
-    notAchieved: "Faltan",
-    over: "Objetivo alcanzado",
-    materialMissing: "No se encontró el material",
-    materialMissingDescription: "Añade un material y selecciónalo en tu plan.",
-    materials: "Materiales",
-    invalidRange: "Introduce un rango válido dentro de los límites del material.",
-    saved: "Rango de estudio registrado.",
-    saveError: "No se pudo guardar. Inténtalo de nuevo.",
     tasks: "Tareas de hoy",
-    allTasks: "Todas las tareas",
     noTasks: "No hay tareas para hoy",
     noTasksDescription: "Añade tareas en Gestión de tareas.",
     addTask: "Añadir tarea",
@@ -462,24 +366,21 @@ const copy = {
     notStarted: "Sin empezar",
     inProgress: "En curso",
     done: "Completada",
-    materialStudy: "Estudio de materiales",
-    vocabulary: "Repaso de vocabulario",
-    words: "palabras",
-    pages: "páginas",
-    minutes: "min",
-    chapters: "capítulos",
-    times: "veces",
     untitled: "Sin título",
-    footer: "YOUR ANKI / PERSONAL LEARNING SYSTEM",
-    footerRight: "Los rangos registrados también actualizan el progreso del material.",
-    items: "tareas",
     days: "días de estudio",
-    totalProgress: "Progreso total del material",
-    paceAhead: "Por delante del plan",
-    paceOnTrack: "Al día",
-    paceBehind: "Retrasado",
-    expected: "Progreso previsto",
-    studied: "Estudiado",
+    streakTitle: "Racha de estudio",
+    streakDays: "días seguidos",
+    freezeLabel: "Protector de racha",
+    drawGacha: "Obtener tarjeta de cita (100 XP)",
+    gachaTitle: "🎁 ¡Tarjeta desvelada!",
+    gachaCostError: "¡XP insuficiente! Completa tareas primero.",
+    close: "Cerrar",
+    levelLabel: "Nivel",
+    xpLabel: "XP",
+    allCompletedBonus: "🎁 ¡Bono de tareas completadas! ¡+50 XP!",
+    motivationCheer: "¡Un paso más hoy! Sigue construyendo tu hábito.",
+    motivationHalf: "¡Más de la mitad completada! ¡Sigue así!",
+    motivationDone: "¡Todas las tareas completadas! ¡Gran enfoque hoy! 🎉",
   },
 };
 
@@ -495,35 +396,6 @@ function dateString(date = new Date()) {
 
 function weekdayIndex(date = new Date()) {
   return (date.getDay() + 6) % 7;
-}
-
-function countStudyDays(start: string, end: string, weekdays: number[]) {
-  if (!start || !end || start > end || weekdays.length === 0) return 0;
-
-  const from = new Date(`${start}T12:00:00`);
-  const to = new Date(`${end}T12:00:00`);
-  let count = 0;
-
-  for (let date = new Date(from); date <= to; date.setDate(date.getDate() + 1)) {
-    if (weekdays.includes((date.getDay() + 6) % 7)) count++;
-  }
-
-  return count;
-}
-
-function countStudyDaysUntil(start: string, end: string, weekdays: number[], asOf: string) {
-  if (!start || !end || start > end || weekdays.length === 0 || asOf < start) return 0;
-
-  const cappedEnd = asOf < end ? asOf : end;
-  const from = new Date(`${start}T12:00:00`);
-  const to = new Date(`${cappedEnd}T12:00:00`);
-  let count = 0;
-
-  for (let date = new Date(from); date <= to; date.setDate(date.getDate() + 1)) {
-    if (weekdays.includes((date.getDay() + 6) % 7)) count++;
-  }
-
-  return count;
 }
 
 function normalizeTask(id: string, data: Record<string, unknown>): StudyTask {
@@ -569,14 +441,21 @@ export default function TodayPage() {
   const [authReady, setAuthReady] = useState(false);
   const [tasks, setTasks] = useState<StudyTask[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
-  const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
-  const [notice, setNotice] = useState("");
   const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
-  const [savingPlanId, setSavingPlanId] = useState<string | null>(null);
-  const [rangeInputs, setRangeInputs] = useState<Record<string, RangeInput>>({});
-  const [rangeErrors, setRangeErrors] = useState<Record<string, string>>({});
+  const [showBonusBanner, setShowBonusBanner] = useState(false);
+  const [drawnCard, setDrawnCard] = useState<QuoteCard | null>(null);
+  const [gachaError, setGachaError] = useState("");
+
+  const [stats, setStats] = useState<UserGamificationStats>({
+    streak: 1,
+    xp: 0,
+    level: 1,
+    lastDate: "",
+    freezeCount: 0,
+    unlockedCards: [],
+  });
 
   const today = dateString();
   const todayWeekday = weekdayIndex();
@@ -596,8 +475,6 @@ export default function TodayPage() {
     month: "short",
     year: "numeric",
   }).format(now).toUpperCase();
-
-  const formatNumber = (value: number) => value.toLocaleString(locale);
 
   useEffect(() => {
     const refreshPlans = () => {
@@ -632,7 +509,6 @@ export default function TodayPage() {
     if (!authReady || !user) {
       if (authReady) {
         setTasks([]);
-        setMaterials([]);
         setLoading(false);
       }
       return;
@@ -657,68 +533,75 @@ export default function TodayPage() {
       }
     );
 
-    const unsubscribeMaterials = onSnapshot(
-      collection(db, "users", user.uid, "materials"),
-      (snapshot) => {
-        const nextMaterials: Material[] = snapshot.docs.map((materialDoc) => {
-          const data = materialDoc.data();
-          return {
-            id: materialDoc.id,
-            name: typeof data.name === "string" ? data.name : "",
-            language: typeof data.language === "string" ? data.language : "",
-            type: data.type === "deck" ? "deck" : "book",
-            total: typeof data.total === "number" ? data.total : 0,
-            studyRanges: Array.isArray(data.studyRanges)
-              ? data.studyRanges.filter(
-                  (range: unknown): range is StudyRange =>
-                    typeof range === "object" &&
-                    range !== null &&
-                    typeof (range as StudyRange).start === "number" &&
-                    typeof (range as StudyRange).end === "number" &&
-                    typeof (range as StudyRange).date === "string"
-                )
-              : [],
-          };
-        });
+    // ゲーミフィケーション（ストリーク・フリーズ・カード）の取得・更新
+    const fetchAndSyncStats = async () => {
+      try {
+        const statsRef = doc(db, "users", user.uid, "stats", "gamification");
+        const snap = await getDoc(statsRef);
 
-        setMaterials(nextMaterials);
-      },
-      (error) => {
-        console.error("Material loading error:", error);
+        if (snap.exists()) {
+          const data = snap.data();
+          let currentStreak = typeof data.streak === "number" ? data.streak : 1;
+          let freezeCount = typeof data.freezeCount === "number" ? data.freezeCount : 0;
+          const lastDate = typeof data.lastDate === "string" ? data.lastDate : "";
+
+          if (lastDate && lastDate !== today) {
+            const last = new Date(lastDate);
+            const current = new Date(today);
+            const diffTime = Math.abs(current.getTime() - last.getTime());
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            // 1日以上空いた場合の判定（お休みチケット処理）
+            if (diffDays > 1) {
+              if (freezeCount > 0) {
+                // チケットを消費してストリーク維持！
+                freezeCount -= 1;
+              } else {
+                currentStreak = 1; // リセット
+              }
+            } else if (diffDays === 1) {
+              // 毎日ログインの加算（7日ごとにフリーチケット1枚獲得：上限2枚）
+              currentStreak += 1;
+              if (currentStreak % 7 === 0 && freezeCount < 2) {
+                freezeCount += 1;
+              }
+            }
+          }
+
+          const updatedStats: UserGamificationStats = {
+            streak: currentStreak,
+            xp: typeof data.xp === "number" ? data.xp : 0,
+            level: typeof data.level === "number" ? data.level : 1,
+            lastDate: today,
+            freezeCount,
+            unlockedCards: Array.isArray(data.unlockedCards) ? data.unlockedCards : [],
+          };
+
+          setStats(updatedStats);
+          await setDoc(statsRef, updatedStats, { merge: true });
+        } else {
+          const initialStats: UserGamificationStats = {
+            streak: 1,
+            xp: 120, // ガチャ試せる初期経験値
+            level: 1,
+            lastDate: today,
+            freezeCount: 1, // 初回プレゼント
+            unlockedCards: [],
+          };
+          setStats(initialStats);
+          await setDoc(statsRef, initialStats);
+        }
+      } catch (e) {
+        console.error("Gamification stats error:", e);
       }
-    );
+    };
+
+    fetchAndSyncStats();
 
     return () => {
       unsubscribeTasks();
-      unsubscribeMaterials();
     };
-  }, [authReady, user, tr.taskError]);
-
-  // 旧データの計画も、教材名が完全一致する教材が1件だけなら自動で紐付ける
-  useEffect(() => {
-    if (materials.length === 0 || plans.length === 0) return;
-
-    let changed = false;
-
-    const migrated = plans.map((plan) => {
-      if (plan.materialId) return plan;
-
-      const matches = materials.filter((material) => material.name === plan.deckName);
-      if (matches.length !== 1) return plan;
-
-      changed = true;
-      return {
-        ...plan,
-        materialId: matches[0].id,
-        totalItems: matches[0].total,
-      };
-    });
-
-    if (changed) {
-      setPlans(migrated);
-      localStorage.setItem(PLAN_STORAGE_KEY, JSON.stringify(migrated));
-    }
-  }, [materials, plans]);
+  }, [authReady, user, tr.taskError, today]);
 
   const todaysPlans = useMemo(
     () =>
@@ -772,92 +655,21 @@ export default function TodayPage() {
   const remainingCount = Math.max(0, totalCount - completedCount);
   const taskProgress = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
-  function getPlanMaterial(plan: Plan) {
-    if (plan.materialId) {
-      return materials.find((material) => material.id === plan.materialId);
+  const encouragementMessage = useMemo(() => {
+    if (totalCount > 0 && completedCount === totalCount) {
+      return tr.motivationDone;
     }
-
-    const matches = materials.filter((material) => material.name === plan.deckName);
-    return matches.length === 1 ? matches[0] : undefined;
-  }
-
-  function getDailyTarget(plan: Plan, material?: Material) {
-    const total = material?.total ?? plan.totalItems;
-    const studyDays = countStudyDays(plan.startDate, plan.deadline, plan.weekdays);
-    return studyDays > 0 ? Math.ceil((total * plan.rounds) / studyDays) : 0;
-  }
-
-  function getTodayActual(material?: Material) {
-    if (!material) return 0;
-
-    return material.studyRanges
-      .filter((range) => range.date === today)
-      .reduce((sum, range) => sum + Math.max(0, range.end - range.start + 1), 0);
-  }
-
-  function getPlanProgress(plan: Plan, material?: Material) {
-    const total = material?.total ?? plan.totalItems;
-    const totalGoal = Math.max(0, total * Math.max(1, plan.rounds || 1));
-    const actual = material
-      ? material.studyRanges.reduce(
-          (sum, range) => sum + Math.max(0, range.end - range.start + 1),
-          0
-        )
-      : 0;
-    const studyDays = countStudyDays(plan.startDate, plan.deadline, plan.weekdays);
-    const elapsedStudyDays = countStudyDaysUntil(
-      plan.startDate,
-      plan.deadline,
-      plan.weekdays,
-      today
-    );
-    const expected = studyDays > 0
-      ? Math.min(totalGoal, (totalGoal * elapsedStudyDays) / studyDays)
-      : 0;
-    const progress = totalGoal > 0 ? Math.min(100, (actual / totalGoal) * 100) : 0;
-    const expectedProgress = totalGoal > 0
-      ? Math.min(100, (expected / totalGoal) * 100)
-      : 0;
-    const dailyPace = studyDays > 0 ? totalGoal / studyDays : 0;
-    const tolerance = Math.max(1, dailyPace * 0.5);
-
-    let pace: "ahead" | "onTrack" | "behind" = "onTrack";
-    if (actual > expected + tolerance) pace = "ahead";
-    else if (actual + tolerance < expected) pace = "behind";
-
-    return {
-      totalGoal,
-      actual,
-      expected: Math.round(expected),
-      progress,
-      expectedProgress,
-      pace,
-      rounds: Math.max(1, plan.rounds || 1),
-      currentRound: total > 0 ? Math.min(Math.max(1, plan.rounds || 1), Math.floor(actual / total) + 1) : 1,
-    };
-  }
-
-  function getPaceLabel(pace: "ahead" | "onTrack" | "behind") {
-    if (pace === "ahead") return tr.paceAhead;
-    if (pace === "behind") return tr.paceBehind;
-    return tr.paceOnTrack;
-  }
-
-  function getUnit(material?: Material) {
-    if (!material) return language === "ja" ? "項目" : "items";
-
-    if (language === "ja") return material.type === "book" ? "ページ" : "単語";
-    if (language === "de") return material.type === "book" ? "Seiten" : "Wörter";
-    if (language === "es") return material.type === "book" ? "páginas" : "palabras";
-    if (language === "zh-CN") return material.type === "book" ? "页" : "个单词";
-    if (language === "zh-TW") return material.type === "book" ? "頁" : "個單字";
-    return material.type === "book" ? "pages" : "words";
-  }
+    if (taskProgress >= 50) {
+      return tr.motivationHalf;
+    }
+    return tr.motivationCheer;
+  }, [totalCount, completedCount, taskProgress, tr]);
 
   function getStatusLabel(status: TaskStatus) {
     return tr[statusLabel[status]];
   }
 
+  // タスク完了処理
   async function toggleTask(task: StudyTask) {
     if (!user) return;
 
@@ -865,12 +677,37 @@ export default function TodayPage() {
     setErrorMessage("");
 
     const nextStatus: TaskStatus = task.status === "完了" ? "進行中" : "完了";
+    const isNowCompleted = nextStatus === "完了";
 
     try {
       await updateDoc(doc(db, "users", user.uid, "tasks", task.id), {
         status: nextStatus,
         updatedAt: serverTimestamp(),
       });
+
+      if (isNowCompleted) {
+        const addedXP = 15;
+        const newXP = stats.xp + addedXP;
+        const newLevel = Math.floor(newXP / 100) + 1;
+
+        const willAllBeCompleted = completedCount + 1 === totalCount;
+        const finalXP = willAllBeCompleted ? newXP + 50 : newXP;
+        const finalLevel = Math.floor(finalXP / 100) + 1;
+
+        if (willAllBeCompleted) {
+          setShowBonusBanner(true);
+        }
+
+        const newStats = {
+          ...stats,
+          xp: finalXP,
+          level: finalLevel,
+        };
+
+        setStats(newStats);
+        const statsRef = doc(db, "users", user.uid, "stats", "gamification");
+        await setDoc(statsRef, { xp: finalXP, level: finalLevel }, { merge: true });
+      }
     } catch (error) {
       console.error("Task update error:", error);
       setErrorMessage(tr.updateError);
@@ -879,55 +716,45 @@ export default function TodayPage() {
     }
   }
 
-  async function recordStudyRange(plan: Plan) {
-    if (!user) return;
-
-    const material = getPlanMaterial(plan);
-    const input = rangeInputs[plan.id] ?? { start: "", end: "" };
-    const start = Number(input.start);
-    const end = Number(input.end);
-
-    if (
-      !material ||
-      !Number.isInteger(start) ||
-      !Number.isInteger(end) ||
-      start < 1 ||
-      end < start ||
-      end > material.total
-    ) {
-      setRangeErrors((current) => ({ ...current, [plan.id]: tr.invalidRange }));
+  // ガチャを引く処理（100 XP消費）
+  async function drawQuoteGacha() {
+    if (stats.xp < 100) {
+      setGachaError(tr.gachaCostError);
       return;
     }
 
-    setSavingPlanId(plan.id);
-    setRangeErrors((current) => ({ ...current, [plan.id]: "" }));
-    setNotice("");
-    setErrorMessage("");
+    setGachaError("");
+    const randomIndex = Math.floor(Math.random() * QUOTE_DATABASE.length);
+    const selectedCard = QUOTE_DATABASE[randomIndex];
 
-    try {
-      const newRange: StudyRange = { start, end, date: today };
+    const nextXP = stats.xp - 100;
+    const nextUnlocked = Array.from(new Set([...stats.unlockedCards, selectedCard.id]));
 
-      await updateDoc(doc(db, "users", user.uid, "materials", material.id), {
-        studyRanges: arrayUnion(newRange),
-        updatedAt: serverTimestamp(),
-      });
+    const newStats = {
+      ...stats,
+      xp: nextXP,
+      unlockedCards: nextUnlocked,
+    };
 
-      setRangeInputs((current) => ({
-        ...current,
-        [plan.id]: { start: "", end: "" },
-      }));
-      setNotice(tr.saved);
-    } catch (error) {
-      console.error("Study range save error:", error);
-      setRangeErrors((current) => ({ ...current, [plan.id]: tr.saveError }));
-    } finally {
-      setSavingPlanId(null);
+    setStats(newStats);
+    setDrawnCard(selectedCard);
+
+    if (user) {
+      try {
+        const statsRef = doc(db, "users", user.uid, "stats", "gamification");
+        await setDoc(statsRef, { xp: nextXP, unlockedCards: nextUnlocked }, { merge: true });
+      } catch (e) {
+        console.error("Gacha save error:", e);
+      }
     }
   }
+
+  const currentLevelProgress = stats.xp % 100;
 
   return (
     <main className="min-h-screen bg-[#F7F8F6] text-[#242720]">
       <div className="mx-auto max-w-6xl px-5 pb-14 pt-7 sm:px-8 md:px-12 md:pt-10">
+        {/* ヘッダーエリア */}
         <header className="mb-9 flex flex-wrap items-end justify-between gap-5">
           <div>
             <SectionLabel>{tr.today} / {englishDate}</SectionLabel>
@@ -937,15 +764,121 @@ export default function TodayPage() {
             <p className="mt-3 text-sm text-[#858A82]">{formattedDate}</p>
           </div>
 
-          <Link
-            href="/tasks"
-            className="inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-3 text-sm font-medium transition hover:bg-[#F1F2EF]"
-            style={{ borderColor: line }}
-          >
-            {tr.taskManagement}
-            <span aria-hidden="true">↗</span>
-          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            {/* ストリーク（連続日数）カウンター */}
+            <div className="inline-flex items-center gap-2.5 rounded-xl border bg-white px-4 py-2.5 shadow-xs" style={{ borderColor: line }}>
+              <span className="text-xl" aria-hidden="true">🔥</span>
+              <div className="text-xs">
+                <p className="font-bold text-[#242720]">{stats.streak} {tr.streakDays}</p>
+                <p className="text-[10px] text-[#858A82]">{tr.streakTitle}</p>
+              </div>
+            </div>
+
+            {/* お休みチケット（フリーズ）所持数 */}
+            <div className="inline-flex items-center gap-2 rounded-xl border bg-white px-3.5 py-2.5 shadow-xs" style={{ borderColor: line }}>
+              <span className="text-lg" aria-hidden="true">🛡️</span>
+              <div className="text-xs">
+                <p className="font-bold text-[#242720]">{stats.freezeCount} 枚</p>
+                <p className="text-[10px] text-[#858A82]">{tr.freezeLabel}</p>
+              </div>
+            </div>
+
+            {/* レベル・XPゲージ */}
+            <div className="inline-flex items-center gap-3 rounded-xl border bg-white px-4 py-2.5 shadow-xs" style={{ borderColor: line }}>
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#242720] text-xs font-bold text-white">
+                {stats.level}
+              </span>
+              <div className="w-24 text-xs">
+                <div className="flex justify-between text-[10px] font-semibold text-[#858A82]">
+                  <span>{tr.levelLabel}{stats.level}</span>
+                  <span>{stats.xp} {tr.xpLabel}</span>
+                </div>
+                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[#ECEDE9]">
+                  <div className="h-full rounded-full transition-all duration-500 bg-amber-500" style={{ width: `${currentLevelProgress}%` }} />
+                </div>
+              </div>
+            </div>
+
+            <Link
+              href="/tasks"
+              className="inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-3 text-sm font-medium transition hover:bg-[#F1F2EF]"
+              style={{ borderColor: line }}
+            >
+              {tr.taskManagement}
+              <span aria-hidden="true">↗</span>
+            </Link>
+          </div>
         </header>
+
+        {/* ガチャで獲得したカードのダイアログ表示 */}
+        {drawnCard && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs">
+            <div className="w-full max-w-sm rounded-3xl border bg-white p-6 shadow-2xl animate-in zoom-in-95" style={{ borderColor: line }}>
+              <div className="flex justify-between items-center mb-3">
+                <span className="rounded-full bg-amber-100 px-3 py-0.5 text-xs font-bold text-amber-800">
+                  {drawnCard.rarity} · {drawnCard.language}
+                </span>
+                <span className="text-xs text-[#858A82]">名言カード</span>
+              </div>
+              <blockquote className="mt-4 text-lg font-serif italic text-[#242720]">
+                “{drawnCard.quote}”
+              </blockquote>
+              <p className="mt-1 text-right text-xs font-semibold text-[#858A82]">— {drawnCard.author}</p>
+              <div className="mt-4 rounded-xl bg-[#F7F8F6] p-3 text-xs text-[#555]">
+                {drawnCard.translation}
+              </div>
+              <button
+                type="button"
+                onClick={() => setDrawnCard(null)}
+                className="mt-6 w-full rounded-xl bg-[#242720] py-2.5 text-xs font-semibold text-white transition hover:opacity-90"
+              >
+                {tr.close}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* モチベーション＆ガチャボタンエリア */}
+        <div className="mb-8 rounded-2xl border bg-gradient-to-r from-[#F2F5F0] via-white to-[#FAFAFA] p-5 shadow-xs" style={{ borderColor: line }}>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-lg shadow-xs" style={{ borderColor: line }}>
+                🎁
+              </span>
+              <div>
+                <p className="text-xs font-bold tracking-wider text-[#557451]">DAILY INCENTIVE & REWARD</p>
+                <p className="text-sm font-medium text-[#242720] mt-0.5">{encouragementMessage}</p>
+              </div>
+            </div>
+
+            {/* ガチャボタン */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={drawQuoteGacha}
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 px-4 py-2.5 text-xs font-bold text-white shadow-xs transition hover:opacity-95"
+              >
+                <span>🔮</span>
+                {tr.drawGacha}
+              </button>
+            </div>
+          </div>
+          {gachaError && (
+            <p className="mt-3 text-xs font-semibold text-red-600">{gachaError}</p>
+          )}
+        </div>
+
+        {/* 全クリア記念バナー */}
+        {showBonusBanner && (
+          <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900 shadow-xs">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-bold">{tr.allCompletedBonus}</p>
+              <button type="button" onClick={() => setShowBonusBanner(false)} className="text-xs font-semibold underline">
+                {tr.close}
+              </button>
+            </div>
+          </div>
+        )}
 
         {!authReady || loading ? (
           <div className="rounded-2xl border bg-white px-5 py-10 text-sm text-[#858A82]" style={{ borderColor: line }}>
@@ -964,12 +897,7 @@ export default function TodayPage() {
               </div>
             )}
 
-            {notice && (
-              <div role="status" className="mb-5 rounded-xl border border-[#D7E4D5] bg-[#F5FAF3] px-4 py-3 text-sm text-[#557451]">
-                {notice}
-              </div>
-            )}
-
+            {/* ダッシュボード概要 */}
             <section className="mb-10">
               <div className="mb-4 flex items-center justify-between">
                 <SectionLabel>{tr.overview}</SectionLabel>
@@ -983,7 +911,7 @@ export default function TodayPage() {
                     <span className="font-mono text-4xl font-medium tracking-[-0.06em]">{taskProgress}</span>
                     <span className="text-sm text-[#858A82]">%</span>
                   </div>
-                  <div className="mt-4 h-1 overflow-hidden rounded-full bg-[#ECEDE9]">
+                  <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[#ECEDE9]">
                     <div className="h-full rounded-full transition-all" style={{ width: `${taskProgress}%`, backgroundColor: accent }} />
                   </div>
                 </div>
@@ -1015,325 +943,86 @@ export default function TodayPage() {
               </div>
             </section>
 
-            <section className="mb-11">
-              <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-                <div>
-                  <SectionLabel>01 / {tr.plans}</SectionLabel>
-                  <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em]">{tr.plans}</h2>
-                </div>
-
-                <Link href="/plan" className="text-sm font-medium hover:underline" style={{ color: accentDark }}>
-                  {tr.planManage} ↗
+            {/* 今日のタスク一覧 */}
+            <section className="mb-12">
+              <div className="mb-4 flex items-center justify-between">
+                <SectionLabel>{tr.tasks}</SectionLabel>
+                <Link href="/tasks" className="text-xs text-[#858A82] hover:underline">
+                  {tr.taskManagement} →
                 </Link>
               </div>
 
-              {todaysPlans.length === 0 ? (
-                <div className="rounded-2xl border bg-white px-6 py-10" style={{ borderColor: line }}>
-                  <p className="text-lg font-semibold">{tr.noPlans}</p>
-                  <p className="mt-2 text-sm text-[#858A82]">{tr.noPlansDescription}</p>
+              {todaysTasks.length === 0 ? (
+                <div className="rounded-2xl border bg-white p-8 text-center" style={{ borderColor: line }}>
+                  <p className="text-sm font-medium text-[#242720]">{tr.noTasks}</p>
+                  <p className="mt-1 text-xs text-[#858A82]">{tr.noTasksDescription}</p>
                   <Link
-                    href="/plan"
-                    className="mt-5 inline-flex rounded-xl px-4 py-3 text-sm font-medium text-white transition hover:opacity-90"
-                    style={{ backgroundColor: accent }}
+                    href="/tasks"
+                    className="mt-4 inline-block rounded-xl bg-[#242720] px-4 py-2 text-xs font-medium text-white transition hover:opacity-90"
                   >
-                    {tr.createPlan} ↗
+                    {tr.addTask}
                   </Link>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {todaysPlans.map((plan, index) => {
-                    const material = getPlanMaterial(plan);
-                    const dailyTarget = getDailyTarget(plan, material);
-                    const actual = getTodayActual(material);
-                    const percentage = dailyTarget > 0 ? Math.min(100, Math.round((actual / dailyTarget) * 100)) : 0;
-                    const isAchieved = dailyTarget > 0 && actual >= dailyTarget;
-                    const overall = getPlanProgress(plan, material);
-                    const unit = getUnit(material);
-                    const input = rangeInputs[plan.id] ?? { start: "", end: "" };
+                <div className="space-y-3">
+                  {todaysTasks.map((task) => {
+                    const isDone = task.status === "完了";
+                    const isUpdating = updatingTaskId === task.id;
 
                     return (
-                      <article
-                        key={plan.id}
-                        className="overflow-hidden rounded-2xl border bg-white shadow-[0_2px_10px_rgba(30,35,25,0.025)]"
+                      <div
+                        key={task.id}
+                        className={`flex flex-wrap items-center justify-between gap-4 rounded-2xl border bg-white p-5 transition ${
+                          isDone ? "opacity-60 bg-[#FAFAFA]" : "hover:border-[#C5C8C0]"
+                        }`}
                         style={{ borderColor: line }}
                       >
-                        <div className="p-5 sm:p-7">
-                          <div className="flex flex-wrap items-start justify-between gap-4">
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-semibold tracking-[0.16em] text-[#92978F]">
-                                  PLAN {String(index + 1).padStart(2, "0")}
-                                </span>
-                                {isAchieved && (
-                                  <span className="rounded-full bg-[#EFF5EC] px-2.5 py-1 text-[10px] font-medium text-[#557451]">
-                                    {tr.achieved}
-                                  </span>
-                                )}
-                              </div>
-
-                              <h3 className="mt-3 flex items-center gap-2 break-words text-xl font-semibold tracking-[-0.035em] sm:text-2xl">
-                                <span aria-hidden="true" className="shrink-0 text-lg">
-                                  {material?.type === "book" ? "📘" : "▤"}
-                                </span>
-                                {material?.name || plan.deckName || tr.untitled}
-                              </h3>
-
-                              <p className="mt-2 text-xs text-[#858A82]">
-                                {plan.rounds} {tr.round}
-                                <span className="mx-2 text-[#C8CBC4]">·</span>
-                                {tr.deadline}: {plan.deadline}
-                              </p>
-                            </div>
-
-                            <Link href="/plan" className="shrink-0 rounded-lg border px-3 py-2 text-xs text-[#666C63] transition hover:bg-[#F7F8F6]" style={{ borderColor: line }}>
-                              {tr.planManage}
-                            </Link>
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            disabled={isUpdating}
+                            onClick={() => toggleTask(task)}
+                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition ${
+                              isDone ? "bg-emerald-600 border-emerald-600 text-white" : "border-[#C5C8C0] bg-white hover:border-[#242720]"
+                            }`}
+                            aria-label={isDone ? tr.markUndone : tr.markDone}
+                          >
+                            {isDone && <span className="text-xs font-bold">✓</span>}
+                          </button>
+                          <div>
+                            <p className={`text-sm font-medium ${isDone ? "line-through text-[#858A82]" : "text-[#242720]"}`}>
+                              {task.title || tr.untitled}
+                            </p>
+                            <p className="mt-0.5 text-xs text-[#858A82]">
+                              {task.material} · {task.target} {task.unit}
+                            </p>
                           </div>
-
-                          {material && (
-                            <div className="mt-6 rounded-xl border p-4 sm:p-5" style={{ borderColor: line }}>
-                              <div className="flex flex-wrap items-center justify-between gap-3">
-                                <p className="text-xs font-medium text-[#858A82]">{tr.totalProgress}</p>
-                                <span
-                                  className="shrink-0 rounded-full px-3 py-1.5 text-[11px] font-semibold"
-                                  style={
-                                    overall.pace === "ahead"
-                                      ? { backgroundColor: "#EEF5EC", color: "#557451" }
-                                      : overall.pace === "behind"
-                                        ? { backgroundColor: "#FBF1E9", color: "#9A6845" }
-                                        : { backgroundColor: "#EEF2F7", color: "#5D718C" }
-                                  }
-                                >
-                                  {getPaceLabel(overall.pace)}
-                                </span>
-                              </div>
-
-                              <div className="mt-5 flex items-end justify-between gap-3">
-                                <p className="text-xs text-[#858A82]">{tr.studied}</p>
-                                <p className="font-mono text-sm font-semibold tabular-nums">
-                                  {formatNumber(overall.actual)}
-                                  <span className="ml-1 font-sans text-xs font-normal text-[#858A82]">
-                                    / {formatNumber(overall.totalGoal)} {unit}
-                                  </span>
-                                </p>
-                              </div>
-
-                              <div className="relative mt-2 h-3 overflow-hidden rounded-full bg-[#ECEDE9]">
-                                <div
-                                  className="absolute inset-y-0 left-0 rounded-full transition-all duration-500"
-                                  style={{
-                                    width: `${overall.progress}%`,
-                                    backgroundColor: overall.pace === "behind" ? "#C58B62" : accent,
-                                  }}
-                                />
-                                <div
-                                  className="absolute -top-1 h-5 w-[2px] rounded-full bg-[#D59A43] shadow-[0_0_0_2px_white]"
-                                  style={{ left: `calc(${overall.expectedProgress}% - 1px)` }}
-                                  title={`${tr.expected}: ${formatNumber(overall.expected)} ${unit}`}
-                                />
-                              </div>
-
-                              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] text-[#858A82]">
-                                <span>{Math.round(overall.progress)}%</span>
-                                <span className="inline-flex items-center gap-1.5">
-                                  <span className="inline-block h-2.5 w-[2px] rounded-full bg-[#D59A43]" />
-                                  {tr.expected}: {formatNumber(overall.expected)} {unit}
-                                </span>
-                                <span>{overall.currentRound}/{overall.rounds} {tr.round}</span>
-                              </div>
-                            </div>
-                          )}
-
-                          {material ? (
-                            <>
-                              <div className="mt-7 grid grid-cols-2 gap-4 sm:grid-cols-3">
-                                <div className="rounded-xl bg-[#F7F8F6] p-4">
-                                  <p className="text-xs text-[#858A82]">{tr.dailyGoal}</p>
-                                  <p className="mt-2 font-mono text-3xl font-semibold tracking-[-0.05em]" style={{ color: accentDark }}>
-                                    {formatNumber(dailyTarget)}
-                                  </p>
-                                  <p className="mt-1 text-xs text-[#858A82]">{unit}</p>
-                                </div>
-
-                                <div className="rounded-xl bg-[#F7F8F6] p-4">
-                                  <p className="text-xs text-[#858A82]">{tr.actual}</p>
-                                  <p className="mt-2 font-mono text-3xl font-semibold tracking-[-0.05em]">
-                                    {formatNumber(actual)}
-                                  </p>
-                                  <p className="mt-1 text-xs text-[#858A82]">{unit}</p>
-                                </div>
-
-                                <div className="col-span-2 rounded-xl bg-[#F7F8F6] p-4 sm:col-span-1">
-                                  <div className="flex items-center justify-between gap-2">
-                                    <p className="text-xs text-[#858A82]">{tr.progress}</p>
-                                    <span className="font-mono text-sm font-medium">{percentage}%</span>
-                                  </div>
-                                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#E5E8E1]">
-                                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${percentage}%`, backgroundColor: isAchieved ? "#77966F" : accent }} />
-                                  </div>
-                                  <p className="mt-2 text-xs text-[#858A82]">
-                                    {isAchieved ? tr.over : `${tr.notAchieved} ${formatNumber(Math.max(0, dailyTarget - actual))} ${unit}`}
-                                  </p>
-                                </div>
-                              </div>
-
-                              <div className="mt-6 border-t pt-5" style={{ borderColor: line }}>
-                                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                                  <p className="text-sm font-semibold">{tr.record}</p>
-                                  <Link href="/materials" className="text-xs text-[#858A82] hover:underline">
-                                    {tr.materials} ↗
-                                  </Link>
-                                </div>
-
-                                <div className="flex flex-wrap items-end gap-3">
-                                  <label className="min-w-0 flex-1">
-                                    <span className="mb-2 block text-xs text-[#858A82]">{tr.start}</span>
-                                    <input
-                                      type="number"
-                                      min={1}
-                                      max={material.total}
-                                      value={input.start}
-                                      onChange={(event) =>
-                                        setRangeInputs((current) => ({
-                                          ...current,
-                                          [plan.id]: { ...input, start: event.target.value },
-                                        }))
-                                      }
-                                      placeholder="1"
-                                      className="h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none transition focus:ring-2"
-                                      style={{ borderColor: line, ["--tw-ring-color" as string]: accent }}
-                                    />
-                                  </label>
-
-                                  <label className="min-w-0 flex-1">
-                                    <span className="mb-2 block text-xs text-[#858A82]">{tr.end}</span>
-                                    <input
-                                      type="number"
-                                      min={1}
-                                      max={material.total}
-                                      value={input.end}
-                                      onChange={(event) =>
-                                        setRangeInputs((current) => ({
-                                          ...current,
-                                          [plan.id]: { ...input, end: event.target.value },
-                                        }))
-                                      }
-                                      placeholder={String(material.total)}
-                                      className="h-11 w-full rounded-xl border bg-white px-3 text-sm outline-none transition focus:ring-2"
-                                      style={{ borderColor: line, ["--tw-ring-color" as string]: accent }}
-                                    />
-                                  </label>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => recordStudyRange(plan)}
-                                    disabled={savingPlanId === plan.id}
-                                    className="h-11 w-full rounded-xl px-5 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-                                    style={{ backgroundColor: accent }}
-                                  >
-                                    {savingPlanId === plan.id ? tr.saving : tr.save}
-                                  </button>
-                                </div>
-
-                                {rangeErrors[plan.id] && (
-                                  <p role="alert" className="mt-3 text-xs text-[#A45D50]">
-                                    {rangeErrors[plan.id]}
-                                  </p>
-                                )}
-                                <p className="mt-3 text-[11px] text-[#92978F]">
-                                  1 – {formatNumber(material.total)} {unit}
-                                </p>
-                              </div>
-                            </>
-                          ) : (
-                            <div className="mt-6 rounded-xl border border-dashed p-5" style={{ borderColor: line }}>
-                              <p className="text-sm font-medium">{tr.materialMissing}</p>
-                              <p className="mt-1 text-xs text-[#858A82]">{tr.materialMissingDescription}</p>
-                              <Link href="/materials" className="mt-3 inline-flex text-xs font-medium hover:underline" style={{ color: accentDark }}>
-                                {tr.materials} ↗
-                              </Link>
-                            </div>
-                          )}
                         </div>
-                      </article>
+
+                        <div className="flex items-center gap-3">
+                          {!isDone && (
+                            <span className="text-[11px] font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
+                              +15 XP
+                            </span>
+                          )}
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${
+                              isDone
+                                ? "bg-[#EDF2EC] text-[#557451]"
+                                : "bg-[#F1F2EF] text-[#858A82]"
+                            }`}
+                          >
+                            {getStatusLabel(task.status)}
+                          </span>
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
               )}
             </section>
-
-            <section>
-              <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-                <div>
-                  <SectionLabel>02 / {tr.tasks}</SectionLabel>
-                  <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em]">{tr.tasks}</h2>
-                </div>
-                <Link href="/tasks" className="text-sm font-medium hover:underline" style={{ color: accentDark }}>
-                  {tr.allTasks} ↗
-                </Link>
-              </div>
-
-              {todaysTasks.length === 0 ? (
-                <div className="rounded-2xl border bg-white px-6 py-8" style={{ borderColor: line }}>
-                  <p className="font-medium">{tr.noTasks}</p>
-                  <p className="mt-2 text-sm text-[#858A82]">{tr.noTasksDescription}</p>
-                  <Link
-                    href="/tasks"
-                    className="mt-4 inline-flex rounded-xl border px-4 py-2.5 text-sm transition hover:bg-[#F7F8F6]"
-                    style={{ borderColor: line }}
-                  >
-                    {tr.addTask} ↗
-                  </Link>
-                </div>
-              ) : (
-                <div className="overflow-hidden rounded-2xl border bg-white" style={{ borderColor: line }}>
-                  {todaysTasks.map((task, index) => (
-                    <article
-                      key={task.id}
-                      className="flex items-center gap-3 px-4 py-4 sm:px-5"
-                      style={{ borderBottom: index === todaysTasks.length - 1 ? "none" : `1px solid ${line}` }}
-                    >
-                      <button
-                        type="button"
-                        disabled={updatingTaskId === task.id}
-                        onClick={() => toggleTask(task)}
-                        aria-label={task.status === "完了" ? tr.markUndone : tr.markDone}
-                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs transition disabled:opacity-50"
-                        style={
-                          task.status === "完了"
-                            ? { borderColor: accent, backgroundColor: accent, color: "#fff" }
-                            : { borderColor: "#C9CDC5", color: "transparent" }
-                        }
-                      >
-                        ✓
-                      </button>
-
-                      <div className="min-w-0 flex-1">
-                        <p className={`break-words text-sm font-medium ${task.status === "完了" ? "text-[#969B93] line-through" : ""}`}>
-                          {task.title || tr.untitled}
-                        </p>
-                        <p className="mt-1 text-xs text-[#858A82]">
-                          {task.type === "教材の学習" ? tr.materialStudy : tr.vocabulary}
-                          {task.material ? ` · ${task.material}` : ""}
-                          {task.target > 0 ? ` · ${formatNumber(task.target)} ${task.unit === "単語" ? tr.words : task.unit === "ページ" ? tr.pages : task.unit === "分" ? tr.minutes : task.unit === "章" ? tr.chapters : tr.times}` : ""}
-                        </p>
-                      </div>
-
-                      <span className="shrink-0 text-xs text-[#858A82]">
-                        {getStatusLabel(task.status)}
-                      </span>
-                    </article>
-                  ))}
-                </div>
-              )}
-            </section>
           </>
         )}
-
-        <footer className="mt-12 flex flex-wrap justify-between gap-3 border-t pt-5" style={{ borderColor: line }}>
-          <p className="text-[10px] font-medium tracking-[0.13em] text-[#92978F]">{tr.footer}</p>
-          <p className="text-xs text-[#92978F]">{tr.footerRight}</p>
-        </footer>
       </div>
     </main>
   );
