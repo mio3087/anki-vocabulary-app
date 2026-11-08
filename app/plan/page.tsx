@@ -8,12 +8,19 @@ import { collection, getDocs } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useAppLanguage, type AppLanguage } from "@/app/component/AppLanguage";
 
+type StudyRange = {
+  start: number;
+  end: number;
+  date: string;
+};
+
 type Material = {
   id: string;
   name: string;
   language: string;
   type: "book" | "deck";
   total: number;
+  studyRanges: StudyRange[];
 };
 
 type PlanStatus = "pending" | "completed" | "postponed";
@@ -73,6 +80,10 @@ const text: Record<string, Record<string, string>> = {
     unitBook: "ページ", unitDeck: "単語",
     empty: "該当する教材がありません。先に教材管理へ登録してください。",
     manage: "教材管理",
+    actual: "実績進捗", planned: "予定進捗",
+    actualNote: "教材管理に記録された学習範囲",
+    plannedNote: "今日までに進んでいる予定の割合",
+    firstRound: "実績は1周目を基準に表示",
   },
   en: {
     title: "Study Plan", subtitle: "STUDY PLANNING",
@@ -93,6 +104,10 @@ const text: Record<string, Record<string, string>> = {
     unitBook: "pages", unitDeck: "words",
     empty: "No materials found. Add one in Material Management.",
     manage: "Materials",
+    actual: "Actual progress", planned: "Planned progress",
+    actualNote: "Ranges recorded in Material Management",
+    plannedNote: "Expected progress by today",
+    firstRound: "Actual progress is based on the first round",
   },
   de: {
     title: "Lernplan", subtitle: "STUDY PLANNING",
@@ -113,6 +128,10 @@ const text: Record<string, Record<string, string>> = {
     unitBook: "Seiten", unitDeck: "Wörter",
     empty: "Keine Materialien. Bitte zuerst Materialien hinzufügen.",
     manage: "Materialien",
+    actual: "Tatsächlicher Fortschritt", planned: "Geplanter Fortschritt",
+    actualNote: "In der Materialverwaltung erfasste Bereiche",
+    plannedNote: "Bis heute erwarteter Fortschritt",
+    firstRound: "Der tatsächliche Fortschritt basiert auf dem ersten Durchgang",
   },
   "zh-CN": {
     title: "学习计划", subtitle: "STUDY PLANNING",
@@ -133,6 +152,10 @@ const text: Record<string, Record<string, string>> = {
     unitBook: "页", unitDeck: "个单词",
     empty: "没有教材，请先添加教材。",
     manage: "教材管理",
+    actual: "实际进度", planned: "计划进度",
+    actualNote: "教材管理中记录的学习范围",
+    plannedNote: "截至今天预计完成的比例",
+    firstRound: "实际进度以第一轮为基准",
   },
   "zh-TW": {
     title: "學習計畫", subtitle: "STUDY PLANNING",
@@ -153,6 +176,10 @@ const text: Record<string, Record<string, string>> = {
     unitBook: "頁", unitDeck: "個單字",
     empty: "沒有教材，請先新增教材。",
     manage: "教材管理",
+    actual: "實際進度", planned: "計畫進度",
+    actualNote: "教材管理中記錄的學習範圍",
+    plannedNote: "截至今天預計完成的比例",
+    firstRound: "實際進度以第一輪為基準",
   },
   es: {
     title: "Plan de estudio", subtitle: "STUDY PLANNING",
@@ -173,6 +200,10 @@ const text: Record<string, Record<string, string>> = {
     unitBook: "páginas", unitDeck: "palabras",
     empty: "No hay materiales. Añade uno primero.",
     manage: "Materiales",
+    actual: "Progreso real", planned: "Progreso previsto",
+    actualNote: "Rangos registrados en Materiales",
+    plannedNote: "Progreso esperado hasta hoy",
+    firstRound: "El progreso real se basa en la primera vuelta",
   },
 };
 
@@ -194,6 +225,66 @@ function countStudyDays(start: string, end: string, weekdays: number[]) {
   return count;
 }
 
+// 重複した範囲をまとめて、実際に学習した項目数を計算
+function getCoveredCount(ranges: StudyRange[]) {
+  const valid = ranges
+    .filter(
+      (range) =>
+        Number.isFinite(range.start) &&
+        Number.isFinite(range.end) &&
+        range.start > 0 &&
+        range.end >= range.start
+    )
+    .map((range) => ({
+      start: Math.floor(range.start),
+      end: Math.floor(range.end),
+    }))
+    .sort((a, b) => a.start - b.start);
+
+  if (valid.length === 0) return 0;
+
+  let total = 0;
+  let currentStart = valid[0].start;
+  let currentEnd = valid[0].end;
+
+  for (let i = 1; i < valid.length; i++) {
+    const range = valid[i];
+
+    if (range.start <= currentEnd + 1) {
+      currentEnd = Math.max(currentEnd, range.end);
+    } else {
+      total += currentEnd - currentStart + 1;
+      currentStart = range.start;
+      currentEnd = range.end;
+    }
+  }
+
+  return total + currentEnd - currentStart + 1;
+}
+
+function getPlannedPercent(plan: Plan) {
+  const totalDays = countStudyDays(
+    plan.startDate,
+    plan.deadline,
+    plan.weekdays
+  );
+
+  if (totalDays === 0) return 0;
+
+  const today = todayString();
+
+  if (today < plan.startDate) return 0;
+  if (today >= plan.deadline) return 100;
+
+  const elapsedDays = countStudyDays(
+    plan.startDate,
+    today,
+    plan.weekdays
+  );
+
+  return Math.min(100, Math.round((elapsedDays / totalDays) * 100));
+}
+
 function readPlans(): Plan[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -209,10 +300,19 @@ function readPlans(): Plan[] {
       deadline: typeof p.deadline === "string" ? p.deadline : "",
       rounds: Math.max(1, Number(p.rounds) || 1),
       weekdays: Array.isArray(p.weekdays)
-        ? p.weekdays.filter((v): v is number => typeof v === "number" && v >= 0 && v <= 6)
+        ? p.weekdays.filter(
+            (v): v is number =>
+              typeof v === "number" && v >= 0 && v <= 6
+          )
         : [],
-      createdAt: typeof p.createdAt === "string" ? p.createdAt : new Date().toISOString(),
-      status: p.status === "completed" || p.status === "postponed" ? p.status : "pending",
+      createdAt:
+        typeof p.createdAt === "string"
+          ? p.createdAt
+          : new Date().toISOString(),
+      status:
+        p.status === "completed" || p.status === "postponed"
+          ? p.status
+          : "pending",
     }));
   } catch {
     return [];
@@ -236,13 +336,18 @@ export default function PlanPage() {
   const [startDate, setStartDate] = useState(todayString());
   const [deadline, setDeadline] = useState("");
   const [rounds, setRounds] = useState(1);
-  const [weekdays, setWeekdays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
+  const [weekdays, setWeekdays] = useState<number[]>([
+    0, 1, 2, 3, 4, 5, 6,
+  ]);
 
   useEffect(() => {
     setPlans(readPlans());
+
     const refresh = () => setPlans(readPlans());
+
     window.addEventListener("focus", refresh);
     window.addEventListener("storage", refresh);
+
     return () => {
       window.removeEventListener("focus", refresh);
       window.removeEventListener("storage", refresh);
@@ -258,6 +363,7 @@ export default function PlanPage() {
 
   useEffect(() => {
     if (!authReady) return;
+
     if (!user) {
       setMaterials([]);
       setLoading(false);
@@ -270,14 +376,40 @@ export default function PlanPage() {
     getDocs(collection(db, "users", user.uid, "materials"))
       .then((snapshot) => {
         if (!active) return;
+
         const loaded: Material[] = snapshot.docs.map((item) => {
           const data = item.data();
+
+          const rawRanges = Array.isArray(data.studyRanges)
+            ? data.studyRanges
+            : [];
+
+          const studyRanges: StudyRange[] = rawRanges
+            .filter(
+              (range: unknown): range is Record<string, unknown> =>
+                typeof range === "object" && range !== null
+            )
+            .map((range) => ({
+              start: Number(range.start),
+              end: Number(range.end),
+              date: typeof range.date === "string" ? range.date : "",
+            }))
+            .filter(
+              (range) =>
+                Number.isFinite(range.start) &&
+                Number.isFinite(range.end) &&
+                range.start > 0 &&
+                range.end >= range.start
+            );
+
           return {
             id: item.id,
             name: typeof data.name === "string" ? data.name : "",
-            language: typeof data.language === "string" ? data.language : "",
+            language:
+              typeof data.language === "string" ? data.language : "",
             type: data.type === "deck" ? "deck" : "book",
             total: Math.max(0, Number(data.total) || 0),
+            studyRanges,
           };
         });
 
@@ -291,12 +423,14 @@ export default function PlanPage() {
           if (plan.materialId) return plan;
 
           const matches = loaded.filter(
-            (material) => material.name.trim() === plan.deckName.trim()
+            (material) =>
+              material.name.trim() === plan.deckName.trim()
           );
 
           if (matches.length !== 1) return plan;
 
           changed = true;
+
           return {
             ...plan,
             materialId: matches[0].id,
@@ -306,7 +440,10 @@ export default function PlanPage() {
         });
 
         if (changed) {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+          localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify(migrated)
+          );
           setPlans(migrated);
         }
       })
@@ -323,14 +460,23 @@ export default function PlanPage() {
     };
   }, [authReady, user, t.error]);
 
-  const selectedMaterial = materials.find((m) => m.id === materialId);
+  const selectedMaterial = materials.find(
+    (m) => m.id === materialId
+  );
 
   const plansWithMaterial = useMemo(
     () =>
       plans.map((plan) => {
-        const material = materials.find((m) => m.id === plan.materialId);
+        const material = materials.find(
+          (m) => m.id === plan.materialId
+        );
+
         return material
-          ? { ...plan, deckName: material.name, totalItems: material.total }
+          ? {
+              ...plan,
+              deckName: material.name,
+              totalItems: material.total,
+            }
           : plan;
       }),
     [plans, materials]
@@ -353,7 +499,14 @@ export default function PlanPage() {
   function createPlan() {
     setError("");
 
-    if (!selectedMaterial || !startDate || !deadline || startDate > deadline || rounds < 1 || weekdays.length === 0) {
+    if (
+      !selectedMaterial ||
+      !startDate ||
+      !deadline ||
+      startDate > deadline ||
+      rounds < 1 ||
+      weekdays.length === 0
+    ) {
       setError(t.required);
       return;
     }
@@ -379,7 +532,9 @@ export default function PlanPage() {
   }
 
   function updateStatus(id: string, status: PlanStatus) {
-    persist(plans.map((p) => (p.id === id ? { ...p, status } : p)));
+    persist(
+      plans.map((p) => (p.id === id ? { ...p, status } : p))
+    );
   }
 
   function deletePlan(id: string) {
@@ -398,46 +553,88 @@ export default function PlanPage() {
   return (
     <main className={styles.page}>
       <div className="mx-auto max-w-5xl px-5 pb-14 pt-8 sm:px-8 md:px-12">
-        <header className="mb-10 border-b pb-7" style={{ borderColor: styles.border }}>
+        <header
+          className="mb-10 border-b pb-7"
+          style={{ borderColor: styles.border }}
+        >
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
-              <p className="text-[10px] font-semibold tracking-[0.2em]" style={{ color: styles.muted }}>
+              <p
+                className="text-[10px] font-semibold tracking-[0.2em]"
+                style={{ color: styles.muted }}
+              >
                 {t.subtitle}
               </p>
               <h1 className="mt-4 text-3xl font-semibold tracking-[-0.045em] sm:text-5xl">
                 {t.title}
               </h1>
-              <p className="mt-3 text-sm" style={{ color: styles.muted }}>
+              <p
+                className="mt-3 text-sm"
+                style={{ color: styles.muted }}
+              >
                 {t.description}
               </p>
             </div>
-            <Link href="/today" className="border px-4 py-3 text-sm hover:bg-white" style={{ borderColor: styles.border }}>
+
+            <Link
+              href="/today"
+              className="border px-4 py-3 text-sm hover:bg-white"
+              style={{ borderColor: styles.border }}
+            >
               {t.back} ↗
             </Link>
           </div>
         </header>
 
         {error && (
-          <div role="alert" className="mb-6 border-l-2 bg-white px-4 py-3 text-sm text-[#8A5145]" style={{ borderColor: "#A86B5C" }}>
+          <div
+            role="alert"
+            className="mb-6 border-l-2 bg-white px-4 py-3 text-sm text-[#8A5145]"
+            style={{ borderColor: "#A86B5C" }}
+          >
             {error}
           </div>
         )}
 
         {!authReady || loading ? (
-          <p className="py-10 text-sm" style={{ color: styles.muted }}>{t.loading}</p>
+          <p
+            className="py-10 text-sm"
+            style={{ color: styles.muted }}
+          >
+            {t.loading}
+          </p>
         ) : !user ? (
           <p className="border-y py-8 text-sm">{t.login}</p>
         ) : (
           <>
             <section className="mb-12">
-              <div className="mb-4 border-b pb-3" style={{ borderColor: styles.border }}>
-                <p className="text-[10px] font-semibold tracking-[0.2em]" style={{ color: styles.muted }}>01 / CREATE</p>
-                <h2 className="mt-2 text-xl font-semibold">{t.create}</h2>
+              <div
+                className="mb-4 border-b pb-3"
+                style={{ borderColor: styles.border }}
+              >
+                <p
+                  className="text-[10px] font-semibold tracking-[0.2em]"
+                  style={{ color: styles.muted }}
+                >
+                  01 / CREATE
+                </p>
+                <h2 className="mt-2 text-xl font-semibold">
+                  {t.create}
+                </h2>
               </div>
 
-              <div className="grid gap-5 border p-5 sm:grid-cols-2 sm:p-7" style={{ borderColor: styles.border, backgroundColor: "#FFFFFF" }}>
+              <div
+                className="grid gap-5 border p-5 sm:grid-cols-2 sm:p-7"
+                style={{
+                  borderColor: styles.border,
+                  backgroundColor: "#FFFFFF",
+                }}
+              >
                 <label className="block sm:col-span-2">
-                  <span className="mb-2 block text-xs font-medium">{t.material}</span>
+                  <span className="mb-2 block text-xs font-medium">
+                    {t.material}
+                  </span>
+
                   <select
                     value={materialId}
                     onChange={(e) => setMaterialId(e.target.value)}
@@ -445,48 +642,108 @@ export default function PlanPage() {
                     style={{ borderColor: styles.border }}
                   >
                     <option value="">{t.selectMaterial}</option>
+
                     {materials.map((material) => (
                       <option key={material.id} value={material.id}>
-                        {material.name} · {material.total.toLocaleString(localeMap[lang])} {material.type === "book" ? t.unitBook : t.unitDeck}
+                        {material.name} ·{" "}
+                        {material.total.toLocaleString(localeMap[lang])}{" "}
+                        {material.type === "book"
+                          ? t.unitBook
+                          : t.unitDeck}
                       </option>
                     ))}
                   </select>
+
                   {materials.length === 0 && (
-                    <p className="mt-2 text-xs" style={{ color: styles.muted }}>
-                      {t.noMaterials} <Link href="/materials" className="underline">{t.manage}</Link>
+                    <p
+                      className="mt-2 text-xs"
+                      style={{ color: styles.muted }}
+                    >
+                      {t.noMaterials}{" "}
+                      <Link href="/materials" className="underline">
+                        {t.manage}
+                      </Link>
                     </p>
                   )}
                 </label>
 
                 {selectedMaterial && (
-                  <div className="sm:col-span-2 border-l-2 pl-4 py-1" style={{ borderColor: styles.accent }}>
-                    <p className="text-xs" style={{ color: styles.muted }}>{t.total}</p>
+                  <div
+                    className="sm:col-span-2 border-l-2 py-1 pl-4"
+                    style={{ borderColor: styles.accent }}
+                  >
+                    <p
+                      className="text-xs"
+                      style={{ color: styles.muted }}
+                    >
+                      {t.total}
+                    </p>
                     <p className="mt-1 font-mono text-2xl">
-                      {selectedMaterial.total.toLocaleString(localeMap[lang])}{" "}
-                      <span className="text-xs" style={{ color: styles.muted }}>
-                        {selectedMaterial.type === "book" ? t.unitBook : t.unitDeck}
+                      {selectedMaterial.total.toLocaleString(
+                        localeMap[lang]
+                      )}{" "}
+                      <span
+                        className="text-xs"
+                        style={{ color: styles.muted }}
+                      >
+                        {selectedMaterial.type === "book"
+                          ? t.unitBook
+                          : t.unitDeck}
                       </span>
                     </p>
                   </div>
                 )}
 
                 <label className="block">
-                  <span className="mb-2 block text-xs font-medium">{t.start}</span>
-                  <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full border bg-white px-3 py-3 text-sm" style={{ borderColor: styles.border }} />
+                  <span className="mb-2 block text-xs font-medium">
+                    {t.start}
+                  </span>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full border bg-white px-3 py-3 text-sm"
+                    style={{ borderColor: styles.border }}
+                  />
                 </label>
 
                 <label className="block">
-                  <span className="mb-2 block text-xs font-medium">{t.deadline}</span>
-                  <input type="date" min={startDate} value={deadline} onChange={(e) => setDeadline(e.target.value)} className="w-full border bg-white px-3 py-3 text-sm" style={{ borderColor: styles.border }} />
+                  <span className="mb-2 block text-xs font-medium">
+                    {t.deadline}
+                  </span>
+                  <input
+                    type="date"
+                    min={startDate}
+                    value={deadline}
+                    onChange={(e) => setDeadline(e.target.value)}
+                    className="w-full border bg-white px-3 py-3 text-sm"
+                    style={{ borderColor: styles.border }}
+                  />
                 </label>
 
                 <label className="block">
-                  <span className="mb-2 block text-xs font-medium">{t.rounds}</span>
-                  <input type="number" min={1} max={100} value={rounds} onChange={(e) => setRounds(Math.max(1, Number(e.target.value) || 1))} className="w-full border bg-white px-3 py-3 text-sm" style={{ borderColor: styles.border }} />
+                  <span className="mb-2 block text-xs font-medium">
+                    {t.rounds}
+                  </span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={rounds}
+                    onChange={(e) =>
+                      setRounds(
+                        Math.max(1, Number(e.target.value) || 1)
+                      )
+                    }
+                    className="w-full border bg-white px-3 py-3 text-sm"
+                    style={{ borderColor: styles.border }}
+                  />
                 </label>
 
                 <div className="sm:col-span-2">
-                  <p className="mb-3 text-xs font-medium">{t.days}</p>
+                  <p className="mb-3 text-xs font-medium">
+                    {t.days}
+                  </p>
                   <div className="flex flex-wrap gap-2">
                     {weekdayLabels.map((label, index) => (
                       <button
@@ -494,9 +751,19 @@ export default function PlanPage() {
                         type="button"
                         onClick={() => toggleWeekday(index)}
                         className="min-w-11 border px-3 py-2 text-xs transition"
-                        style={weekdays.includes(index)
-                          ? { borderColor: styles.accent, backgroundColor: styles.accent, color: "#FFFFFF" }
-                          : { borderColor: styles.border, backgroundColor: "#FFFFFF", color: styles.muted }}
+                        style={
+                          weekdays.includes(index)
+                            ? {
+                                borderColor: styles.accent,
+                                backgroundColor: styles.accent,
+                                color: "#FFFFFF",
+                              }
+                            : {
+                                borderColor: styles.border,
+                                backgroundColor: "#FFFFFF",
+                                color: styles.muted,
+                              }
+                        }
                       >
                         {label}
                       </button>
@@ -504,31 +771,66 @@ export default function PlanPage() {
                   </div>
                 </div>
 
-                {selectedMaterial && deadline && startDate <= deadline && (
-                  <div className="sm:col-span-2 border-t pt-4" style={{ borderColor: styles.border }}>
-                    <p className="text-xs" style={{ color: styles.muted }}>{t.daily}</p>
-                    <p className="mt-1 font-mono text-3xl" style={{ color: styles.dark }}>
-                      {Math.ceil(
-                        (selectedMaterial.total * rounds) /
-                        Math.max(1, countStudyDays(startDate, deadline, weekdays))
-                      ).toLocaleString(localeMap[lang])}
-                      <span className="ml-2 text-xs" style={{ color: styles.muted }}>
-                        {selectedMaterial.type === "book" ? t.unitBook : t.unitDeck} / day
-                      </span>
-                    </p>
-                  </div>
-                )}
+                {selectedMaterial &&
+                  deadline &&
+                  startDate <= deadline && (
+                    <div
+                      className="sm:col-span-2 border-t pt-4"
+                      style={{ borderColor: styles.border }}
+                    >
+                      <p
+                        className="text-xs"
+                        style={{ color: styles.muted }}
+                      >
+                        {t.daily}
+                      </p>
+                      <p
+                        className="mt-1 font-mono text-3xl"
+                        style={{ color: styles.dark }}
+                      >
+                        {Math.ceil(
+                          (selectedMaterial.total * rounds) /
+                            Math.max(
+                              1,
+                              countStudyDays(
+                                startDate,
+                                deadline,
+                                weekdays
+                              )
+                            )
+                        ).toLocaleString(localeMap[lang])}
+                        <span
+                          className="ml-2 text-xs"
+                          style={{ color: styles.muted }}
+                        >
+                          {selectedMaterial.type === "book"
+                            ? t.unitBook
+                            : t.unitDeck}{" "}
+                          / day
+                        </span>
+                      </p>
+                    </div>
+                  )}
 
                 <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
                   <button
                     type="button"
                     onClick={createPlan}
-                    disabled={!selectedMaterial || !deadline || materials.length === 0}
+                    disabled={
+                      !selectedMaterial ||
+                      !deadline ||
+                      materials.length === 0
+                    }
                     className="bg-[var(--anki-theme-dark)] px-6 py-3 text-sm text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {t.save}
                   </button>
-                  <Link href="/materials" className="text-xs underline" style={{ color: styles.muted }}>
+
+                  <Link
+                    href="/materials"
+                    className="text-xs underline"
+                    style={{ color: styles.muted }}
+                  >
                     {t.manage}
                   </Link>
                 </div>
@@ -536,70 +838,291 @@ export default function PlanPage() {
             </section>
 
             <section>
-              <div className="mb-4 border-b pb-3" style={{ borderColor: styles.border }}>
-                <p className="text-[10px] font-semibold tracking-[0.2em]" style={{ color: styles.muted }}>02 / OVERVIEW</p>
-                <h2 className="mt-2 text-xl font-semibold">{t.plans}</h2>
+              <div
+                className="mb-4 border-b pb-3"
+                style={{ borderColor: styles.border }}
+              >
+                <p
+                  className="text-[10px] font-semibold tracking-[0.2em]"
+                  style={{ color: styles.muted }}
+                >
+                  02 / OVERVIEW
+                </p>
+                <h2 className="mt-2 text-xl font-semibold">
+                  {t.plans}
+                </h2>
               </div>
 
               {plansWithMaterial.length === 0 ? (
-                <p className="border-y py-8 text-sm" style={{ color: styles.muted }}>{t.noPlans}</p>
+                <p
+                  className="border-y py-8 text-sm"
+                  style={{ color: styles.muted }}
+                >
+                  {t.noPlans}
+                </p>
               ) : (
-                <div className="border-l border-t" style={{ borderColor: styles.border }}>
+                <div
+                  className="border-l border-t"
+                  style={{ borderColor: styles.border }}
+                >
                   {plansWithMaterial.map((plan) => {
-                    const days = countStudyDays(plan.startDate, plan.deadline, plan.weekdays);
-                    const daily = days > 0 ? Math.ceil((plan.totalItems * plan.rounds) / days) : 0;
-                    const material = materials.find((m) => m.id === plan.materialId);
-                    const unit = material?.type === "deck" ? t.unitDeck : t.unitBook;
-                    const statusText = plan.status === "completed" ? t.completed : plan.status === "postponed" ? t.postponed : t.pending;
+                    const days = countStudyDays(
+                      plan.startDate,
+                      plan.deadline,
+                      plan.weekdays
+                    );
+
+                    const daily =
+                      days > 0
+                        ? Math.ceil(
+                            (plan.totalItems * plan.rounds) / days
+                          )
+                        : 0;
+
+                    const material = materials.find(
+                      (m) => m.id === plan.materialId
+                    );
+
+                    const unit =
+                      material?.type === "deck"
+                        ? t.unitDeck
+                        : t.unitBook;
+
+                    const statusText =
+                      plan.status === "completed"
+                        ? t.completed
+                        : plan.status === "postponed"
+                          ? t.postponed
+                          : t.pending;
+
+                    const actualCount = material
+                      ? getCoveredCount(material.studyRanges)
+                      : 0;
+
+                    const actualPercent =
+                      material && material.total > 0
+                        ? Math.min(
+                            100,
+                            Math.round(
+                              (actualCount / material.total) * 100
+                            )
+                          )
+                        : 0;
+
+                    const plannedPercent =
+                      plan.status === "completed"
+                        ? 100
+                        : getPlannedPercent(plan);
 
                     return (
-                      <article key={plan.id} className="border-b border-r bg-white p-5 sm:p-6" style={{ borderColor: styles.border }}>
+                      <article
+                        key={plan.id}
+                        className="border-b border-r bg-white p-5 sm:p-6"
+                        style={{ borderColor: styles.border }}
+                      >
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <h3 className="break-words text-base font-semibold">{plan.deckName || "—"}</h3>
-                            <p className="mt-2 text-xs" style={{ color: styles.muted }}>
+                            <h3 className="break-words text-base font-semibold">
+                              {plan.deckName || "—"}
+                            </h3>
+                            <p
+                              className="mt-2 text-xs"
+                              style={{ color: styles.muted }}
+                            >
                               {plan.startDate} — {plan.deadline}
                             </p>
                           </div>
-                          <span className="text-[10px]" style={{ color: styles.muted }}>
+
+                          <span
+                            className="text-[10px]"
+                            style={{ color: styles.muted }}
+                          >
                             {material ? t.linked : t.unlinked}
                           </span>
                         </div>
 
                         <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
                           <div>
-                            <p className="text-[10px]" style={{ color: styles.muted }}>{t.total}</p>
-                            <p className="mt-1 font-mono text-lg">{plan.totalItems.toLocaleString(localeMap[lang])} <span className="text-xs">{unit}</span></p>
+                            <p
+                              className="text-[10px]"
+                              style={{ color: styles.muted }}
+                            >
+                              {t.total}
+                            </p>
+                            <p className="mt-1 font-mono text-lg">
+                              {plan.totalItems.toLocaleString(
+                                localeMap[lang]
+                              )}{" "}
+                              <span className="text-xs">{unit}</span>
+                            </p>
                           </div>
+
                           <div>
-                            <p className="text-[10px]" style={{ color: styles.muted }}>{t.rounds}</p>
-                            <p className="mt-1 font-mono text-lg">{plan.rounds}</p>
+                            <p
+                              className="text-[10px]"
+                              style={{ color: styles.muted }}
+                            >
+                              {t.rounds}
+                            </p>
+                            <p className="mt-1 font-mono text-lg">
+                              {plan.rounds}
+                            </p>
                           </div>
+
                           <div>
-                            <p className="text-[10px]" style={{ color: styles.muted }}>{t.studyDays}</p>
-                            <p className="mt-1 font-mono text-lg">{days}</p>
+                            <p
+                              className="text-[10px]"
+                              style={{ color: styles.muted }}
+                            >
+                              {t.studyDays}
+                            </p>
+                            <p className="mt-1 font-mono text-lg">
+                              {days}
+                            </p>
                           </div>
+
                           <div>
-                            <p className="text-[10px]" style={{ color: styles.muted }}>{t.daily}</p>
-                            <p className="mt-1 font-mono text-lg" style={{ color: styles.dark }}>{daily} <span className="text-xs">{unit}</span></p>
+                            <p
+                              className="text-[10px]"
+                              style={{ color: styles.muted }}
+                            >
+                              {t.daily}
+                            </p>
+                            <p
+                              className="mt-1 font-mono text-lg"
+                              style={{ color: styles.dark }}
+                            >
+                              {daily}{" "}
+                              <span className="text-xs">{unit}</span>
+                            </p>
                           </div>
                         </div>
 
-                        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t pt-4" style={{ borderColor: styles.border }}>
+                        {/* 進捗バー */}
+                        <div
+                          className="mt-6 space-y-5 border-t pt-5"
+                          style={{ borderColor: styles.border }}
+                        >
+                          <div>
+                            <div className="mb-2 flex items-center justify-between gap-3">
+                              <div>
+                                <p className="text-xs font-medium">
+                                  {t.actual}
+                                </p>
+                                <p
+                                  className="mt-1 text-[10px]"
+                                  style={{ color: styles.muted }}
+                                >
+                                  {t.actualNote}
+                                </p>
+                              </div>
+                              <p className="font-mono text-sm font-semibold">
+                                {actualPercent}%
+                              </p>
+                            </div>
+
+                            <div className="h-2.5 overflow-hidden rounded-full bg-[#EAEAE5]">
+                              <div
+                                className="h-full rounded-full transition-all duration-500"
+                                style={{
+                                  width: `${actualPercent}%`,
+                                  backgroundColor: styles.dark,
+                                }}
+                              />
+                            </div>
+
+                            <p
+                              className="mt-1.5 text-right text-[10px]"
+                              style={{ color: styles.muted }}
+                            >
+                              {actualCount.toLocaleString(
+                                localeMap[lang]
+                              )}{" "}
+                              /{" "}
+                              {plan.totalItems.toLocaleString(
+                                localeMap[lang]
+                              )}{" "}
+                              {unit}
+                            </p>
+                          </div>
+
+                          <div>
+                            <div className="mb-2 flex items-center justify-between gap-3">
+                              <div>
+                                <p className="text-xs font-medium">
+                                  {t.planned}
+                                </p>
+                                <p
+                                  className="mt-1 text-[10px]"
+                                  style={{ color: styles.muted }}
+                                >
+                                  {t.plannedNote}
+                                </p>
+                              </div>
+                              <p className="font-mono text-sm font-semibold">
+                                {plannedPercent}%
+                              </p>
+                            </div>
+
+                            <div className="h-2.5 overflow-hidden rounded-full bg-[#EAEAE5]">
+                              <div
+                                className="h-full rounded-full transition-all duration-500"
+                                style={{
+                                  width: `${plannedPercent}%`,
+                                  backgroundColor: "#A9B5A0",
+                                }}
+                              />
+                            </div>
+                          </div>
+
+                          <p
+                            className="text-[10px]"
+                            style={{ color: styles.muted }}
+                          >
+                            {t.firstRound}
+                          </p>
+                        </div>
+
+                        <div
+                          className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t pt-4"
+                          style={{ borderColor: styles.border }}
+                        >
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-xs" style={{ color: styles.muted }}>{t.status}:</span>
+                            <span
+                              className="text-xs"
+                              style={{ color: styles.muted }}
+                            >
+                              {t.status}:
+                            </span>
+
                             <select
                               value={plan.status ?? "pending"}
-                              onChange={(e) => updateStatus(plan.id, e.target.value as PlanStatus)}
+                              onChange={(e) =>
+                                updateStatus(
+                                  plan.id,
+                                  e.target.value as PlanStatus
+                                )
+                              }
                               className="border bg-white px-2 py-1.5 text-xs"
                               style={{ borderColor: styles.border }}
                             >
-                              <option value="pending">{t.pending}</option>
-                              <option value="completed">{t.completed}</option>
-                              <option value="postponed">{t.postponed}</option>
+                              <option value="pending">
+                                {t.pending}
+                              </option>
+                              <option value="completed">
+                                {t.completed}
+                              </option>
+                              <option value="postponed">
+                                {t.postponed}
+                              </option>
                             </select>
                           </div>
-                          <button type="button" onClick={() => deletePlan(plan.id)} className="text-xs text-[#9A655A] hover:underline">
+
+                          <button
+                            type="button"
+                            onClick={() => deletePlan(plan.id)}
+                            className="text-xs text-[#9A655A] hover:underline"
+                          >
                             {t.delete}
                           </button>
                         </div>
@@ -612,7 +1135,13 @@ export default function PlanPage() {
           </>
         )}
 
-        <footer className="mt-12 border-t pt-5 text-[10px] tracking-[0.12em]" style={{ borderColor: styles.border, color: styles.muted }}>
+        <footer
+          className="mt-12 border-t pt-5 text-[10px] tracking-[0.12em]"
+          style={{
+            borderColor: styles.border,
+            color: styles.muted,
+          }}
+        >
           YOUR ANKI / PERSONAL LEARNING SYSTEM
         </footer>
       </div>

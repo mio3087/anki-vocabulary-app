@@ -144,6 +144,12 @@ const copy = {
     footerRight: "学習範囲を記録すると教材の進捗にも反映されます。",
     items: "件",
     days: "学習日",
+    totalProgress: "教材全体の進捗",
+    paceAhead: "計画より先行",
+    paceOnTrack: "順調",
+    paceBehind: "計画より遅れ",
+    expected: "計画上の到達地点",
+    studied: "学習済み",
   },
   en: {
     title: "Today's Goals",
@@ -204,6 +210,12 @@ const copy = {
     footerRight: "Recorded ranges are also reflected in material progress.",
     items: "tasks",
     days: "study days",
+    totalProgress: "Overall material progress",
+    paceAhead: "Ahead of plan",
+    paceOnTrack: "On track",
+    paceBehind: "Behind plan",
+    expected: "Planned progress",
+    studied: "Studied",
   },
   de: {
     title: "Heutige Lernziele",
@@ -264,6 +276,12 @@ const copy = {
     footerRight: "Gespeicherte Bereiche werden im Materialfortschritt berücksichtigt.",
     items: "Aufgaben",
     days: "Lerntage",
+    totalProgress: "Gesamtfortschritt",
+    paceAhead: "Dem Plan voraus",
+    paceOnTrack: "Im Zeitplan",
+    paceBehind: "Hinter dem Plan",
+    expected: "Geplanter Fortschritt",
+    studied: "Gelernt",
   },
   "zh-CN": {
     title: "今日目标",
@@ -324,6 +342,12 @@ const copy = {
     footerRight: "记录的学习范围也会同步到教材进度。",
     items: "项",
     days: "学习日",
+    totalProgress: "教材总进度",
+    paceAhead: "领先计划",
+    paceOnTrack: "进度正常",
+    paceBehind: "落后计划",
+    expected: "计划应达到",
+    studied: "已学习",
   },
   "zh-TW": {
     title: "今日目標",
@@ -384,6 +408,12 @@ const copy = {
     footerRight: "記錄的學習範圍也會同步到教材進度。",
     items: "項",
     days: "學習日",
+    totalProgress: "教材總進度",
+    paceAhead: "超前進度",
+    paceOnTrack: "進度正常",
+    paceBehind: "落後進度",
+    expected: "計畫應達到",
+    studied: "已學習",
   },
   es: {
     title: "Objetivos de hoy",
@@ -444,6 +474,12 @@ const copy = {
     footerRight: "Los rangos registrados también actualizan el progreso del material.",
     items: "tareas",
     days: "días de estudio",
+    totalProgress: "Progreso total del material",
+    paceAhead: "Por delante del plan",
+    paceOnTrack: "Al día",
+    paceBehind: "Retrasado",
+    expected: "Progreso previsto",
+    studied: "Estudiado",
   },
 };
 
@@ -468,7 +504,22 @@ function countStudyDays(start: string, end: string, weekdays: number[]) {
   const to = new Date(`${end}T12:00:00`);
   let count = 0;
 
-  for (const date = new Date(from); date <= to; date.setDate(date.getDate() + 1)) {
+  for (let date = new Date(from); date <= to; date.setDate(date.getDate() + 1)) {
+    if (weekdays.includes((date.getDay() + 6) % 7)) count++;
+  }
+
+  return count;
+}
+
+function countStudyDaysUntil(start: string, end: string, weekdays: number[], asOf: string) {
+  if (!start || !end || start > end || weekdays.length === 0 || asOf < start) return 0;
+
+  const cappedEnd = asOf < end ? asOf : end;
+  const from = new Date(`${start}T12:00:00`);
+  const to = new Date(`${cappedEnd}T12:00:00`);
+  let count = 0;
+
+  for (let date = new Date(from); date <= to; date.setDate(date.getDate() + 1)) {
     if (weekdays.includes((date.getDay() + 6) % 7)) count++;
   }
 
@@ -744,6 +795,54 @@ export default function TodayPage() {
       .reduce((sum, range) => sum + Math.max(0, range.end - range.start + 1), 0);
   }
 
+  function getPlanProgress(plan: Plan, material?: Material) {
+    const total = material?.total ?? plan.totalItems;
+    const totalGoal = Math.max(0, total * Math.max(1, plan.rounds || 1));
+    const actual = material
+      ? material.studyRanges.reduce(
+          (sum, range) => sum + Math.max(0, range.end - range.start + 1),
+          0
+        )
+      : 0;
+    const studyDays = countStudyDays(plan.startDate, plan.deadline, plan.weekdays);
+    const elapsedStudyDays = countStudyDaysUntil(
+      plan.startDate,
+      plan.deadline,
+      plan.weekdays,
+      today
+    );
+    const expected = studyDays > 0
+      ? Math.min(totalGoal, (totalGoal * elapsedStudyDays) / studyDays)
+      : 0;
+    const progress = totalGoal > 0 ? Math.min(100, (actual / totalGoal) * 100) : 0;
+    const expectedProgress = totalGoal > 0
+      ? Math.min(100, (expected / totalGoal) * 100)
+      : 0;
+    const dailyPace = studyDays > 0 ? totalGoal / studyDays : 0;
+    const tolerance = Math.max(1, dailyPace * 0.5);
+
+    let pace: "ahead" | "onTrack" | "behind" = "onTrack";
+    if (actual > expected + tolerance) pace = "ahead";
+    else if (actual + tolerance < expected) pace = "behind";
+
+    return {
+      totalGoal,
+      actual,
+      expected: Math.round(expected),
+      progress,
+      expectedProgress,
+      pace,
+      rounds: Math.max(1, plan.rounds || 1),
+      currentRound: total > 0 ? Math.min(Math.max(1, plan.rounds || 1), Math.floor(actual / total) + 1) : 1,
+    };
+  }
+
+  function getPaceLabel(pace: "ahead" | "onTrack" | "behind") {
+    if (pace === "ahead") return tr.paceAhead;
+    if (pace === "behind") return tr.paceBehind;
+    return tr.paceOnTrack;
+  }
+
   function getUnit(material?: Material) {
     if (!material) return language === "ja" ? "項目" : "items";
 
@@ -948,6 +1047,7 @@ export default function TodayPage() {
                     const actual = getTodayActual(material);
                     const percentage = dailyTarget > 0 ? Math.min(100, Math.round((actual / dailyTarget) * 100)) : 0;
                     const isAchieved = dailyTarget > 0 && actual >= dailyTarget;
+                    const overall = getPlanProgress(plan, material);
                     const unit = getUnit(material);
                     const input = rangeInputs[plan.id] ?? { start: "", end: "" };
 
@@ -971,7 +1071,10 @@ export default function TodayPage() {
                                 )}
                               </div>
 
-                              <h3 className="mt-3 break-words text-xl font-semibold tracking-[-0.035em] sm:text-2xl">
+                              <h3 className="mt-3 flex items-center gap-2 break-words text-xl font-semibold tracking-[-0.035em] sm:text-2xl">
+                                <span aria-hidden="true" className="shrink-0 text-lg">
+                                  {material?.type === "book" ? "📘" : "▤"}
+                                </span>
                                 {material?.name || plan.deckName || tr.untitled}
                               </h3>
 
@@ -986,6 +1089,60 @@ export default function TodayPage() {
                               {tr.planManage}
                             </Link>
                           </div>
+
+                          {material && (
+                            <div className="mt-6 rounded-xl border p-4 sm:p-5" style={{ borderColor: line }}>
+                              <div className="flex flex-wrap items-center justify-between gap-3">
+                                <p className="text-xs font-medium text-[#858A82]">{tr.totalProgress}</p>
+                                <span
+                                  className="shrink-0 rounded-full px-3 py-1.5 text-[11px] font-semibold"
+                                  style={
+                                    overall.pace === "ahead"
+                                      ? { backgroundColor: "#EEF5EC", color: "#557451" }
+                                      : overall.pace === "behind"
+                                        ? { backgroundColor: "#FBF1E9", color: "#9A6845" }
+                                        : { backgroundColor: "#EEF2F7", color: "#5D718C" }
+                                  }
+                                >
+                                  {getPaceLabel(overall.pace)}
+                                </span>
+                              </div>
+
+                              <div className="mt-5 flex items-end justify-between gap-3">
+                                <p className="text-xs text-[#858A82]">{tr.studied}</p>
+                                <p className="font-mono text-sm font-semibold tabular-nums">
+                                  {formatNumber(overall.actual)}
+                                  <span className="ml-1 font-sans text-xs font-normal text-[#858A82]">
+                                    / {formatNumber(overall.totalGoal)} {unit}
+                                  </span>
+                                </p>
+                              </div>
+
+                              <div className="relative mt-2 h-3 overflow-hidden rounded-full bg-[#ECEDE9]">
+                                <div
+                                  className="absolute inset-y-0 left-0 rounded-full transition-all duration-500"
+                                  style={{
+                                    width: `${overall.progress}%`,
+                                    backgroundColor: overall.pace === "behind" ? "#C58B62" : accent,
+                                  }}
+                                />
+                                <div
+                                  className="absolute -top-1 h-5 w-[2px] rounded-full bg-[#D59A43] shadow-[0_0_0_2px_white]"
+                                  style={{ left: `calc(${overall.expectedProgress}% - 1px)` }}
+                                  title={`${tr.expected}: ${formatNumber(overall.expected)} ${unit}`}
+                                />
+                              </div>
+
+                              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] text-[#858A82]">
+                                <span>{Math.round(overall.progress)}%</span>
+                                <span className="inline-flex items-center gap-1.5">
+                                  <span className="inline-block h-2.5 w-[2px] rounded-full bg-[#D59A43]" />
+                                  {tr.expected}: {formatNumber(overall.expected)} {unit}
+                                </span>
+                                <span>{overall.currentRound}/{overall.rounds} {tr.round}</span>
+                              </div>
+                            </div>
+                          )}
 
                           {material ? (
                             <>

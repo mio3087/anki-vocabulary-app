@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -5,6 +6,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useAppLanguage } from "@/app/component/AppLanguage";
 
 const STORAGE_KEY = "little-library-books-v1";
+const LOGS_KEY = "little-library-reading-logs-v1";
 
 const categories = ["語学", "小説", "教養", "歴史", "実用書", "漫画", "その他"] as const;
 const statuses = ["未読", "読書中", "読了"] as const;
@@ -21,6 +23,12 @@ type Book = {
   totalPages: number;
   category: Category;
   status: ReadingStatus;
+};
+
+type ReadingLog = {
+  bookId: number;
+  startPage: number;
+  endPage: number;
 };
 
 const translations: Record<Language, {
@@ -72,6 +80,7 @@ const translations: Record<Language, {
   edit: string;
   delete: string;
   backToLibrary: string;
+  progress: string;
   categoryLabels: Record<Category, string>;
   statusLabels: Record<ReadingStatus, string>;
 }> = {
@@ -124,6 +133,7 @@ const translations: Record<Language, {
     edit: "編集",
     delete: "削除",
     backToLibrary: "← Little Library トップへ戻る",
+    progress: "読書進捗",
     categoryLabels: {
       語学: "語学",
       小説: "小説",
@@ -188,6 +198,7 @@ const translations: Record<Language, {
     edit: "Bearbeiten",
     delete: "Löschen",
     backToLibrary: "← Zurück zur Little Library",
+    progress: "Lesefortschritt",
     categoryLabels: {
       語学: "Sprachen",
       小説: "Romane",
@@ -252,6 +263,7 @@ const translations: Record<Language, {
     edit: "Edit",
     delete: "Delete",
     backToLibrary: "← Back to Little Library",
+    progress: "Reading progress",
     categoryLabels: {
       語学: "Languages",
       小説: "Fiction",
@@ -316,6 +328,7 @@ const translations: Record<Language, {
     edit: "编辑",
     delete: "删除",
     backToLibrary: "← 返回 Little Library 首页",
+    progress: "阅读进度",
     categoryLabels: {
       語学: "语言学习",
       小説: "小说",
@@ -380,6 +393,7 @@ const translations: Record<Language, {
     edit: "編輯",
     delete: "刪除",
     backToLibrary: "← 返回 Little Library 首頁",
+    progress: "閱讀進度",
     categoryLabels: {
       語学: "語言學習",
       小説: "小說",
@@ -444,6 +458,7 @@ const translations: Record<Language, {
     edit: "Editar",
     delete: "Eliminar",
     backToLibrary: "← Volver a Little Library",
+    progress: "Progreso de lectura",
     categoryLabels: {
       語学: "Idiomas",
       小説: "Novela",
@@ -503,6 +518,71 @@ function readBooks(): Book[] {
   }
 }
 
+function readReadingLogs(): ReadingLog[] {
+  try {
+    const saved = localStorage.getItem(LOGS_KEY);
+    if (!saved) return [];
+
+    const parsed: unknown = JSON.parse(saved);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.filter((item): item is ReadingLog => {
+      if (!item || typeof item !== "object") return false;
+
+      const log = item as Record<string, unknown>;
+
+      return (
+        typeof log.bookId === "number" &&
+        Number.isFinite(log.bookId) &&
+        typeof log.startPage === "number" &&
+        Number.isFinite(log.startPage) &&
+        typeof log.endPage === "number" &&
+        Number.isFinite(log.endPage)
+      );
+    });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 読書記録の範囲を統合し、重複ページを除いた読了ページ数を返す。
+ * 例：1〜50ページと40〜80ページの記録なら80ページ。
+ */
+function getReadPageCount(logs: ReadingLog[], bookId: number): number {
+  const ranges = logs
+    .filter((log) => log.bookId === bookId)
+    .map((log) => ({
+      start: Math.max(1, Math.floor(Math.min(log.startPage, log.endPage))),
+      end: Math.max(1, Math.floor(Math.max(log.startPage, log.endPage))),
+    }))
+    .filter((range) => range.end >= range.start);
+
+  if (ranges.length === 0) return 0;
+
+  ranges.sort((a, b) => a.start - b.start);
+
+  let total = 0;
+  let currentStart = ranges[0].start;
+  let currentEnd = ranges[0].end;
+
+  for (let i = 1; i < ranges.length; i++) {
+    const range = ranges[i];
+
+    if (range.start <= currentEnd + 1) {
+      currentEnd = Math.max(currentEnd, range.end);
+    } else {
+      total += currentEnd - currentStart + 1;
+      currentStart = range.start;
+      currentEnd = range.end;
+    }
+  }
+
+  total += currentEnd - currentStart + 1;
+
+  return total;
+}
+
 const buttonClass =
   "inline-flex items-center justify-center rounded-xl border border-[var(--anki-theme-soft)] bg-[var(--anki-theme-light)] px-4 py-2 text-sm font-medium text-[var(--anki-theme-dark)] transition hover:bg-[var(--anki-theme-soft)]";
 
@@ -524,19 +604,36 @@ export default function BooksPage() {
   const t = translations[currentLanguage];
 
   const [books, setBooks] = useState<Book[]>([]);
+  const [readingLogs, setReadingLogs] = useState<ReadingLog[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [filter, setFilter] = useState("すべて");
   const [form, setForm] = useState(emptyBook);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [message, setMessage] = useState("");
 
+  // 本棚と読書記録を読み込む。
+  // 読書記録ページから戻ったときにも最新の記録を反映する。
   useEffect(() => {
-    setBooks(readBooks());
-    setLoaded(true);
+    function loadData() {
+      setBooks(readBooks());
+      setReadingLogs(readReadingLogs());
+      setLoaded(true);
+    }
+
+    loadData();
+
+    window.addEventListener("focus", loadData);
+    window.addEventListener("storage", loadData);
+
+    return () => {
+      window.removeEventListener("focus", loadData);
+      window.removeEventListener("storage", loadData);
+    };
   }, []);
 
   useEffect(() => {
     if (!loaded) return;
+
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(books));
     } catch {
@@ -609,6 +706,7 @@ export default function BooksPage() {
       setEditingId(null);
       setForm(emptyBook);
     }
+
     setMessage(t.deleted);
   }
 
@@ -843,72 +941,108 @@ export default function BooksPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              {visibleBooks.map((book) => (
-                <article
-                  key={book.id}
-                  className="flex min-w-0 flex-col rounded-2xl border border-[#E6E7E1] bg-white p-5 transition hover:border-[var(--anki-theme-soft)] sm:p-6"
-                >
-                  <div className="flex flex-1 gap-4">
-                    <div className="flex h-32 w-20 shrink-0 items-center justify-center rounded-lg bg-[var(--anki-theme-light)] text-center text-xs leading-5 text-[var(--anki-theme-dark)]">
-                      <span className="break-words px-2">
-                        {t.categoryLabels[book.category]}
-                      </span>
-                    </div>
+              {visibleBooks.map((book) => {
+                const actualReadPages = getReadPageCount(readingLogs, book.id);
+                const readPages = book.totalPages > 0
+                  ? Math.min(actualReadPages, book.totalPages)
+                  : actualReadPages;
 
-                    <div className="min-w-0 flex-1">
-                      <div className="mb-3 flex flex-wrap gap-2">
-                        <span className="rounded-full bg-[var(--anki-theme-light)] px-3 py-1 text-xs text-[var(--anki-theme-dark)]">
+                const progress = book.totalPages > 0
+                  ? Math.min(100, Math.round((readPages / book.totalPages) * 100))
+                  : 0;
+
+                return (
+                  <article
+                    key={book.id}
+                    className="flex min-w-0 flex-col rounded-2xl border border-[#E6E7E1] bg-white p-5 transition hover:border-[var(--anki-theme-soft)] sm:p-6"
+                  >
+                    <div className="flex flex-1 gap-4">
+                      <div className="flex h-32 w-20 shrink-0 items-center justify-center rounded-lg bg-[var(--anki-theme-light)] text-center text-xs leading-5 text-[var(--anki-theme-dark)]">
+                        <span className="break-words px-2">
                           {t.categoryLabels[book.category]}
-                        </span>
-                        <span className="rounded-full bg-[#F5F3ED] px-3 py-1 text-xs text-[#686b62]">
-                          {t.statusLabels[book.status]}
                         </span>
                       </div>
 
-                      <h3 className="break-words text-base font-semibold leading-6 text-[#30352e]">
-                        {book.title}
-                      </h3>
-                      <p className="mt-2 break-words text-sm text-[#77796f]">
-                        {book.author || t.authorUnknown}
-                      </p>
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-3 flex flex-wrap gap-2">
+                          <span className="rounded-full bg-[var(--anki-theme-light)] px-3 py-1 text-xs text-[var(--anki-theme-dark)]">
+                            {t.categoryLabels[book.category]}
+                          </span>
+                          <span className="rounded-full bg-[#F5F3ED] px-3 py-1 text-xs text-[#686b62]">
+                            {t.statusLabels[book.status]}
+                          </span>
+                        </div>
 
-                      {book.totalPages > 0 && (
-                        <p className="mt-3 text-xs text-[#85877f]">
-                          {book.totalPages} {t.pageUnit}
+                        <h3 className="break-words text-base font-semibold leading-6 text-[#30352e]">
+                          {book.title}
+                        </h3>
+                        <p className="mt-2 break-words text-sm text-[#77796f]">
+                          {book.author || t.authorUnknown}
                         </p>
-                      )}
 
-                      {book.isbn && (
-                        <p className="mt-1 break-all text-xs text-[#85877f]">
-                          ISBN: {book.isbn}
-                        </p>
-                      )}
+                        {book.totalPages > 0 && (
+                          <div className="mt-4 w-full">
+                            <div className="mb-2 flex items-center justify-between gap-2 text-xs">
+                              <span className="text-[#77796f]">
+                                {t.progress}
+                              </span>
+                              <span className="font-semibold tabular-nums text-[var(--anki-theme-dark)]">
+                                {progress}%
+                              </span>
+                            </div>
+
+                            <div
+                              className="h-2 w-full overflow-hidden rounded-full bg-[#EAECE5]"
+                              role="progressbar"
+                              aria-valuenow={progress}
+                              aria-valuemin={0}
+                              aria-valuemax={100}
+                              aria-label={`${book.title}: ${progress}%`}
+                            >
+                              <div
+                                className="h-full rounded-full bg-[var(--anki-theme-color)] transition-all duration-500"
+                                style={{ width: `${progress}%` }}
+                              />
+                            </div>
+
+                            <p className="mt-2 text-xs tabular-nums text-[#85877f]">
+                              {readPages.toLocaleString()} / {book.totalPages.toLocaleString()} {t.pageUnit}
+                            </p>
+                          </div>
+                        )}
+
+                        {book.isbn && (
+                          <p className="mt-2 break-all text-xs text-[#85877f]">
+                            ISBN: {book.isbn}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-[#EEF0EA] pt-4">
-                    <Link href={`/library/read?id=${book.id}`} className={linkClass}>
-                      {t.readingRecord} →
-                    </Link>
+                    <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-[#EEF0EA] pt-4">
+                      <Link href={`/library/read?id=${book.id}`} className={linkClass}>
+                        {t.readingRecord} →
+                      </Link>
 
-                    <button
-                      type="button"
-                      onClick={() => startEditing(book)}
-                      className={buttonClass}
-                    >
-                      {t.edit}
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => startEditing(book)}
+                        className={buttonClass}
+                      >
+                        {t.edit}
+                      </button>
 
-                    <button
-                      type="button"
-                      onClick={() => deleteBook(book)}
-                      className="inline-flex items-center justify-center rounded-xl border border-[#ead8d0] bg-[#fcf3ee] px-4 py-2 text-sm font-medium text-[#a66f65] transition hover:bg-[#f8e8e1]"
-                    >
-                      {t.delete}
-                    </button>
-                  </div>
-                </article>
-              ))}
+                      <button
+                        type="button"
+                        onClick={() => deleteBook(book)}
+                        className="inline-flex items-center justify-center rounded-xl border border-[#ead8d0] bg-[#fcf3ee] px-4 py-2 text-sm font-medium text-[#a66f65] transition hover:bg-[#f8e8e1]"
+                      >
+                        {t.delete}
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           )}
         </section>

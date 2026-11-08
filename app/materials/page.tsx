@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -11,6 +10,7 @@ import {
   doc,
   getDocs,
   updateDoc,
+  deleteField,
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useAppLanguage } from "@/app/component/AppLanguage";
@@ -31,7 +31,24 @@ type Material = {
   total: number;
   studyRanges: StudyRange[];
   createdAt: number;
+  linkedBookId?: number;
 };
+
+type LibraryBook = {
+  id: number;
+  title: string;
+  totalPages: number;
+};
+
+type ReadingLog = {
+  bookId: number;
+  date: string;
+  startPage: number;
+  endPage: number;
+};
+
+const BOOKS_STORAGE_KEY = "little-library-books-v1";
+const READING_LOGS_STORAGE_KEY = "little-library-reading-logs-v1";
 
 type AppLanguage = "ja" | "de" | "en" | "zh-CN" | "zh-TW" | "es";
 
@@ -55,6 +72,14 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     backToday: "今日の学習へ戻る",
     eyebrow: "STUDY LIBRARY",
     subtitle: "本も単語帳も、進み具合を見える化しよう。",
+    linkBook: "Little Libraryの本と連携",
+    noBookLink: "連携しない",
+    linkedBook: "連携中の本",
+    readBook: "読書記録を開く",
+    linkedBookHint: "連携した本のページ進捗は読書記録から反映されます。",
+    noBooks: "本棚に本がありません。先にLittle Libraryへ本を登録してください。",
+    linkedRecordHint: "本棚と連携した教材は、読書記録からページを記録してください。",
+
     today: "今日の学習へ →",
     plan: "学習計画",
     todayNav: "今日の学習",
@@ -116,6 +141,14 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     backToday: "Zurück zum heutigen Lernen",
     eyebrow: "STUDY LIBRARY",
     subtitle: "Behalte den Lernfortschritt deiner Bücher und Vokabeldecks im Blick.",
+    linkBook: "Mit einem Buch aus Little Library verknüpfen",
+    noBookLink: "Nicht verknüpfen",
+    linkedBook: "Verknüpftes Buch",
+    readBook: "Lernprotokoll öffnen",
+    linkedBookHint: "Der Seitenfortschritt wird aus dem Leseprotokoll übernommen.",
+    noBooks: "Keine Bücher im Regal. Füge zuerst ein Buch in Little Library hinzu.",
+    linkedRecordHint: "Bei verknüpften Büchern bitte die Seiten im Leseprotokoll erfassen.",
+
     today: "Zum heutigen Lernen →",
     plan: "Lernplan",
     todayNav: "Heutiges Lernen",
@@ -177,6 +210,14 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     backToday: "Back to today's study",
     eyebrow: "STUDY LIBRARY",
     subtitle: "Track your progress with books and vocabulary decks.",
+    linkBook: "Link to a Little Library book",
+    noBookLink: "Do not link",
+    linkedBook: "Linked book",
+    readBook: "Open reading log",
+    linkedBookHint: "Page progress is synced from the reading log.",
+    noBooks: "There are no books in your library. Add a book to Little Library first.",
+    linkedRecordHint: "For linked books, record pages in the reading log.",
+
     today: "Today's Study →",
     plan: "Study Plan",
     todayNav: "Today's Study",
@@ -238,6 +279,14 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     backToday: "返回今日学习",
     eyebrow: "STUDY LIBRARY",
     subtitle: "记录书籍和单词卡组的学习进度。",
+    linkBook: "关联 Little Library 中的书籍",
+    noBookLink: "不关联",
+    linkedBook: "已关联书籍",
+    readBook: "打开阅读记录",
+    linkedBookHint: "页面进度会从阅读记录同步。",
+    noBooks: "书架中没有书籍，请先在 Little Library 添加书籍。",
+    linkedRecordHint: "已关联书籍请在阅读记录中记录页数。",
+
     today: "今日学习 →",
     plan: "学习计划",
     todayNav: "今日学习",
@@ -299,6 +348,14 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     backToday: "返回今日學習",
     eyebrow: "STUDY LIBRARY",
     subtitle: "讓書籍和單字卡組的學習進度一目了然。",
+    linkBook: "連結 Little Library 中的書籍",
+    noBookLink: "不連結",
+    linkedBook: "已連結書籍",
+    readBook: "開啟閱讀記錄",
+    linkedBookHint: "頁面進度會從閱讀記錄同步。",
+    noBooks: "書架中沒有書籍，請先在 Little Library 新增書籍。",
+    linkedRecordHint: "已連結書籍請在閱讀記錄中記錄頁數。",
+
     today: "今日學習 →",
     plan: "學習計畫",
     todayNav: "今日學習",
@@ -360,6 +417,14 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     backToday: "Volver al estudio de hoy",
     eyebrow: "STUDY LIBRARY",
     subtitle: "Visualiza tu progreso con libros y mazos de vocabulario.",
+    linkBook: "Vincular con un libro de Little Library",
+    noBookLink: "No vincular",
+    linkedBook: "Libro vinculado",
+    readBook: "Abrir registro de lectura",
+    linkedBookHint: "El progreso de páginas se sincroniza desde el registro de lectura.",
+    noBooks: "No hay libros en tu biblioteca. Añade primero un libro a Little Library.",
+    linkedRecordHint: "Registra las páginas de los libros vinculados en el registro de lectura.",
+
     today: "Estudio de hoy →",
     plan: "Plan de estudio",
     todayNav: "Estudio de hoy",
@@ -449,15 +514,21 @@ function getCoveredCount(ranges: StudyRange[]): number {
   return covered;
 }
 
-function getProgress(material: Material): number {
-  if (material.total <= 0) return 0;
+function getMaterialRanges(material: Material, readingLogs: ReadingLog[]): StudyRange[] {
+  const linkedLogs = material.linkedBookId
+    ? readingLogs
+        .filter((log) => log.bookId === material.linkedBookId)
+        .map((log) => ({ start: log.startPage, end: log.endPage, date: log.date }))
+    : [];
 
-  return Math.min(
-    100,
-    Math.round(
-      (getCoveredCount(material.studyRanges) / material.total) * 100
-    )
-  );
+  // 既存の教材記録を残しつつ、読書ログと重複するページは進捗に二重計上しない
+  return [...material.studyRanges, ...linkedLogs];
+}
+
+function getProgress(material: Material, readingLogs: ReadingLog[]): number {
+  if (material.total <= 0) return 0;
+  const covered = getCoveredCount(getMaterialRanges(material, readingLogs));
+  return Math.min(100, Math.round((covered / material.total) * 100));
 }
 
 export default function MaterialsPage() {
@@ -470,6 +541,8 @@ export default function MaterialsPage() {
   const [user, setUser] = useState<User | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [materials, setMaterials] = useState<Material[]>([]);
+  const [libraryBooks, setLibraryBooks] = useState<LibraryBook[]>([]);
+  const [readingLogs, setReadingLogs] = useState<ReadingLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -479,10 +552,69 @@ export default function MaterialsPage() {
   const [type, setType] = useState<MaterialType>("book");
   const [total, setTotal] = useState("100");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [linkedBookId, setLinkedBookId] = useState("");
 
   const [selectedId, setSelectedId] = useState("");
   const [rangeStart, setRangeStart] = useState("1");
   const [rangeEnd, setRangeEnd] = useState("10");
+
+  useEffect(() => {
+    const refreshLibrary = () => {
+      try {
+        const rawBooks = localStorage.getItem(BOOKS_STORAGE_KEY);
+        const parsedBooks = rawBooks ? JSON.parse(rawBooks) : [];
+        setLibraryBooks(
+          Array.isArray(parsedBooks)
+            ? parsedBooks.flatMap((book: unknown) => {
+                if (!book || typeof book !== "object") return [];
+                const value = book as Record<string, unknown>;
+                if (typeof value.id !== "number" || typeof value.title !== "string") return [];
+                return [{
+                  id: value.id,
+                  title: value.title,
+                  totalPages: typeof value.totalPages === "number" ? value.totalPages : 0,
+                }];
+              })
+            : []
+        );
+
+        const rawLogs = localStorage.getItem(READING_LOGS_STORAGE_KEY);
+        const parsedLogs = rawLogs ? JSON.parse(rawLogs) : [];
+        setReadingLogs(
+          Array.isArray(parsedLogs)
+            ? parsedLogs.flatMap((log: unknown) => {
+                if (!log || typeof log !== "object") return [];
+                const value = log as Record<string, unknown>;
+                if (
+                  typeof value.bookId !== "number" ||
+                  typeof value.startPage !== "number" ||
+                  typeof value.endPage !== "number" ||
+                  typeof value.date !== "string"
+                ) return [];
+                return [{
+                  bookId: value.bookId,
+                  startPage: value.startPage,
+                  endPage: value.endPage,
+                  date: value.date,
+                }];
+              })
+            : []
+        );
+      } catch (err) {
+        console.error("Little Library data loading error:", err);
+        setLibraryBooks([]);
+        setReadingLogs([]);
+      }
+    };
+
+    refreshLibrary();
+    window.addEventListener("storage", refreshLibrary);
+    window.addEventListener("focus", refreshLibrary);
+    return () => {
+      window.removeEventListener("storage", refreshLibrary);
+      window.removeEventListener("focus", refreshLibrary);
+    };
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -569,6 +701,8 @@ export default function MaterialsPage() {
             studyRanges,
             createdAt:
               typeof data.createdAt === "number" ? data.createdAt : 0,
+            linkedBookId:
+              typeof data.linkedBookId === "number" ? data.linkedBookId : undefined,
           };
         });
 
@@ -629,6 +763,10 @@ export default function MaterialsPage() {
             language,
             type,
             total: parsedTotal,
+            linkedBookId:
+              type === "book" && linkedBookId
+                ? Number(linkedBookId)
+                : deleteField(),
           }
         );
 
@@ -641,6 +779,10 @@ export default function MaterialsPage() {
                   language,
                   type,
                   total: parsedTotal,
+                  linkedBookId:
+                    type === "book" && linkedBookId
+                      ? Number(linkedBookId)
+                      : undefined,
                 }
               : material
           )
@@ -653,6 +795,9 @@ export default function MaterialsPage() {
           total: parsedTotal,
           studyRanges: [] as StudyRange[],
           createdAt: Date.now(),
+          ...(type === "book" && linkedBookId
+            ? { linkedBookId: Number(linkedBookId) }
+            : {}),
         };
 
         const result = await addDoc(
@@ -670,6 +815,7 @@ export default function MaterialsPage() {
       setLanguage("中国語");
       setType("book");
       setTotal("100");
+      setLinkedBookId("");
       setEditingId(null);
     } catch (err) {
       console.error(err);
@@ -685,6 +831,7 @@ export default function MaterialsPage() {
     setLanguage(material.language);
     setType(material.type);
     setTotal(String(material.total));
+    setLinkedBookId(material.linkedBookId ? String(material.linkedBookId) : "");
 
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -695,6 +842,7 @@ export default function MaterialsPage() {
     setLanguage("中国語");
     setType("book");
     setTotal("100");
+    setLinkedBookId("");
     setError("");
   }
 
@@ -719,7 +867,8 @@ export default function MaterialsPage() {
       !Number.isSafeInteger(start) ||
       !Number.isSafeInteger(end) ||
       start < 1 ||
-      end < start
+      end < start ||
+      end > material.total
     ) {
       setError(t.errorRange);
       return;
@@ -884,9 +1033,11 @@ export default function MaterialsPage() {
                 <select
                   style={styles.input}
                   value={type}
-                  onChange={(event) =>
-                    setType(event.target.value as MaterialType)
-                  }
+                  onChange={(event) => {
+                    const nextType = event.target.value as MaterialType;
+                    setType(nextType);
+                    if (nextType === "deck") setLinkedBookId("");
+                  }}
                 >
                   <option value="book">{t.book}</option>
                   <option value="deck">{t.deck}</option>
@@ -907,6 +1058,30 @@ export default function MaterialsPage() {
                 required
               />
             </label>
+
+            {type === "book" && (
+              <label style={styles.label}>
+                {t.linkBook}
+                <select
+                  style={styles.input}
+                  value={linkedBookId}
+                  onChange={(event) => setLinkedBookId(event.target.value)}
+                >
+                  <option value="">{t.noBookLink}</option>
+                  {libraryBooks.map((book) => (
+                    <option key={book.id} value={String(book.id)}>
+                      {book.title}{book.totalPages > 0 ? `（${book.totalPages}${t.pages}）` : ""}
+                    </option>
+                  ))}
+                </select>
+                {libraryBooks.length === 0 && (
+                  <span style={styles.smallText}>{t.noBooks}</span>
+                )}
+                {linkedBookId && (
+                  <span style={styles.smallText}>{t.linkedBookHint}</span>
+                )}
+              </label>
+            )}
 
             <div style={styles.buttonRow}>
               <button
@@ -938,12 +1113,12 @@ export default function MaterialsPage() {
           </form>
         </section>
 
-        <section style={styles.panel}>
+<section style={styles.panel}>
           <h2 style={styles.heading}>{t.recordHeading}</h2>
           <p style={styles.description}>{t.recordDescription}</p>
 
-          {materials.length === 0 ? (
-            <p>{t.registerFirst}</p>
+          {materials.filter((item) => !(item.type === "book" && item.linkedBookId)).length === 0 ? (
+            <p>{materials.length > 0 ? t.linkedRecordHint : t.registerFirst}</p>
           ) : (
             <form onSubmit={handleRecordStudy} style={styles.form}>
               <label style={styles.label}>
@@ -967,7 +1142,7 @@ export default function MaterialsPage() {
                   required
                 >
                   <option value="">{t.selectPlaceholder}</option>
-                  {materials.map((material) => (
+                  {materials.filter((material) => !(material.type === "book" && material.linkedBookId)).map((material) => (
                     <option key={material.id} value={material.id}>
                       {material.name}（{t.totalUnit}{material.total}
                       {material.type === "book" ? t.pages : t.words}）
@@ -1056,8 +1231,10 @@ export default function MaterialsPage() {
           ) : (
             <div style={styles.materialList}>
               {materials.map((material) => {
-                const covered = getCoveredCount(material.studyRanges);
-                const progress = getProgress(material);
+                const allRanges = getMaterialRanges(material, readingLogs);
+                const covered = getCoveredCount(allRanges);
+                const progress = getProgress(material, readingLogs);
+                const linkedBook = libraryBooks.find((book) => book.id === material.linkedBookId);
                 const unit =
                   material.type === "book" ? t.pages : t.words;
 
@@ -1075,6 +1252,22 @@ export default function MaterialsPage() {
                         </span>
 
                         <h3 style={styles.cardTitle}>{material.name}</h3>
+
+                        {material.linkedBookId && (
+                          <div style={{ margin: "4px 0 10px" }}>
+                            <span style={styles.tag}>
+                              {t.linkedBook}: {linkedBook?.title ?? `#${material.linkedBookId}`}
+                            </span>
+                            {linkedBook && (
+                              <Link
+                                href={`/library/read?id=${linkedBook.id}`}
+                                style={{ ...styles.textLink, display: "inline-block", marginTop: 4 }}
+                              >
+                                {t.readBook} ↗
+                              </Link>
+                            )}
+                          </div>
+                        )}
 
                         <p style={styles.description}>
                           {t.studied} {covered.toLocaleString()} /{" "}
@@ -1105,15 +1298,15 @@ export default function MaterialsPage() {
 
                     <p style={styles.smallText}>
                       {t.records}
-                      {material.studyRanges.length}
+                      {allRanges.length}
                       {t.recordsUnit}
                     </p>
 
-                    {material.studyRanges.length > 0 && (
+                    {allRanges.length > 0 && (
                       <details style={styles.details}>
                         <summary>{t.viewRecords}</summary>
                         <ul style={styles.rangeList}>
-                          {[...material.studyRanges]
+                          {[...allRanges]
                             .reverse()
                             .map((range, index) => (
                               <li

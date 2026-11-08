@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { onAuthStateChanged, type User } from "firebase/auth";
 import { useLanguage } from "@/app/component/AppLanguage";
-import { db } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
+  serverTimestamp,
   setDoc,
 } from "firebase/firestore";
 
@@ -51,7 +54,10 @@ type Deck = {
 
 type DuplicateCardGroup = {
   key: string;
-  cards: Card[];
+  items: {
+    deckName: string;
+    card: Card;
+  }[];
 };
 
 type StudyRecord = {
@@ -165,7 +171,7 @@ async function compressDeckCover(file: File): Promise<string> {
     const image = await new Promise<HTMLImageElement>((resolve, reject) => {
       const img = new Image();
       img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error("画像を読み込めませんでした。別の画像をお試しのうえ再度お試しください。"));
+      img.onerror = () => reject(new Error("画像を読み込めませんでした。別の画像をお試しください。"));
       img.src = objectUrl;
     });
 
@@ -294,6 +300,12 @@ export default function Page() {
   const [color, setColor] = useState("#718675");
   const [savedColor, setSavedColor] = useState("#718675");
 
+  const [authUser, setAuthUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [taskTargets, setTaskTargets] = useState<Record<string, number>>({});
+  const [taskAddingDeck, setTaskAddingDeck] = useState<string | null>(null);
+  const [taskAddedDecks, setTaskAddedDecks] = useState<string[]>([]);
+
   const [folders, setFolders] = useState<Folder[]>([]);
   const [decks, setDecks] = useState<Deck[]>([]);
   const [studyRecords, setStudyRecords] = useState<StudyRecord[]>([]);
@@ -329,9 +341,11 @@ export default function Page() {
     durationSec: number;
   } | null>(null);
 
-  // デッキ内重複チェックモーダル用
-  const [showDeckDuplicateModal, setShowDeckDuplicateModal] = useState(false);
-  const [editingDuplicateCard, setEditingDuplicateCard] = useState<Card | null>(null);
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [editingDuplicateCard, setEditingDuplicateCard] = useState<{
+    deckName: string;
+    card: Card;
+  } | null>(null);
 
   const [newDeckName, setNewDeckName] = useState("");
   const [newDeckLanguage, setNewDeckLanguage] = useState("zh-CN");
@@ -421,6 +435,13 @@ export default function Page() {
     };
     return ja[key] || key;
   };
+
+  useEffect(() => {
+    return onAuthStateChanged(auth, (user) => {
+      setAuthUser(user);
+      setAuthReady(true);
+    });
+  }, []);
 
   useEffect(() => {
     const loadData = async () => {
@@ -613,6 +634,77 @@ export default function Page() {
     await setDoc(doc(db, "folders", folder.id), folder);
   };
 
+  const addDeckToTodayTask = async (deck: Deck) => {
+    if (!authReady) {
+      alert("ログイン状態を確認しています。少し待ってからもう一度お試しください。");
+      return;
+    }
+
+    if (!authUser) {
+      alert("今日のタスクに追加するにはログインが必要です。");
+      return;
+    }
+
+    if (deck.cards.length === 0) {
+      alert("単語が登録されていないデッキは追加できません。");
+      return;
+    }
+
+    setTaskAddingDeck(deck.name);
+
+    const now = new Date();
+    const today = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, "0"),
+      String(now.getDate()).padStart(2, "0"),
+    ].join("-");
+
+    const requestedTarget = taskTargets[deck.name] ?? 30;
+    const target = Math.min(deck.cards.length, requestedTarget);
+    const taskId = `deck-${today}-${encodeURIComponent(deck.name)}`;
+    const taskRef = doc(db, "users", authUser.uid, "tasks", taskId);
+
+    try {
+      const existingTask = await getDoc(taskRef);
+
+      if (existingTask.exists()) {
+        setTaskAddedDecks((previous) =>
+          previous.includes(deck.name) ? previous : [...previous, deck.name]
+        );
+        alert(`「${deck.name}」は、すでに今日のタスクに登録されています。`);
+        return;
+      }
+
+      await setDoc(taskRef, {
+        title: `${deck.name}の単語学習`,
+        type: "単語の暗記・復習",
+        material: deck.name,
+        deckId: deck.name,
+        source: "deck",
+        target,
+        unit: "単語",
+        startDate: today,
+        scheduledDate: today,
+        dueDate: today,
+        status: "未着手",
+        repeat: "なし",
+        repeatDays: [],
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      setTaskAddedDecks((previous) =>
+        previous.includes(deck.name) ? previous : [...previous, deck.name]
+      );
+      alert(`「${deck.name}」を今日のタスクに追加しました。`);
+    } catch (error) {
+      console.error("今日のタスクへのデッキ追加エラー:", error);
+      alert("今日のタスクへの追加に失敗しました。もう一度お試しください。");
+    } finally {
+      setTaskAddingDeck(null);
+    }
+  };
+
   const updateDeckState = (updatedDeck: Deck) => {
     setDecks((previous) =>
       previous.map((item) =>
@@ -621,39 +713,40 @@ export default function Page() {
     );
   };
 
-  // 現在開いているデッキ内での重複抽出
-  const getDeckDuplicateGroups = (deckCards: Card[]): DuplicateCardGroup[] => {
-    const map = new Map<string, Card[]>();
+  // 横断重複検出用のヘルパー関数
+  const getDuplicateCardGroups = (): DuplicateCardGroup[] => {
+    const map = new Map<string, { deckName: string; card: Card }[]>();
 
-    for (const card of deckCards) {
-      const key = card.front.trim().toLowerCase();
-      if (!key) continue;
+    for (const deck of decks) {
+      for (const card of deck.cards) {
+        const key = card.front.trim().toLowerCase();
+        if (!key) continue;
 
-      if (!map.has(key)) {
-        map.set(key, []);
+        if (!map.has(key)) {
+          map.set(key, []);
+        }
+        map.get(key)!.push({ deckName: deck.name, card });
       }
-      map.get(key)!.push(card);
     }
 
     const result: DuplicateCardGroup[] = [];
-    for (const [key, cards] of map.entries()) {
-      if (cards.length > 1) {
-        result.push({ key, cards });
+    for (const [key, items] of map.entries()) {
+      if (items.length > 1) {
+        result.push({ key, items });
       }
     }
 
     return result;
   };
 
-  // 現在のデッキ内で重複カードを個別削除
-  const deleteDuplicateCardInCurrentDeck = async (cardId: string) => {
-    const deck = decks.find((item) => item.name === currentDeck);
+  const deleteDuplicateCard = async (targetDeckName: string, cardId: string) => {
+    const deck = decks.find((item) => item.name === targetDeckName);
     if (!deck) return;
 
     const card = deck.cards.find((c) => c.id === cardId);
     if (!card) return;
 
-    if (!confirm(`「${card.front}」をこのデッキから削除しますか？`)) {
+    if (!confirm(`デッキ「${targetDeckName}」から「${card.front}」を削除しますか？`)) {
       return;
     }
 
@@ -665,7 +758,7 @@ export default function Page() {
     try {
       await persistDeck(updatedDeck);
       updateDeckState(updatedDeck);
-      if (editingDuplicateCard?.id === cardId) {
+      if (editingDuplicateCard?.card.id === cardId) {
         setEditingDuplicateCard(null);
       }
     } catch (error) {
@@ -674,9 +767,11 @@ export default function Page() {
     }
   };
 
-  // 現在のデッキ内で重複カードを編集保存
-  const saveDuplicateCardEditInCurrentDeck = async (updatedCard: Card) => {
-    const deck = decks.find((item) => item.name === currentDeck);
+  const saveDuplicateCardEdit = async (
+    targetDeckName: string,
+    updatedCard: Card
+  ) => {
+    const deck = decks.find((item) => item.name === targetDeckName);
     if (!deck) return;
 
     const updatedDeck: Deck = {
@@ -695,54 +790,65 @@ export default function Page() {
     }
   };
 
-  // 現在のデッキ内で表面・ピンイン・訳が完全に一致する重複カードを一括削除
-  const autoRemoveExactDuplicatesInCurrentDeck = async () => {
-    const deck = decks.find((item) => item.name === currentDeck);
-    if (!deck) return;
-
-    if (
-      !confirm(
-        `デッキ「${deck.name}」内で、内容（表面・読み・訳）が完全に一致する重複カードを自動削除しますか？\n（各グループの最初の1枚だけを残します）`
-      )
-    ) {
+  // 完全重複を一括削除する機能（表面・読み・訳・例文がすべて一致、または表面+意味が完全一致するもの）
+  const autoRemoveExactDuplicates = async () => {
+    if (!confirm("表面（単語）および意味が完全に一致する重複カードについて、各グループの最初の1枚を残して残りの重複分をすべて自動削除しますか？")) {
       return;
     }
 
     try {
-      const seen = new Set<string>();
-      const keptCards: Card[] = [];
+      // どのデッキをどう書き替えるかの変更マップ
+      const deckCardMap = new Map<string, Card[]>();
+      for (const deck of decks) {
+        deckCardMap.set(deck.name, [...deck.cards]);
+      }
+
       let removedCount = 0;
 
-      for (const card of deck.cards) {
-        const signature = [
-          card.front.trim().toLowerCase(),
-          card.pinyin.trim().toLowerCase(),
-          card.japanese.trim().toLowerCase(),
-        ].join("|||");
+      // 厳密な重複チェック（front + pinyin + japanese がすべて一致するもの）
+      const globalSeen = new Set<string>();
 
-        if (seen.has(signature)) {
-          removedCount++;
-        } else {
-          seen.add(signature);
-          keptCards.push(card);
+      for (const deck of decks) {
+        const currentCards = deckCardMap.get(deck.name) || [];
+        const keptCards: Card[] = [];
+
+        for (const card of currentCards) {
+          const signature = [
+            card.front.trim().toLowerCase(),
+            card.pinyin.trim().toLowerCase(),
+            card.japanese.trim().toLowerCase(),
+          ].join("|||");
+
+          if (globalSeen.has(signature)) {
+            removedCount++;
+          } else {
+            globalSeen.add(signature);
+            keptCards.push(card);
+          }
         }
+
+        deckCardMap.set(deck.name, keptCards);
       }
 
       if (removedCount === 0) {
-        alert("完全一致する重複カードはありませんでした。");
+        alert("自動削除対象となる完全一致の重複カードはありませんでした。");
         return;
       }
 
-      const updatedDeck: Deck = {
-        ...deck,
-        cards: keptCards,
-      };
+      // Firestoreへ一括保存
+      const updatedDecks = decks.map((deck) => {
+        const newCards = deckCardMap.get(deck.name);
+        if (newCards) {
+          return { ...deck, cards: newCards };
+        }
+        return deck;
+      });
 
-      await persistDeck(updatedDeck);
-      updateDeckState(updatedDeck);
+      await Promise.all(updatedDecks.map((deck) => persistDeck(deck)));
+      setDecks(updatedDecks);
       setEditingDuplicateCard(null);
 
-      alert(`完全一致する重複カードを ${removedCount} 件 一括削除しました！`);
+      alert(`完全一致する重複カードを ${removedCount}件 自動削除しました！`);
     } catch (error) {
       console.error("一括削除エラー:", error);
       alert("完全重複の一括削除に失敗しました。");
@@ -2193,7 +2299,6 @@ export default function Page() {
     );
   }
 
-  // デッキ詳細画面（単語一覧・重複チェック）
   if (deckOpen) {
     const deck = decks.find((item) => item.name === currentDeck);
     if (!deck) return null;
@@ -2215,8 +2320,6 @@ export default function Page() {
               .toLowerCase()
               .includes(normalizedSearch)
           );
-
-    const currentDeckDuplicates = getDeckDuplicateGroups(deck.cards);
 
     return (
       <main
@@ -2308,336 +2411,13 @@ export default function Page() {
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: "8px" }}>
-            <button
-              onClick={() => setShowDeckDuplicateModal(true)}
-              style={{
-                ...secondaryButtonStyle,
-                borderColor: currentDeckDuplicates.length > 0 ? "#E8B4B4" : "#E5E5EA",
-                background: currentDeckDuplicates.length > 0 ? "#FDF2F2" : "#FFFFFF",
-                color: currentDeckDuplicates.length > 0 ? "#A93226" : "#1D1D1F",
-              }}
-            >
-              重複チェック
-              {currentDeckDuplicates.length > 0 && (
-                <span
-                  style={{
-                    marginLeft: "6px",
-                    background: "#A93226",
-                    color: "#FFFFFF",
-                    borderRadius: "10px",
-                    padding: "2px 6px",
-                    fontSize: "11px",
-                    fontWeight: 700,
-                  }}
-                >
-                  {currentDeckDuplicates.length}
-                </span>
-              )}
-            </button>
-
-        
-          </div>
-        </div>
-
-        {/* 単一デッキ内の重複チェックモーダル */}
-        {showDeckDuplicateModal && (
-          <div
-            style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(0,0,0,0.4)",
-              backdropFilter: "blur(6px)",
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              zIndex: 9999,
-              padding: "20px",
-            }}
+          <button
+            onClick={() => setShowThemeSettings(true)}
+            style={secondaryButtonStyle}
           >
-            <div
-              style={{
-                width: "100%",
-                maxWidth: "720px",
-                maxHeight: "85vh",
-                background: "#FFFFFF",
-                borderRadius: "20px",
-                padding: "24px",
-                boxShadow: "0 20px 40px rgba(0,0,0,0.15)",
-                display: "flex",
-                flexDirection: "column",
-                boxSizing: "border-box",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: "16px",
-                  paddingBottom: "12px",
-                  borderBottom: "1px solid #E5E5EA",
-                  gap: "10px",
-                }}
-              >
-                <div>
-                  <h2 style={{ margin: 0, fontSize: "19px", fontWeight: 700 }}>
-                    「{deck.name}」の重複チェック
-                  </h2>
-                  <p style={{ margin: "4px 0 0", fontSize: "12px", color: "#8E8E93" }}>
-                    表記ズレの個別編集・削除、または完全一致カードの一括削除を行えます。
-                  </p>
-                </div>
-
-                <div style={{ display: "flex", gap: "8px" }}>
-                  {currentDeckDuplicates.length > 0 && (
-                    <button
-                      onClick={autoRemoveExactDuplicatesInCurrentDeck}
-                      style={{
-                        padding: "9px 13px",
-                        background: "#A93226",
-                        color: "#FFFFFF",
-                        border: "none",
-                        borderRadius: "10px",
-                        fontWeight: 600,
-                        fontSize: "12px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      完全重複を一括削除
-                    </button>
-                  )}
-
-                  <button
-                    onClick={() => {
-                      setShowDeckDuplicateModal(false);
-                      setEditingDuplicateCard(null);
-                    }}
-                    style={secondaryButtonStyle}
-                  >
-                    閉じる
-                  </button>
-                </div>
-              </div>
-
-              <div style={{ flex: 1, overflowY: "auto", paddingRight: "4px" }}>
-                {currentDeckDuplicates.length === 0 ? (
-                  <div
-                    style={{
-                      padding: "40px 20px",
-                      textAlign: "center",
-                      color: "#8E8E93",
-                      fontSize: "14px",
-                    }}
-                  >
-                    🎉 このデッキ内に重複する単語はありません！
-                  </div>
-                ) : (
-                  currentDeckDuplicates.map((group) => (
-                    <div
-                      key={group.key}
-                      style={{
-                        marginBottom: "16px",
-                        padding: "16px",
-                        background: "#FAFAFC",
-                        border: "1px solid #E5E5EA",
-                        borderRadius: "14px",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: "16px",
-                          fontWeight: 700,
-                          marginBottom: "12px",
-                          color: "#A93226",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "8px",
-                        }}
-                      >
-                        <span>重複キーワード: 「{group.cards[0].front}」</span>
-                        <span style={{ fontSize: "12px", color: "#8E8E93", fontWeight: 500 }}>
-                          ({group.cards.length}枚)
-                        </span>
-                      </div>
-
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-                          gap: "10px",
-                        }}
-                      >
-                        {group.cards.map((card) => {
-                          const isEditing = editingDuplicateCard?.id === card.id;
-
-                          return (
-                            <div
-                              key={card.id}
-                              style={{
-                                padding: "12px",
-                                background: "#FFFFFF",
-                                border: "1px solid #E5E5EA",
-                                borderRadius: "10px",
-                                display: "flex",
-                                flexDirection: "column",
-                                justifyContent: "space-between",
-                              }}
-                            >
-                              <div>
-                                {!isEditing ? (
-                                  <>
-                                    <div
-                                      style={{
-                                        fontSize: "16px",
-                                        fontWeight: 700,
-                                        marginBottom: "4px",
-                                      }}
-                                    >
-                                      {card.front}
-                                    </div>
-                                    <div
-                                      style={{
-                                        fontSize: "12px",
-                                        color: "#8E8E93",
-                                        marginBottom: "4px",
-                                      }}
-                                    >
-                                      読み: {card.pinyin || "未設定"}
-                                    </div>
-                                    <div style={{ fontSize: "13px", color: "#1D1D1F" }}>
-                                      訳: {card.japanese || "未設定"}
-                                    </div>
-                                    {card.example && (
-                                      <div
-                                        style={{
-                                          fontSize: "11px",
-                                          color: "#666",
-                                          marginTop: "4px",
-                                          fontStyle: "italic",
-                                        }}
-                                      >
-                                        例: {card.example}
-                                      </div>
-                                    )}
-                                  </>
-                                ) : (
-                                  <div>
-                                    <label style={{ fontSize: "11px", color: "#8E8E93" }}>表面</label>
-                                    <input
-                                      value={editingDuplicateCard.front}
-                                      onChange={(e) =>
-                                        setEditingDuplicateCard({
-                                          ...editingDuplicateCard,
-                                          front: e.target.value,
-                                        })
-                                      }
-                                      style={{ ...inputStyle, padding: "6px 8px", fontSize: "13px", marginBottom: "6px" }}
-                                    />
-
-                                    <label style={{ fontSize: "11px", color: "#8E8E93" }}>ピンイン・読み</label>
-                                    <input
-                                      value={editingDuplicateCard.pinyin}
-                                      onChange={(e) =>
-                                        setEditingDuplicateCard({
-                                          ...editingDuplicateCard,
-                                          pinyin: e.target.value,
-                                        })
-                                      }
-                                      style={{ ...inputStyle, padding: "6px 8px", fontSize: "13px", marginBottom: "6px" }}
-                                    />
-
-                                    <label style={{ fontSize: "11px", color: "#8E8E93" }}>日本語訳</label>
-                                    <input
-                                      value={editingDuplicateCard.japanese}
-                                      onChange={(e) =>
-                                        setEditingDuplicateCard({
-                                          ...editingDuplicateCard,
-                                          japanese: e.target.value,
-                                        })
-                                      }
-                                      style={{ ...inputStyle, padding: "6px 8px", fontSize: "13px", marginBottom: "6px" }}
-                                    />
-
-                                    <label style={{ fontSize: "11px", color: "#8E8E93" }}>例文</label>
-                                    <input
-                                      value={editingDuplicateCard.example}
-                                      onChange={(e) =>
-                                        setEditingDuplicateCard({
-                                          ...editingDuplicateCard,
-                                          example: e.target.value,
-                                        })
-                                      }
-                                      style={{ ...inputStyle, padding: "6px 8px", fontSize: "13px", marginBottom: "6px" }}
-                                    />
-                                  </div>
-                                )}
-                              </div>
-
-                              <div
-                                style={{
-                                  display: "flex",
-                                  gap: "6px",
-                                  marginTop: "10px",
-                                  paddingTop: "8px",
-                                  borderTop: "1px solid #F0F0F2",
-                                }}
-                              >
-                                {!isEditing ? (
-                                  <button
-                                    onClick={() => setEditingDuplicateCard({ ...card })}
-                                    style={{
-                                      ...secondaryButtonStyle,
-                                      flex: 1,
-                                      padding: "6px 8px",
-                                      fontSize: "12px",
-                                    }}
-                                  >
-                                    編集
-                                  </button>
-                                ) : (
-                                  <button
-                                    onClick={() =>
-                                      saveDuplicateCardEditInCurrentDeck(editingDuplicateCard)
-                                    }
-                                    style={{
-                                      ...primaryButtonStyle,
-                                      flex: 1,
-                                      padding: "6px 8px",
-                                      fontSize: "12px",
-                                    }}
-                                  >
-                                    保存
-                                  </button>
-                                )}
-
-                                <button
-                                  onClick={() => deleteDuplicateCardInCurrentDeck(card.id)}
-                                  style={{
-                                    padding: "6px 8px",
-                                    background: "#FDF2F2",
-                                    border: "1px solid #F3D0D0",
-                                    color: "#A93226",
-                                    borderRadius: "8px",
-                                    cursor: "pointer",
-                                    fontWeight: 600,
-                                    fontSize: "12px",
-                                  }}
-                                >
-                                  削除
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+            テーマ
+          </button>
+        </div>
 
         <div
           style={{
@@ -2787,7 +2567,7 @@ export default function Page() {
               [30, "30問"],
               [50, "50問"],
               [100, "100問"],
-              [300, "300问"],
+              [300, "300問"],
               [500, "500問"],
               [1000, "1000問"],
               ["all", "全範囲"],
@@ -3265,6 +3045,86 @@ export default function Page() {
         <span style={{ color: "#A0A0A5", fontSize: "20px" }}>›</span>
       </button>
 
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "5px",
+          flexShrink: 0,
+          alignItems: "stretch",
+        }}
+      >
+        <select
+          aria-label={`${deck.name}の今日の学習語数`}
+          value={taskTargets[deck.name] ?? 30}
+          onChange={(event) =>
+            setTaskTargets((previous) => ({
+              ...previous,
+              [deck.name]: Number(event.target.value),
+            }))
+          }
+          style={{
+            width: "76px",
+            padding: "6px 4px",
+            border: "1px solid #E5E5EA",
+            borderRadius: "7px",
+            fontSize: "11px",
+            background: "#FFFFFF",
+          }}
+        >
+          {[10, 20, 30, 50, 100].map((count) => (
+            <option key={count} value={count}>
+              {count}語
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={() => void addDeckToTodayTask(deck)}
+          disabled={
+            !authReady ||
+            !authUser ||
+            deck.cards.length === 0 ||
+            taskAddingDeck === deck.name ||
+            taskAddedDecks.includes(deck.name)
+          }
+          title={
+            !authReady
+              ? "ログイン状態を確認中"
+              : !authUser
+                ? "ログインすると追加できます"
+                : taskAddedDecks.includes(deck.name)
+                  ? "今日のタスクに登録済み"
+                  : "今日のタスクに追加"
+          }
+          style={{
+            minWidth: "76px",
+            padding: "7px 5px",
+            border: "1px solid #D8E3D9",
+            borderRadius: "7px",
+            background: taskAddedDecks.includes(deck.name) ? "#F1F5F1" : "#FFFFFF",
+            color: taskAddedDecks.includes(deck.name) ? "#718675" : "#526B58",
+            fontSize: "11px",
+            fontWeight: 600,
+            cursor: "pointer",
+            opacity:
+              !authReady ||
+              !authUser ||
+              deck.cards.length === 0 ||
+              taskAddingDeck === deck.name ||
+              taskAddedDecks.includes(deck.name)
+                ? 0.55
+                : 1,
+          }}
+        >
+          {taskAddingDeck === deck.name
+            ? "追加中..."
+            : taskAddedDecks.includes(deck.name)
+              ? "追加済み"
+              : "＋ 今日"}
+        </button>
+      </div>
+
       <select
         value={deck.folderId || ""}
         onChange={(event) =>
@@ -3304,6 +3164,8 @@ export default function Page() {
       </button>
     </div>
   );
+
+  const duplicateGroups = getDuplicateCardGroups();
 
   return (
     <main
@@ -3364,8 +3226,392 @@ export default function Page() {
           </p>
         </div>
 
-    
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button
+            onClick={() => setShowDuplicateModal(true)}
+            style={{
+              ...secondaryButtonStyle,
+              position: "relative",
+              borderColor: duplicateGroups.length > 0 ? "#E8B4B4" : "#E5E5EA",
+              background: duplicateGroups.length > 0 ? "#FDF2F2" : "#FFFFFF",
+              color: duplicateGroups.length > 0 ? "#A93226" : "#1D1D1F",
+            }}
+          >
+            重複チェック
+            {duplicateGroups.length > 0 && (
+              <span
+                style={{
+                  marginLeft: "6px",
+                  background: "#A93226",
+                  color: "#FFFFFF",
+                  borderRadius: "10px",
+                  padding: "2px 6px",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                }}
+              >
+                {duplicateGroups.length}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setShowThemeSettings(true)}
+            style={secondaryButtonStyle}
+          >
+            テーマ
+          </button>
+        </div>
       </header>
+
+      {/* 重複チェック・自動一括削除モーダル */}
+      {showDuplicateModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.4)",
+            backdropFilter: "blur(6px)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 9999,
+            padding: "20px",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: "760px",
+              maxHeight: "85vh",
+              background: "#FFFFFF",
+              borderRadius: "20px",
+              padding: "24px",
+              boxShadow: "0 20px 40px rgba(0,0,0,0.15)",
+              display: "flex",
+              flexDirection: "column",
+              boxSizing: "border-box",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "16px",
+                paddingBottom: "12px",
+                borderBottom: "1px solid #E5E5EA",
+                gap: "10px",
+              }}
+            >
+              <div>
+                <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 700 }}>
+                  全デッキ横断 重複チェック
+                </h2>
+                <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#8E8E93" }}>
+                  表記のズレを確認して個別に修正・削除するか、完全一致を一括削除できます。
+                </p>
+              </div>
+
+              <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
+                {duplicateGroups.length > 0 && (
+                  <button
+                    onClick={autoRemoveExactDuplicates}
+                    style={{
+                      padding: "10px 14px",
+                      background: "#A93226",
+                      color: "#FFFFFF",
+                      border: "none",
+                      borderRadius: "10px",
+                      fontWeight: 600,
+                      fontSize: "13px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    完全重複を一括削除
+                  </button>
+                )}
+
+                <button
+                  onClick={() => {
+                    setShowDuplicateModal(false);
+                    setEditingDuplicateCard(null);
+                  }}
+                  style={secondaryButtonStyle}
+                >
+                  閉じる
+                </button>
+              </div>
+            </div>
+
+            <div style={{ flex: 1, overflowY: "auto", paddingRight: "4px" }}>
+              {duplicateGroups.length === 0 ? (
+                <div
+                  style={{
+                    padding: "40px 20px",
+                    textAlign: "center",
+                    color: "#8E8E93",
+                    fontSize: "14px",
+                  }}
+                >
+                  🎉 全てのデッキで重複した単語は見つかりませんでした！
+                </div>
+              ) : (
+                duplicateGroups.map((group) => (
+                  <div
+                    key={group.key}
+                    style={{
+                      marginBottom: "18px",
+                      padding: "16px",
+                      background: "#FAFAFC",
+                      border: "1px solid #E5E5EA",
+                      borderRadius: "14px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "17px",
+                        fontWeight: 700,
+                        marginBottom: "12px",
+                        color: "#A93226",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                      }}
+                    >
+                      <span>重複単語: 「{group.items[0].card.front}」</span>
+                      <span
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: 500,
+                          color: "#8E8E93",
+                        }}
+                      >
+                        ({group.items.length}件検出)
+                      </span>
+                    </div>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+                        gap: "10px",
+                      }}
+                    >
+                      {group.items.map(({ deckName, card }) => {
+                        const isEditing =
+                          editingDuplicateCard?.card.id === card.id &&
+                          editingDuplicateCard?.deckName === deckName;
+
+                        return (
+                          <div
+                            key={`${deckName}-${card.id}`}
+                            style={{
+                              padding: "14px",
+                              background: "#FFFFFF",
+                              border: "1px solid #E5E5EA",
+                              borderRadius: "12px",
+                              display: "flex",
+                              flexDirection: "column",
+                              justifyContent: "space-between",
+                            }}
+                          >
+                            <div>
+                              <div
+                                style={{
+                                  fontSize: "11px",
+                                  fontWeight: 700,
+                                  color: "#718675",
+                                  marginBottom: "6px",
+                                  background: "#F1F5F1",
+                                  padding: "3px 8px",
+                                  borderRadius: "6px",
+                                  display: "inline-block",
+                                }}
+                              >
+                                デッキ: {deckName}
+                              </div>
+
+                              {!isEditing ? (
+                                <>
+                                  <div
+                                    style={{
+                                      fontSize: "16px",
+                                      fontWeight: 700,
+                                      margin: "6px 0 2px",
+                                    }}
+                                  >
+                                    {card.front}
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: "13px",
+                                      color: "#8E8E93",
+                                      marginBottom: "4px",
+                                    }}
+                                  >
+                                    読み: {card.pinyin || "未設定"}
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: "14px",
+                                      color: "#1D1D1F",
+                                      marginBottom: "6px",
+                                    }}
+                                  >
+                                    訳: {card.japanese || "未設定"}
+                                  </div>
+                                  {card.example && (
+                                    <div
+                                      style={{
+                                        fontSize: "12px",
+                                        color: "#555",
+                                        fontStyle: "italic",
+                                      }}
+                                    >
+                                      例: {card.example}
+                                    </div>
+                                  )}
+                                </>
+                              ) : (
+                                <div style={{ marginTop: "10px" }}>
+                                  <label style={{ fontSize: "11px", color: "#8E8E93" }}>単語</label>
+                                  <input
+                                    value={editingDuplicateCard.card.front}
+                                    onChange={(e) =>
+                                      setEditingDuplicateCard({
+                                        ...editingDuplicateCard,
+                                        card: {
+                                          ...editingDuplicateCard.card,
+                                          front: e.target.value,
+                                        },
+                                      })
+                                    }
+                                    style={{ ...inputStyle, padding: "8px", fontSize: "13px" }}
+                                  />
+
+                                  <label style={{ fontSize: "11px", color: "#8E8E93" }}>読み</label>
+                                  <input
+                                    value={editingDuplicateCard.card.pinyin}
+                                    onChange={(e) =>
+                                      setEditingDuplicateCard({
+                                        ...editingDuplicateCard,
+                                        card: {
+                                          ...editingDuplicateCard.card,
+                                          pinyin: e.target.value,
+                                        },
+                                      })
+                                    }
+                                    style={{ ...inputStyle, padding: "8px", fontSize: "13px" }}
+                                  />
+
+                                  <label style={{ fontSize: "11px", color: "#8E8E93" }}>日本語訳</label>
+                                  <input
+                                    value={editingDuplicateCard.card.japanese}
+                                    onChange={(e) =>
+                                      setEditingDuplicateCard({
+                                        ...editingDuplicateCard,
+                                        card: {
+                                          ...editingDuplicateCard.card,
+                                          japanese: e.target.value,
+                                        },
+                                      })
+                                    }
+                                    style={{ ...inputStyle, padding: "8px", fontSize: "13px" }}
+                                  />
+
+                                  <label style={{ fontSize: "11px", color: "#8E8E93" }}>例文</label>
+                                  <input
+                                    value={editingDuplicateCard.card.example}
+                                    onChange={(e) =>
+                                      setEditingDuplicateCard({
+                                        ...editingDuplicateCard,
+                                        card: {
+                                          ...editingDuplicateCard.card,
+                                          example: e.target.value,
+                                        },
+                                      })
+                                    }
+                                    style={{ ...inputStyle, padding: "8px", fontSize: "13px" }}
+                                  />
+                                </div>
+                              )}
+                            </div>
+
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: "6px",
+                                marginTop: "12px",
+                                paddingTop: "8px",
+                                borderTop: "1px solid #F0F0F2",
+                              }}
+                            >
+                              {!isEditing ? (
+                                <button
+                                  onClick={() =>
+                                    setEditingDuplicateCard({
+                                      deckName,
+                                      card: { ...card },
+                                    })
+                                  }
+                                  style={{
+                                    ...secondaryButtonStyle,
+                                    flex: 1,
+                                    padding: "6px 8px",
+                                    fontSize: "12px",
+                                  }}
+                                >
+                                  編集
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() =>
+                                    saveDuplicateCardEdit(
+                                      deckName,
+                                      editingDuplicateCard.card
+                                    )
+                                  }
+                                  style={{
+                                    ...primaryButtonStyle,
+                                    flex: 1,
+                                    padding: "6px 8px",
+                                    fontSize: "12px",
+                                  }}
+                                >
+                                  保存
+                                </button>
+                              )}
+
+                              <button
+                                onClick={() =>
+                                  deleteDuplicateCard(deckName, card.id)
+                                }
+                                style={{
+                                  padding: "6px 8px",
+                                  background: "#FDF2F2",
+                                  border: "1px solid #F3D0D0",
+                                  color: "#A93226",
+                                  borderRadius: "8px",
+                                  cursor: "pointer",
+                                  fontWeight: 600,
+                                  fontSize: "12px",
+                                }}
+                              >
+                                削除
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {folders.map((folder, folderIndex) => {
         const folderDecks = sortDecks(
