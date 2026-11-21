@@ -11,7 +11,7 @@ import {
   doc,
   getDoc,
   serverTimestamp,
-  setDock,
+    setDoc,
   runTransaction,
 } from "firebase/firestore";
 
