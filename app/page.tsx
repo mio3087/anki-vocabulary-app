@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { useLanguage } from "@/app/component/AppLanguage";
+
 import { auth, db } from "@/lib/firebase";
 import {
   collection,
@@ -1465,6 +1466,96 @@ export default function Page() {
       : 0;
 
     await saveStudyRecord(studyCorrect, studyIncorrect);
+    // Anki Lifeへの報酬連携
+if (authUser && studySessionId && total > 0) {
+  try {
+    const now = new Date();
+    const today = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, "0"),
+      String(now.getDate()).padStart(2, "0"),
+    ].join("-");
+
+    const lifeStateRef = doc(
+      db,
+      "users",
+      authUser.uid,
+      "ankiLife",
+      "state"
+    );
+
+    const rewardEventRef = doc(
+      db,
+      "users",
+      authUser.uid,
+      "ankiLife",
+      "rewardEvents",
+      studySessionId
+    );
+
+    await runTransaction(db, async (transaction) => {
+      const eventSnapshot = await transaction.get(rewardEventRef);
+
+      // 同じ学習セッションの二重付与を防止
+      if (eventSnapshot.exists()) return;
+
+      const stateSnapshot = await transaction.get(lifeStateRef);
+      const saved = stateSnapshot.exists()
+        ? stateSnapshot.data()
+        : {};
+
+      const previousCoins = Number(saved.coins || 0);
+      const previousXp = Number(saved.xp || 0);
+      const previousSessions = Number(saved.totalSessions || 0);
+      const previousCards = Number(saved.totalCards || 0);
+
+      const sameDay = saved.lastStudyDate === today;
+      const sessionsToday = sameDay
+        ? Number(saved.sessionsToday || 0)
+        : 0;
+
+      // 何度も戻ってきたことを評価する
+      const returnBonus = sessionsToday >= 1 ? 20 : 0;
+      const earnedCoins = total * 5 + returnBonus;
+      const earnedXp = total * 10;
+
+      const nextXp = previousXp + earnedXp;
+
+      transaction.set(
+        lifeStateRef,
+        {
+          coins: previousCoins + earnedCoins,
+          xp: nextXp,
+          petName: saved.petName || "まめ",
+          petLevel: Math.floor(nextXp / 100) + 1,
+          islandLevel: Math.floor(nextXp / 500) + 1,
+          totalSessions: previousSessions + 1,
+          totalCards: previousCards + total,
+          lastStudyDate: today,
+          sessionsToday: sessionsToday + 1,
+          rewards: Array.isArray(saved.rewards) ? saved.rewards : [],
+          items: Array.isArray(saved.items) ? saved.items : [],
+          updatedAt: Date.now(),
+        },
+        { merge: true }
+      );
+
+      transaction.set(rewardEventRef, {
+        sessionId: studySessionId,
+        deckName: currentDeck,
+        answered: total,
+        correct: studyCorrect,
+        incorrect: studyIncorrect,
+        coins: earnedCoins,
+        xp: earnedXp,
+        returnBonus,
+        createdAt: Date.now(),
+      });
+    });
+  } catch (error) {
+    console.error("Anki Life報酬付与エラー:", error);
+  }
+}
 
     setSummaryData({
       total,
@@ -2132,6 +2223,22 @@ export default function Page() {
               )}
 
               <div style={{ display: "flex", gap: "8px" }}>
+
+                <a
+  href="/anki-life"
+  style={{
+    ...secondaryButtonStyle,
+    textDecoration: "none",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "5px",
+    background: "#EDF4EA",
+    borderColor: "#D7E5D4",
+    color: "#49664F",
+  }}
+>
+  🐣 Anki Life
+</a>
                 <button
                   onClick={saveCard}
                   style={{ ...primaryButtonStyle, flex: 1 }}
