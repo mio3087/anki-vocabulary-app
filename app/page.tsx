@@ -5,7 +5,6 @@ import { onAuthStateChanged, type User } from "firebase/auth";
 import { useLanguage } from "@/app/component/AppLanguage";
 
 import { auth, db } from "@/lib/firebase";
-
 import {
   collection,
   deleteDoc,
@@ -13,11 +12,9 @@ import {
   getDoc,
   getDocs,
   serverTimestamp,
-  setDoc,
+    setDoc,
   runTransaction,
 } from "firebase/firestore";
-
-
 
 type Folder = {
   id: string;
@@ -42,6 +39,7 @@ type Card = {
   reviewCount?: number;
   correctCount?: number;
   incorrectCount?: number;
+  correctStreak?: number;
   lastReviewedAt?: number;
   lastResult?: "correct" | "incorrect";
   learningStatus?: LearningStatus;
@@ -322,9 +320,10 @@ export default function Page() {
     30 | 50 | 100 | 300 | 500 | 1000 | "all"
   >(30);
   const [studyStatusFilter, setStudyStatusFilter] = useState<
-    "all" | "unlearned" | "weak" | "vague"
+    "all" | "unlearned" | "weak" | "vague" | "mistakes"
   >("all");
 
+  const [showMistakeList, setShowMistakeList] = useState(false);
   const [speechLanguage, setSpeechLanguage] = useState("zh-CN");
 
   const [studyMode, setStudyMode] = useState(false);
@@ -1128,81 +1127,130 @@ export default function Page() {
     }
   };
 
+  // CSVの引用符・カンマ・セル内改行を正しく解析する（5列形式）
+  const parseCSV = (text: string): string[][] => {
+    const source = text.replace(/^\uFEFF/, "");
+    const rows: string[][] = [];
+    let row: string[] = [];
+    let cell = "";
+    let quoted = false;
+    let afterQuote = false;
+
+    for (let i = 0; i < source.length; i++) {
+      const ch = source[i];
+      if (quoted) {
+        if (ch === '"') {
+          if (source[i + 1] === '"') {
+            cell += '"';
+            i++;
+          } else {
+            quoted = false;
+            afterQuote = true;
+          }
+        } else {
+          cell += ch;
+        }
+      } else if (ch === "," || ch === "\n" || ch === "\r") {
+        row.push(cell);
+        cell = "";
+        afterQuote = false;
+        if (ch !== ",") {
+          if (row.some((value) => value.trim() !== "")) rows.push(row);
+          row = [];
+          if (ch === "\r" && source[i + 1] === "\n") i++;
+        }
+      } else if (ch === '"' && cell === "" && !afterQuote) {
+        quoted = true;
+      } else if (afterQuote && (ch === " " || ch === "\t")) {
+        // 閉じ引用符の直後にある空白は無視
+      } else if (afterQuote) {
+        throw new Error("CSVの引用符の後に不正な文字があります。");
+      } else if (ch === '"') {
+        throw new Error("CSVの引用符の位置が正しくありません。");
+      } else {
+        cell += ch;
+      }
+    }
+    if (quoted) throw new Error("CSVの引用符が閉じられていません。");
+    row.push(cell);
+    if (row.some((value) => value.trim() !== "")) rows.push(row);
+    return rows;
+  };
+
   const importCSV = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.currentTarget.files?.[0];
     if (!file) return;
-
     event.currentTarget.value = "";
 
     const reader = new FileReader();
-
     reader.onload = async () => {
       try {
-        const result = reader.result;
-
-        if (typeof result !== "string") {
-          return alert(tx("alert.csvReadFailed"));
+        if (typeof reader.result !== "string") {
+          alert(tx("alert.csvReadFailed"));
+          return;
         }
 
-        const lines = result
-          .replace(/^\uFEFF/, "")
-          .split(/\r?\n/)
-          .map((line) => line.trim())
-          .filter(Boolean);
+        const rows = parseCSV(reader.result);
+        if (!rows.length) return alert(tx("alert.csvEmpty"));
 
-        if (lines.length === 0) return alert(tx("alert.csvEmpty"));
+        // 見出し行があるCSVも受け入れる
+        const first = rows[0].map((value) => value.trim().toLowerCase());
+        const hasHeader =
+          ["front", "word", "外国語", "単語"].includes(first[0] || "") &&
+          ["pinyin", "pronunciation", "発音", "発音・ピンイン", "ピンイン"].includes(first[1] || "");
+        const dataRows = hasHeader ? rows.slice(1) : rows;
+        const invalidRow = dataRows.findIndex((row) => row.length !== 5);
+        if (invalidRow !== -1) {
+          alert(`CSVの${invalidRow + (hasHeader ? 2 : 1)}行目が5列ではありません（${dataRows[invalidRow].length}列）。読み込みを中止しました。`);
+          return;
+        }
 
-        const importedCards: Card[] = [];
-
-        for (const line of lines) {
-          const parts = line.split(",");
-
-          const card: Card = {
+        const importedCards: Card[] = dataRows
+          .filter((parts) => parts[0].trim() !== "")
+          .map((parts) => ({
             id: createId(),
-            front: (parts[0] || "").trim(),
-            pinyin: (parts[1] || "").trim(),
-            japanese: (parts[2] || "").trim(),
-            example: (parts[3] || "").trim(),
-            exampleJapanese: parts.slice(4).join(",").trim(),
+            front: parts[0].trim(),
+            pinyin: parts[1].trim(),
+            japanese: parts[2].trim(),
+            example: parts[3].trim(),
+            exampleJapanese: parts[4].trim(),
             reviewCount: 0,
             correctCount: 0,
             incorrectCount: 0,
+            correctStreak: 0,
             lastReviewedAt: 0,
-            learningStatus: "unlearned",
+            learningStatus: "unlearned" as LearningStatus,
             nextReviewAt: null,
-          };
+          }));
 
-          if (card.front) importedCards.push(card);
-        }
-
-        if (importedCards.length === 0) {
-          return alert(tx("alert.wordReadFailed"));
-        }
-
+        if (!importedCards.length) return alert(tx("alert.wordReadFailed"));
         const deck = decks.find((item) => item.name === currentDeck);
-
         if (!deck) return alert(tx("alert.deckNotFound"));
 
-        const updatedDeck: Deck = {
-          ...deck,
-          cards: [...deck.cards, ...importedCards],
-        };
+        const existing = new Set(deck.cards.map((card) =>
+          [card.front, card.pinyin, card.japanese, card.example, card.exampleJapanese].join("\u0000")
+        ));
+        const newCards = importedCards.filter((card) => {
+          const key = [card.front, card.pinyin, card.japanese, card.example, card.exampleJapanese].join("\u0000");
+          if (existing.has(key)) return false;
+          existing.add(key);
+          return true;
+        });
+        if (!newCards.length) {
+          alert("すべて既存のカードと一致したため、重複登録はしませんでした。");
+          return;
+        }
 
+        const updatedDeck: Deck = { ...deck, cards: [...deck.cards, ...newCards] };
         await persistDeck(updatedDeck);
         updateDeckState(updatedDeck);
-
-        alert(
-          tx("alert.csvImported").replace(
-            "{count}",
-            String(importedCards.length)
-          )
-        );
+        alert(`${newCards.length}語をインポートしました。${importedCards.length - newCards.length}語の重複をスキップしました。`);
       } catch (error) {
-        console.error(error);
-        alert("CSVエラー: " + String(error));
+        console.error("CSVインポートエラー:", error);
+        alert("CSVエラー: " + (error instanceof Error ? error.message : String(error)));
       }
     };
-
+    reader.onerror = () => alert(tx("alert.csvReadFailed"));
     reader.readAsText(file, "UTF-8");
   };
 
@@ -1349,6 +1397,28 @@ export default function Page() {
     }
   };
 
+  const downloadMistakesCSV = (deck: Deck, analysis: boolean) => {
+    const mistakes = deck.cards.filter((card) => (card.incorrectCount || 0) > 0 && (card.correctStreak || 0) < 3);
+    if (!mistakes.length) return alert("復習対象の苦手単語はありません。");
+    const csvCell = (value: string | number) => `"${String(value).replace(/"/g, '""')}"`;
+    // 学習用は既存のCSVインポートと同じ5列・ヘッダーなし
+    const rows = mistakes.map((card) => {
+      const basic = [card.front, card.pinyin, card.japanese, card.example, card.exampleJapanese];
+      const extra = analysis ? [card.incorrectCount || 0, card.correctCount || 0, card.reviewCount || 0, card.correctStreak || 0, card.lastReviewedAt ? new Date(card.lastReviewedAt).toISOString() : ""] : [];
+      return [...basic, ...extra].map(csvCell).join(",");
+    });
+    if (analysis) rows.unshift(["front", "pinyin", "japanese", "example", "exampleJapanese", "incorrectCount", "correctCount", "reviewCount", "correctStreak", "lastReviewedAt"].map(csvCell).join(","));
+    const blob = new Blob(["\uFEFF", rows.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${deck.name.replace(/[\\/:*?"<>|]/g, "_")}-mistakes-${analysis ? "analysis" : "study"}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
   const startStudy = () => {
     answerLockRef.current = false;
 
@@ -1361,6 +1431,8 @@ export default function Page() {
     const filteredCards =
       studyStatusFilter === "all"
         ? deck.cards
+        : studyStatusFilter === "mistakes"
+          ? deck.cards.filter((card) => (card.incorrectCount || 0) > 0 && (card.correctStreak || 0) < 3)
         : deck.cards.filter(
             (card) =>
               (card.learningStatus ?? "unlearned") === studyStatusFilter
@@ -1370,6 +1442,8 @@ export default function Page() {
       const filterLabel =
         studyStatusFilter === "unlearned"
           ? "未学習"
+          : studyStatusFilter === "mistakes"
+            ? "間違えた単語"
           : studyStatusFilter === "weak"
             ? "苦手"
             : studyStatusFilter === "vague"
@@ -1703,6 +1777,7 @@ if (authUser && studySessionId && total > 0) {
         (currentCard.correctCount || 0) + (correct ? 1 : 0),
       incorrectCount:
         (currentCard.incorrectCount || 0) + (correct ? 0 : 1),
+      correctStreak: correct ? (currentCard.correctStreak || 0) + 1 : 0,
       lastReviewedAt: now,
       lastResult: correct ? "correct" : "incorrect",
       learningStatus: learningStatus ?? currentCard.learningStatus,
@@ -2721,6 +2796,7 @@ if (authUser && studySessionId && total > 0) {
               ["unlearned", "未学習だけ"],
               ["weak", "苦手だけ"],
               ["vague", "うろ覚えだけ"],
+              ["mistakes", "間違えた単語だけ"],
             ] as const).map(([value, label]) => (
               <button
                 key={value}
@@ -2748,6 +2824,31 @@ if (authUser && studySessionId && total > 0) {
           <p style={{ margin: "9px 0 0", color: "#8E8E93", fontSize: "11px" }}>
             選択した暗記レベルのカードから、指定した枚数を出題します。対象が指定枚数より少ない場合は、対象カードをすべて学習します。
           </p>
+        </section>
+
+        <section style={{ marginTop: "18px", padding: "16px", border: "1px solid #E5E5EA", borderRadius: "14px", background: "#FFFFFF" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+            <strong>📖 苦手単語帳（{deck.cards.filter((card) => (card.incorrectCount || 0) > 0 && (card.correctStreak || 0) < 3).length}語）</strong>
+            <button type="button" style={secondaryButtonStyle} onClick={() => setShowMistakeList((v) => !v)}>{showMistakeList ? "閉じる" : "一覧を見る"}</button>
+          </div>
+          <p style={{ fontSize: "12px", color: "#777" }}>過去に間違えた単語を自動収集。連続3回正解で克服済みになります。</p>
+          {showMistakeList && (
+            <div style={{ maxHeight: "320px", overflowY: "auto" }}>
+              {deck.cards.filter((card) => (card.incorrectCount || 0) > 0).sort((a, b) => (b.incorrectCount || 0) - (a.incorrectCount || 0)).map((card) => (
+                <div key={card.id} style={{ padding: "10px 0", borderBottom: "1px solid #eee" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: "8px" }}>
+                    <strong>{card.front}</strong><span style={{ fontSize: "12px", color: (card.correctStreak || 0) >= 3 ? "#387A55" : "#A93226" }}>{(card.correctStreak || 0) >= 3 ? "克服済み" : `不正解 ${card.incorrectCount || 0}回`}</span>
+                  </div>
+                  <div style={{ fontSize: "12px", color: "#777" }}>{card.pinyin}　{card.japanese}</div>
+                </div>
+              ))}
+              {deck.cards.every((card) => !(card.incorrectCount || 0)) && <p>まだ間違えた単語はありません。</p>}
+            </div>
+          )}
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
+            <button type="button" style={secondaryButtonStyle} onClick={() => downloadMistakesCSV(deck, false)}>学習用CSV</button>
+            <button type="button" style={secondaryButtonStyle} onClick={() => downloadMistakesCSV(deck, true)}>分析用CSV</button>
+          </div>
         </section>
 
         <button
