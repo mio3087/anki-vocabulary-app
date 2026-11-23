@@ -30,6 +30,7 @@ type LifeData = {
   totalCards: number;
   rewards: Reward[];
   items: string[];
+  milestoneClaims?: Record<string, string>;
 };
 
 const INITIAL_DATA: LifeData = {
@@ -41,7 +42,14 @@ const INITIAL_DATA: LifeData = {
   totalCards: 0,
   rewards: [],
   items: [],
+  milestoneClaims: {},
 };
+
+const XP_MILESTONES = [
+  { xp: 10000, emoji: "☕", title: "カフェ・スイーツ", description: "好きなカフェやスイーツを楽しむ" },
+  { xp: 50000, emoji: "📚", title: "本を購入", description: "気になっていた本を1冊選ぶ" },
+  { xp: 100000, emoji: "🛍️", title: "タオバオで買い物解禁", description: "予算を確認してから買い物を楽しむ" },
+] as const;
 
 const GAME_ITEMS = [
   { id: "apple", name: "りんご", emoji: "🍎", price: 30 },
@@ -161,6 +169,7 @@ export default function AnkiLifePage() {
             ...saved,
             rewards: Array.isArray(saved.rewards) ? saved.rewards : [],
             items: Array.isArray(saved.items) ? saved.items : [],
+            milestoneClaims: saved.milestoneClaims && typeof saved.milestoneClaims === "object" ? saved.milestoneClaims : {},
           });
         } else {
           await setDoc(stateRef(currentUser.uid), INITIAL_DATA);
@@ -185,6 +194,32 @@ export default function AnkiLifePage() {
     } catch (error) {
       console.error("Anki Life保存エラー:", error);
       setMessage("保存に失敗しました。通信状態を確認してください。");
+    }
+  };
+
+  const claimMilestone = async (requiredXp: number) => {
+    if (!user) return;
+    const milestone = XP_MILESTONES.find((item) => item.xp === requiredXp);
+    if (!milestone) return;
+
+    try {
+      // 最新のXPをFirestore内で確認し、二重受取を防ぐ。
+      const nextData = await runTransaction(db, async (transaction) => {
+        const ref = stateRef(user.uid);
+        const snapshot = await transaction.get(ref);
+        if (!snapshot.exists()) throw new Error("学習データが見つかりません。");
+        const current = snapshot.data() as LifeData;
+        const claims = current.milestoneClaims || {};
+        if ((current.xp || 0) < requiredXp) throw new Error("必要なXPに到達していません。");
+        if (claims[String(requiredXp)]) throw new Error("このご褒美は受取済みです。");
+        const nextClaims = { ...claims, [String(requiredXp)]: new Date().toISOString() };
+        transaction.update(ref, { milestoneClaims: nextClaims });
+        return { ...INITIAL_DATA, ...current, milestoneClaims: nextClaims };
+      });
+      setData(nextData);
+      setMessage(`🎉 ${milestone.title}を解禁しました！`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "ご褒美の受取に失敗しました。");
     }
   };
 
@@ -392,6 +427,47 @@ export default function AnkiLifePage() {
               <strong style={{ fontSize: 23 }}>{value}</strong>
             </div>
           ))}
+        </section>
+
+        <section style={{ ...cardStyle, marginBottom: 18 }}>
+          <h2 style={{ marginTop: 0 }}>🎯 XP達成ご褒美</h2>
+          <p style={{ color: "#78847B", fontSize: 13 }}>
+            累計XPで解禁！ XPやコインは消費しません。受取記録はFirebaseに保存されます。
+          </p>
+          <div style={{ display: "grid", gap: 12 }}>
+            {XP_MILESTONES.map((milestone) => {
+              const claimed = Boolean(data.milestoneClaims?.[String(milestone.xp)]);
+              const unlocked = data.xp >= milestone.xp;
+              const remaining = Math.max(0, milestone.xp - data.xp);
+              const progress = Math.min(100, Math.max(0, (data.xp / milestone.xp) * 100));
+              return (
+                <div key={milestone.xp} style={{ border: "1px solid #E8E8E5", borderRadius: 14, padding: 15 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                    <div>
+                      <strong>{milestone.emoji} {milestone.title}</strong>
+                      <div style={{ color: "#78847B", fontSize: 12, marginTop: 4 }}>
+                        {milestone.xp.toLocaleString("ja-JP")} XP · {milestone.description}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      style={{ ...buttonStyle, background: claimed ? "#AAB5AA" : "#647D6B", opacity: !unlocked ? 0.6 : 1 }}
+                      disabled={!unlocked || claimed}
+                      onClick={() => claimMilestone(milestone.xp)}
+                    >
+                      {claimed ? "受取済み" : unlocked ? "ご褒美を解禁" : `あと ${remaining.toLocaleString("ja-JP")} XP`}
+                    </button>
+                  </div>
+                  <div role="progressbar" aria-label={`${milestone.title}の進捗`} aria-valuenow={Math.min(data.xp, milestone.xp)} aria-valuemin={0} aria-valuemax={milestone.xp} style={{ height: 9, background: "#E7ECE4", borderRadius: 20, overflow: "hidden", marginTop: 12 }}>
+                    <div style={{ width: `${progress}%`, height: "100%", background: "#7CA47D", borderRadius: 20 }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <p style={{ color: "#78847B", fontSize: 12, marginBottom: 0 }}>
+            ※ 現実の買い物は自動実行されません。タオバオのご褒美も予算内で利用してください。
+          </p>
         </section>
 
         <section style={{ ...cardStyle, marginBottom: 18 }}>

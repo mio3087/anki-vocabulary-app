@@ -39,6 +39,8 @@ type Card = {
   reviewCount?: number;
   correctCount?: number;
   incorrectCount?: number;
+  normalIncorrectCount?: number;
+  quickIncorrectCount?: number;
   correctStreak?: number;
   lastReviewedAt?: number;
   lastResult?: "correct" | "incorrect";
@@ -289,6 +291,14 @@ export default function Page() {
   const { language } = useLanguage();
 
   const answerLockRef = useRef(false);
+  const finishLockRef = useRef(false);
+  const quickDeadlineRef = useRef<number | null>(null);
+  const quickRemainingRef = useRef(0);
+  const quickActiveStartedRef = useRef<number | null>(null);
+  const quickElapsedRef = useRef(0);
+  const quickPausedRef = useRef(false);
+  const quickModeRef = useRef<"normal" | "50" | "100" | "unlimited">("normal");
+  const finishStudyRef = useRef<() => Promise<void>>(async () => {});
   const deckSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -324,8 +334,13 @@ export default function Page() {
   >("all");
 
   const [showMistakeList, setShowMistakeList] = useState(false);
+  const [mistakeCsvScope, setMistakeCsvScope] = useState<"all" | "normal" | "quick">("all");
   const [speechLanguage, setSpeechLanguage] = useState("zh-CN");
 
+  const [challengeMode, setChallengeMode] = useState<"normal" | "50" | "100" | "unlimited">("100");
+  const [activeChallengeMode, setActiveChallengeMode] = useState<"normal" | "50" | "100" | "unlimited">("normal");
+  const [quickRemainingMs, setQuickRemainingMs] = useState(100000);
+  const [quickPaused, setQuickPaused] = useState(false);
   const [studyMode, setStudyMode] = useState(false);
   const [studyCards, setStudyCards] = useState<Card[]>([]);
   const [studyIndex, setStudyIndex] = useState(0);
@@ -337,12 +352,15 @@ export default function Page() {
   const [studySessionId, setStudySessionId] = useState<string | null>(null);
 
   const [showSummaryModal, setShowSummaryModal] = useState(false);
+  const answerHistoryRef = useRef<Array<{ card: Card; correct: boolean }>>([]);
   const [summaryData, setSummaryData] = useState<{
     total: number;
     correct: number;
     incorrect: number;
     rate: string;
     durationSec: number;
+    missed: Card[];
+    remembered: Card[];
   } | null>(null);
 
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
@@ -478,6 +496,9 @@ export default function Page() {
                   reviewCount: Number(card.reviewCount || 0),
                   correctCount: Number(card.correctCount || 0),
                   incorrectCount: Number(card.incorrectCount || 0),
+                  normalIncorrectCount: card.normalIncorrectCount === undefined ? undefined : Number(card.normalIncorrectCount || 0),
+                  quickIncorrectCount: card.quickIncorrectCount === undefined ? undefined : Number(card.quickIncorrectCount || 0),
+                  correctStreak: Number(card.correctStreak || 0),
                   lastReviewedAt: Number(card.lastReviewedAt || 0),
                   ...(card.lastResult === "correct" || card.lastResult === "incorrect"
                     ? { lastResult: card.lastResult }
@@ -1127,130 +1148,104 @@ export default function Page() {
     }
   };
 
-  // CSVの引用符・カンマ・セル内改行を正しく解析する（5列形式）
-  const parseCSV = (text: string): string[][] => {
-    const source = text.replace(/^\uFEFF/, "");
-    const rows: string[][] = [];
-    let row: string[] = [];
-    let cell = "";
-    let quoted = false;
-    let afterQuote = false;
-
-    for (let i = 0; i < source.length; i++) {
-      const ch = source[i];
-      if (quoted) {
-        if (ch === '"') {
-          if (source[i + 1] === '"') {
-            cell += '"';
-            i++;
-          } else {
-            quoted = false;
-            afterQuote = true;
-          }
-        } else {
-          cell += ch;
-        }
-      } else if (ch === "," || ch === "\n" || ch === "\r") {
-        row.push(cell);
-        cell = "";
-        afterQuote = false;
-        if (ch !== ",") {
-          if (row.some((value) => value.trim() !== "")) rows.push(row);
-          row = [];
-          if (ch === "\r" && source[i + 1] === "\n") i++;
-        }
-      } else if (ch === '"' && cell === "" && !afterQuote) {
-        quoted = true;
-      } else if (afterQuote && (ch === " " || ch === "\t")) {
-        // 閉じ引用符の直後にある空白は無視
-      } else if (afterQuote) {
-        throw new Error("CSVの引用符の後に不正な文字があります。");
-      } else if (ch === '"') {
-        throw new Error("CSVの引用符の位置が正しくありません。");
-      } else {
-        cell += ch;
-      }
-    }
-    if (quoted) throw new Error("CSVの引用符が閉じられていません。");
-    row.push(cell);
-    if (row.some((value) => value.trim() !== "")) rows.push(row);
-    return rows;
-  };
-
   const importCSV = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.currentTarget.files?.[0];
     if (!file) return;
+
     event.currentTarget.value = "";
 
     const reader = new FileReader();
+
     reader.onload = async () => {
       try {
-        if (typeof reader.result !== "string") {
-          alert(tx("alert.csvReadFailed"));
-          return;
+        const result = reader.result;
+
+        if (typeof result !== "string") {
+          return alert(tx("alert.csvReadFailed"));
         }
 
-        const rows = parseCSV(reader.result);
-        if (!rows.length) return alert(tx("alert.csvEmpty"));
+        // RFC 4180形式の引用符付きCSVを解析（例文中のカンマ・改行にも対応）。
+        const parseCSV = (text: string): string[][] => {
+          const rows: string[][] = [];
+          let row: string[] = [];
+          let cell = "";
+          let quoted = false;
+          const input = text.replace(/^\uFEFF/, "");
+          for (let i = 0; i < input.length; i += 1) {
+            const ch = input[i];
+            if (ch === '"') {
+              if (quoted && input[i + 1] === '"') { cell += '"'; i += 1; }
+              else quoted = !quoted;
+            } else if (ch === "," && !quoted) {
+              row.push(cell); cell = "";
+            } else if ((ch === "\n" || ch === "\r") && !quoted) {
+              if (ch === "\r" && input[i + 1] === "\n") i += 1;
+              row.push(cell); cell = "";
+              if (row.some((value) => value.trim())) rows.push(row);
+              row = [];
+            } else {
+              cell += ch;
+            }
+          }
+          row.push(cell);
+          if (row.some((value) => value.trim())) rows.push(row);
+          return rows;
+        };
+        const parsedRows = parseCSV(result);
+        if (parsedRows.length === 0) return alert(tx("alert.csvEmpty"));
 
-        // 見出し行があるCSVも受け入れる
-        const first = rows[0].map((value) => value.trim().toLowerCase());
-        const hasHeader =
-          ["front", "word", "外国語", "単語"].includes(first[0] || "") &&
-          ["pinyin", "pronunciation", "発音", "発音・ピンイン", "ピンイン"].includes(first[1] || "");
-        const dataRows = hasHeader ? rows.slice(1) : rows;
-        const invalidRow = dataRows.findIndex((row) => row.length !== 5);
-        if (invalidRow !== -1) {
-          alert(`CSVの${invalidRow + (hasHeader ? 2 : 1)}行目が5列ではありません（${dataRows[invalidRow].length}列）。読み込みを中止しました。`);
-          return;
-        }
-
-        const importedCards: Card[] = dataRows
-          .filter((parts) => parts[0].trim() !== "")
-          .map((parts) => ({
+        const importedCards: Card[] = [];
+        for (const parts of parsedRows) {
+          // 分析用CSVのヘッダーはカードとして読み込まない。
+          if (parts[0] === "front" && parts[1] === "pinyin" && parts[2] === "japanese") continue;
+          const card: Card = {
             id: createId(),
-            front: parts[0].trim(),
-            pinyin: parts[1].trim(),
-            japanese: parts[2].trim(),
-            example: parts[3].trim(),
-            exampleJapanese: parts[4].trim(),
+            front: (parts[0] || "").trim(),
+            pinyin: (parts[1] || "").trim(),
+            japanese: (parts[2] || "").trim(),
+            example: (parts[3] || "").trim(),
+            exampleJapanese: (parts[4] || "").trim(),
             reviewCount: 0,
             correctCount: 0,
             incorrectCount: 0,
+            normalIncorrectCount: 0,
+            quickIncorrectCount: 0,
             correctStreak: 0,
             lastReviewedAt: 0,
-            learningStatus: "unlearned" as LearningStatus,
+            learningStatus: "unlearned",
             nextReviewAt: null,
-          }));
-
-        if (!importedCards.length) return alert(tx("alert.wordReadFailed"));
-        const deck = decks.find((item) => item.name === currentDeck);
-        if (!deck) return alert(tx("alert.deckNotFound"));
-
-        const existing = new Set(deck.cards.map((card) =>
-          [card.front, card.pinyin, card.japanese, card.example, card.exampleJapanese].join("\u0000")
-        ));
-        const newCards = importedCards.filter((card) => {
-          const key = [card.front, card.pinyin, card.japanese, card.example, card.exampleJapanese].join("\u0000");
-          if (existing.has(key)) return false;
-          existing.add(key);
-          return true;
-        });
-        if (!newCards.length) {
-          alert("すべて既存のカードと一致したため、重複登録はしませんでした。");
-          return;
+          };
+          if (card.front) importedCards.push(card);
         }
 
-        const updatedDeck: Deck = { ...deck, cards: [...deck.cards, ...newCards] };
+        if (importedCards.length === 0) {
+          return alert(tx("alert.wordReadFailed"));
+        }
+
+        const deck = decks.find((item) => item.name === currentDeck);
+
+        if (!deck) return alert(tx("alert.deckNotFound"));
+
+        const updatedDeck: Deck = {
+          ...deck,
+          cards: [...deck.cards, ...importedCards],
+        };
+
         await persistDeck(updatedDeck);
         updateDeckState(updatedDeck);
-        alert(`${newCards.length}語をインポートしました。${importedCards.length - newCards.length}語の重複をスキップしました。`);
+
+        alert(
+          tx("alert.csvImported").replace(
+            "{count}",
+            String(importedCards.length)
+          )
+        );
       } catch (error) {
-        console.error("CSVインポートエラー:", error);
-        alert("CSVエラー: " + (error instanceof Error ? error.message : String(error)));
+        console.error(error);
+        alert("CSVエラー: " + String(error));
       }
     };
-    reader.onerror = () => alert(tx("alert.csvReadFailed"));
+
     reader.readAsText(file, "UTF-8");
   };
 
@@ -1397,27 +1392,85 @@ export default function Page() {
     }
   };
 
-  const downloadMistakesCSV = (deck: Deck, analysis: boolean) => {
-    const mistakes = deck.cards.filter((card) => (card.incorrectCount || 0) > 0 && (card.correctStreak || 0) < 3);
-    if (!mistakes.length) return alert("復習対象の苦手単語はありません。");
+  // 過去のカードにはモード別履歴がないため、旧履歴は「すべて」にのみ含めます。
+  // 苦手克服の判定は既存の連続3回正解ルールを共通利用します。
+  const getMistakeCards = (deck: Deck, scope: "all" | "normal" | "quick") =>
+    deck.cards.filter((card) => {
+      if ((card.correctStreak || 0) >= 3) return false;
+      if (scope === "normal") return (card.normalIncorrectCount || 0) > 0;
+      if (scope === "quick") return (card.quickIncorrectCount || 0) > 0;
+      return (card.incorrectCount || 0) > 0 ||
+        (card.normalIncorrectCount || 0) > 0 || (card.quickIncorrectCount || 0) > 0;
+    });
+
+  const downloadMistakesCSV = (deck: Deck, analysis: boolean, scope: "all" | "normal" | "quick" = "all") => {
+    const mistakes = getMistakeCards(deck, scope);
+    if (!mistakes.length) return alert("選択した条件に復習対象の苦手単語はありません。");
     const csvCell = (value: string | number) => `"${String(value).replace(/"/g, '""')}"`;
-    // 学習用は既存のCSVインポートと同じ5列・ヘッダーなし
+    // 学習用CSVは既存と同じ5列・ヘッダーなし。分析用にはモード別回数を追記。
     const rows = mistakes.map((card) => {
       const basic = [card.front, card.pinyin, card.japanese, card.example, card.exampleJapanese];
-      const extra = analysis ? [card.incorrectCount || 0, card.correctCount || 0, card.reviewCount || 0, card.correctStreak || 0, card.lastReviewedAt ? new Date(card.lastReviewedAt).toISOString() : ""] : [];
+      const extra = analysis ? [card.incorrectCount || 0, card.correctCount || 0, card.reviewCount || 0, card.correctStreak || 0, card.lastReviewedAt ? new Date(card.lastReviewedAt).toISOString() : "", card.normalIncorrectCount ?? "", card.quickIncorrectCount ?? ""] : [];
       return [...basic, ...extra].map(csvCell).join(",");
     });
-    if (analysis) rows.unshift(["front", "pinyin", "japanese", "example", "exampleJapanese", "incorrectCount", "correctCount", "reviewCount", "correctStreak", "lastReviewedAt"].map(csvCell).join(","));
+    if (analysis) rows.unshift(["front", "pinyin", "japanese", "example", "exampleJapanese", "incorrectCount", "correctCount", "reviewCount", "correctStreak", "lastReviewedAt", "normalIncorrectCount", "quickIncorrectCount"].map(csvCell).join(","));
     const blob = new Blob(["\uFEFF", rows.join("\r\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${deck.name.replace(/[\\/:*?"<>|]/g, "_")}-mistakes-${analysis ? "analysis" : "study"}.csv`;
+    link.download = `${deck.name.replace(/[\\/:*?"<>|]/g, "_")}-mistakes-${scope}-${analysis ? "analysis" : "study"}.csv`;
     document.body.appendChild(link);
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
   };
+
+  const quickElapsedMs = () =>
+    quickElapsedRef.current +
+    (quickActiveStartedRef.current === null ? 0 : Date.now() - quickActiveStartedRef.current);
+
+  const pauseChallenge = () => {
+    if (quickModeRef.current === "normal" || quickPausedRef.current) return;
+    const now = Date.now();
+    if (quickDeadlineRef.current !== null) {
+      quickRemainingRef.current = Math.max(0, quickDeadlineRef.current - now);
+      quickDeadlineRef.current = null;
+      setQuickRemainingMs(quickRemainingRef.current);
+    }
+    if (quickActiveStartedRef.current !== null) {
+      quickElapsedRef.current += now - quickActiveStartedRef.current;
+      quickActiveStartedRef.current = null;
+    }
+    quickPausedRef.current = true;
+    setQuickPaused(true);
+  };
+
+  const resumeChallenge = () => {
+    if (quickModeRef.current === "normal" || !quickPausedRef.current) return;
+    quickActiveStartedRef.current = Date.now();
+    if (quickModeRef.current !== "unlimited") {
+      quickDeadlineRef.current = Date.now() + quickRemainingRef.current;
+    }
+    quickPausedRef.current = false;
+    setQuickPaused(false);
+  };
+
+  useEffect(() => {
+    if (!studyMode || activeChallengeMode === "normal") return;
+    const tick = () => {
+      if (quickPausedRef.current || finishLockRef.current) return;
+      if (quickDeadlineRef.current !== null) {
+        const remaining = Math.max(0, quickDeadlineRef.current - Date.now());
+        setQuickRemainingMs(remaining);
+        if (remaining === 0) void finishStudyRef.current();
+      } else if (activeChallengeMode === "unlimited") {
+        setQuickRemainingMs(quickElapsedMs());
+      }
+    };
+    tick();
+    const interval = window.setInterval(tick, 200);
+    return () => window.clearInterval(interval);
+  }, [studyMode, activeChallengeMode]);
 
   const startStudy = () => {
     answerLockRef.current = false;
@@ -1455,10 +1508,23 @@ export default function Page() {
 
     const prioritizedCards = prioritizeWeakCards(filteredCards);
     const selectedCards =
-      studyLimit === "all"
+      challengeMode !== "normal" ? prioritizedCards : studyLimit === "all"
         ? prioritizedCards
         : prioritizedCards.slice(0, studyLimit);
 
+    finishLockRef.current = false;
+    answerHistoryRef.current = [];
+    quickModeRef.current = challengeMode;
+    setActiveChallengeMode(challengeMode);
+    const now = Date.now();
+    const limitMs = challengeMode === "50" ? 50000 : challengeMode === "100" ? 100000 : 0;
+    quickRemainingRef.current = limitMs;
+    quickDeadlineRef.current = limitMs ? now + limitMs : null;
+    quickActiveStartedRef.current = challengeMode === "normal" ? null : now;
+    quickElapsedRef.current = 0;
+    quickPausedRef.current = false;
+    setQuickPaused(false);
+    setQuickRemainingMs(limitMs);
     setStudyCards(selectedCards);
     setStudyIndex(0);
     setShowAnswer(false);
@@ -1502,10 +1568,9 @@ export default function Page() {
       answered,
       correct: correctCount,
       incorrect: incorrectCount,
-      duration: Math.max(
-        0,
-        Math.floor((now - studyStartTime) / 1000)
-      ),
+      duration: quickModeRef.current === "normal"
+        ? Math.max(0, Math.floor((now - studyStartTime) / 1000))
+        : Math.max(0, Math.floor(quickElapsedMs() / 1000)),
     };
 
     try {
@@ -1523,6 +1588,13 @@ export default function Page() {
   };
 
   const finishStudy = async () => {
+    if (finishLockRef.current) return;
+    finishLockRef.current = true;
+    if (quickActiveStartedRef.current !== null) {
+      quickElapsedRef.current += Date.now() - quickActiveStartedRef.current;
+      quickActiveStartedRef.current = null;
+    }
+    quickDeadlineRef.current = null;
     if ("speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
@@ -1536,12 +1608,9 @@ export default function Page() {
         ? ((studyCorrect / total) * 100).toFixed(1)
         : "0.0";
 
-    const durationSec = studyStartTime
-      ? Math.max(
-          0,
-          Math.floor((Date.now() - studyStartTime) / 1000)
-        )
-      : 0;
+    const durationSec = quickModeRef.current === "normal"
+      ? (studyStartTime ? Math.max(0, Math.floor((Date.now() - studyStartTime) / 1000)) : 0)
+      : Math.max(0, Math.floor(quickElapsedMs() / 1000));
 
     await saveStudyRecord(studyCorrect, studyIncorrect);
     // Anki Lifeへの報酬連携
@@ -1641,12 +1710,20 @@ if (authUser && studySessionId && total > 0) {
       incorrect: studyIncorrect,
       rate,
       durationSec,
+      missed: answerHistoryRef.current.filter((entry) => !entry.correct).map((entry) => entry.card),
+      remembered: answerHistoryRef.current.filter((entry) => entry.correct).map((entry) => entry.card),
     });
 
     setShowSummaryModal(true);
   };
 
+  finishStudyRef.current = finishStudy;
+
   const closeSummaryModal = () => {
+    quickDeadlineRef.current = null;
+    quickActiveStartedRef.current = null;
+    quickModeRef.current = "normal";
+    setActiveChallengeMode("normal");
     setShowSummaryModal(false);
     setSummaryData(null);
     setStudyMode(false);
@@ -1755,12 +1832,18 @@ if (authUser && studySessionId && total > 0) {
     learningStatus?: LearningStatus,
     reviewDays?: number
   ) => {
-    if (answerLockRef.current) return;
+    if (answerLockRef.current || finishLockRef.current || quickPausedRef.current) return;
+    if (quickDeadlineRef.current !== null && Date.now() >= quickDeadlineRef.current) {
+      void finishStudyRef.current();
+      return;
+    }
 
     const currentCard = studyCards[studyIndex];
     if (!currentCard) return;
 
     answerLockRef.current = true;
+
+    answerHistoryRef.current.push({ card: currentCard, correct });
 
     const nextCorrect = studyCorrect + (correct ? 1 : 0);
     const nextIncorrect = studyIncorrect + (correct ? 0 : 1);
@@ -1777,6 +1860,8 @@ if (authUser && studySessionId && total > 0) {
         (currentCard.correctCount || 0) + (correct ? 1 : 0),
       incorrectCount:
         (currentCard.incorrectCount || 0) + (correct ? 0 : 1),
+      normalIncorrectCount: (currentCard.normalIncorrectCount || 0) + (!correct && quickModeRef.current === "normal" ? 1 : 0),
+      quickIncorrectCount: (currentCard.quickIncorrectCount || 0) + (!correct && quickModeRef.current !== "normal" ? 1 : 0),
       correctStreak: correct ? (currentCard.correctStreak || 0) + 1 : 0,
       lastReviewedAt: now,
       lastResult: correct ? "correct" : "incorrect",
@@ -1974,6 +2059,58 @@ if (authUser && studySessionId && total > 0) {
     );
   }
 
+  if (showSummaryModal && summaryData) {
+    const summary = summaryData;
+    return (
+      <main style={{ minHeight: "100vh", background: "#FBFBFD", padding: "32px 16px", fontFamily: "sans-serif", color: "#1D1D1F" }}>
+        <section style={{ maxWidth: 680, margin: "0 auto", padding: 24, background: "white", borderRadius: 20, border: "1px solid #E5E5EA" }}>
+          <div style={{ fontSize: 13, color: "#456B55", fontWeight: 700, letterSpacing: 1 }}>STUDY RESULTS</div>
+          <h1 style={{ margin: "8px 0 4px", fontSize: 26 }}>学習お疲れ様でした！</h1>
+          <p style={{ color: "#777", marginTop: 0 }}>結果は「デッキ一覧に戻る」を押すまで表示されます。</p>
+          <div style={{ padding: 20, borderRadius: 16, background: "#F1F5F1", textAlign: "center", margin: "20px 0" }}>
+            <div style={{ fontSize: 13, color: "#456B55" }}>正答率</div>
+            <strong style={{ fontSize: 48, color: "#345640", fontVariantNumeric: "tabular-nums" }}>{summary.rate}%</strong>
+            <div style={{ height: 9, background: "#DCE6DD", borderRadius: 9, overflow: "hidden", marginTop: 12 }}>
+              <div style={{ width: `${summary.rate}%`, height: "100%", background: "#456B55" }} />
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
+            {[
+              ["回答数", `${summary.total} 問`],
+              ["正解", `${summary.correct} 問`],
+              ["間違えた", `${summary.incorrect} 問`],
+              ["学習時間", `${summary.durationSec} 秒`],
+            ].map(([label, value]) => (
+              <div key={label} style={{ padding: 16, border: "1px solid #E5E5EA", borderRadius: 12 }}>
+                <div style={{ color: "#777", fontSize: 13 }}>{label}</div>
+                <strong style={{ fontSize: 23 }}>{value}</strong>
+              </div>
+            ))}
+          </div>
+          <h2 style={{ marginTop: 28, fontSize: 19 }}>間違えた単語 ({summary.missed.length}件)</h2>
+          {summary.missed.length === 0 ? (
+            <p style={{ color: "#456B55" }}>今回間違えた単語はありません！</p>
+          ) : (
+            <div style={{ maxHeight: 320, overflowY: "auto", border: "1px solid #E5E5EA", borderRadius: 12 }}>
+              {summary.missed.map((card, index) => (
+                <div key={`${card.id}-${index}`} style={{ padding: "12px 14px", borderBottom: index === summary.missed.length - 1 ? "none" : "1px solid #EEE" }}>
+                  <strong>{card.front}</strong>
+                  {card.pinyin && <span style={{ marginLeft: 10, color: "#777", fontSize: 13 }}>{card.pinyin}</span>}
+                  <div style={{ marginTop: 4 }}>{card.japanese}</div>
+                  {card.example && <div style={{ marginTop: 6, color: "#777", fontSize: 13 }}>{card.example}</div>}
+                  {card.exampleJapanese && <div style={{ color: "#777", fontSize: 13 }}>{card.exampleJapanese}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+          <button type="button" onClick={closeSummaryModal} style={{ ...primaryButtonStyle, width: "100%", marginTop: 24, padding: 15 }}>
+            デッキ一覧に戻る
+          </button>
+        </section>
+      </main>
+    );
+  }
+
   if (studyMode) {
     if (!currentCard) return null;
 
@@ -2003,6 +2140,19 @@ if (authUser && studySessionId && total > 0) {
             boxSizing: "border-box",
           }}
         >
+          {activeChallengeMode !== "normal" && (
+            <div style={{ textAlign: "center", marginBottom: 18 }}>
+              <div style={{ fontSize: 13, color: "#718675", fontWeight: 700 }}>QUICK CHALLENGE</div>
+              <div aria-live="off" style={{ fontSize: 36, fontVariantNumeric: "tabular-nums", fontWeight: 750, margin: "8px 0" }}>
+                {Math.floor(quickRemainingMs / 60000).toString().padStart(2, "0")}:
+                {Math.floor((quickRemainingMs % 60000) / 1000).toString().padStart(2, "0")}
+              </div>
+              <button type="button" style={secondaryButtonStyle} onClick={quickPaused ? resumeChallenge : pauseChallenge}>
+                {quickPaused ? "▶ 再開" : "Ⅱ 一時停止"}
+              </button>
+              {quickPaused && <p style={{ color: "#718675" }}>一時停止中です</p>}
+            </div>
+          )}
           <div
             style={{
               display: "flex",
@@ -2418,69 +2568,7 @@ if (authUser && studySessionId && total > 0) {
           )}
         </div>
 
-        {showSummaryModal && summaryData && (
-          <div
-            style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(0,0,0,0.35)",
-              backdropFilter: "blur(8px)",
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              zIndex: 9999,
-              padding: "20px",
-            }}
-          >
-            <div
-              style={{
-                width: "100%",
-                maxWidth: "400px",
-                background: "#FFFFFF",
-                borderRadius: "20px",
-                padding: "28px",
-                boxShadow: "0 20px 40px rgba(0,0,0,0.12)",
-                textAlign: "center",
-              }}
-            >
-              <h2 style={{ marginTop: 0 }}>
-                学習お疲れ様でした！
-              </h2>
 
-              {[
-                ["回答数", `${summaryData.total} 問`],
-                ["正解数", `${summaryData.correct} 問`],
-                ["不正解数", `${summaryData.incorrect} 問`],
-                ["正答率", `${summaryData.rate} %`],
-              ].map(([label, value]) => (
-                <div
-                  key={label}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    padding: "11px 0",
-                    borderBottom: "1px solid #F0F0F2",
-                    fontSize: "14px",
-                  }}
-                >
-                  <span style={{ color: "#8E8E93" }}>{label}</span>
-                  <strong>{value}</strong>
-                </div>
-              ))}
-
-              <button
-                onClick={closeSummaryModal}
-                style={{
-                  ...primaryButtonStyle,
-                  width: "100%",
-                  marginTop: "24px",
-                }}
-              >
-                デッキ一覧に戻る
-              </button>
-            </div>
-          </div>
-        )}
       </main>
     );
   }
@@ -2845,12 +2933,34 @@ if (authUser && studySessionId && total > 0) {
               {deck.cards.every((card) => !(card.incorrectCount || 0)) && <p>まだ間違えた単語はありません。</p>}
             </div>
           )}
+          <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+            <label htmlFor="mistake-csv-scope" style={{ fontSize: 12, fontWeight: 600 }}>CSVに出力する苦手単語</label>
+            <select id="mistake-csv-scope" value={mistakeCsvScope} onChange={(event) => setMistakeCsvScope(event.target.value as "all" | "normal" | "quick")}
+              style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid #D8DED9", background: "#fff", maxWidth: 350 }}>
+              <option value="all">すべて（通常学習＋タイムアタック）</option>
+              <option value="normal">通常学習で間違えた単語のみ</option>
+              <option value="quick">タイムアタックで間違えた単語のみ</option>
+            </select>
+            <span style={{ fontSize: 11, color: "#777" }}>対象 {getMistakeCards(deck, mistakeCsvScope).length}語。以前の学習履歴はモード不明のため「すべて」にのみ含まれます。</span>
+          </div>
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
-            <button type="button" style={secondaryButtonStyle} onClick={() => downloadMistakesCSV(deck, false)}>学習用CSV</button>
-            <button type="button" style={secondaryButtonStyle} onClick={() => downloadMistakesCSV(deck, true)}>分析用CSV</button>
+            <button type="button" style={secondaryButtonStyle} onClick={() => downloadMistakesCSV(deck, false, mistakeCsvScope)}>学習用CSV</button>
+            <button type="button" style={secondaryButtonStyle} onClick={() => downloadMistakesCSV(deck, true, mistakeCsvScope)}>分析用CSV</button>
           </div>
         </section>
 
+        <section style={{ marginTop: 18, padding: 16, border: "1px solid #E5E5EA", borderRadius: 16, background: "#FFFFFF" }}>
+          <strong style={{ display: "block", marginBottom: 10 }}>学習モード</strong>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
+            {([ ["50", "⚡ 50秒"], ["100", "⏱ 100秒"], ["unlimited", "∞ 無制限"], ["normal", "通常学習"] ] as const).map(([value, label]) => (
+              <button key={value} type="button" onClick={() => setChallengeMode(value)}
+                style={{ ...secondaryButtonStyle, padding: 12, border: challengeMode === value ? "2px solid #718675" : "1px solid #E5E5EA", background: challengeMode === value ? "#F1F5F1" : "white" }}>
+                {label}{value === "100" ? "（おすすめ）" : ""}
+              </button>
+            ))}
+          </div>
+          <p style={{ fontSize: 12, color: "#777", marginBottom: 0 }}>Quick Challengeは時間内に復習できた枚数を記録します。通常学習の枚数設定は通常学習のみで使用します。</p>
+        </section>
         <button
           onClick={startStudy}
           style={{
