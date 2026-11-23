@@ -6,9 +6,10 @@ import { onAuthStateChanged, type User } from "firebase/auth";
 
 import {
   doc,
+  collection,
   getDoc,
+  getDocs,
   runTransaction,
-  setDoc,
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 
@@ -31,6 +32,28 @@ type LifeData = {
   rewards: Reward[];
   items: string[];
   milestoneClaims?: Record<string, string>;
+};
+
+type AnswerEntry = {
+  order: number;
+  cardId: string;
+  front: string;
+  pinyin: string;
+  japanese: string;
+  example: string;
+  exampleJapanese: string;
+  correct: boolean;
+};
+
+type AnswerSession = {
+  id: string;
+  deckName: string;
+  mode: string;
+  createdAt: number;
+  answered: number;
+  correct: number;
+  incorrect: number;
+  cards: AnswerEntry[];
 };
 
 const INITIAL_DATA: LifeData = {
@@ -145,6 +168,13 @@ export default function AnkiLifePage() {
   const [rewardPrice, setRewardPrice] = useState("800");
   const [rewardCategory, setRewardCategory] = useState("本・教材");
   const [message, setMessage] = useState("");
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [historySessions, setHistorySessions] = useState<AnswerSession[]>([]);
+  const [historyFilter, setHistoryFilter] = useState<"all" | "correct" | "incorrect">("all");
+  const [selectedSession, setSelectedSession] = useState<string>("all");
+
 
   const stateRef = (uid: string) =>
     doc(db, "users", uid, "ankiLife", "state");
@@ -172,28 +202,93 @@ export default function AnkiLifePage() {
             milestoneClaims: saved.milestoneClaims && typeof saved.milestoneClaims === "object" ? saved.milestoneClaims : {},
           });
         } else {
-          await setDoc(stateRef(currentUser.uid), INITIAL_DATA);
+          // 未作成の状態は画面内だけ初期化。読み込み中にFirestoreへ0を書き込まない。
           setData(INITIAL_DATA);
         }
       } catch (error) {
         console.error("Anki Life読み込みエラー:", error);
-        setMessage("データを読み込めませんでした。");
+        const detail = error instanceof Error ? error.message : String(error);
+        setMessage(`データを読み込めませんでした。Firebase詳細: ${detail}`);
       } finally {
         setLoading(false);
       }
     });
   }, []);
 
-  const saveData = async (next: LifeData) => {
-    if (!user) return;
-
-    setData(next);
-
+  const loadAnswerHistory = async (uid: string) => {
+    setHistoryLoading(true);
+    setHistoryError("");
     try {
-      await setDoc(stateRef(user.uid), next, { merge: true });
+      const snapshot = await getDocs(collection(db, "users", uid, "ankiLife", "state", "rewardEvents"));
+      const sessions: AnswerSession[] = snapshot.docs.map((item) => {
+        const saved = item.data();
+        return {
+          id: item.id,
+          deckName: String(saved.deckName ?? "名称未設定"),
+          mode: String(saved.mode ?? "unknown"),
+          createdAt: Number(saved.createdAt ?? 0),
+          answered: Number(saved.answered ?? 0),
+          correct: Number(saved.correct ?? 0),
+          incorrect: Number(saved.incorrect ?? 0),
+          cards: Array.isArray(saved.cards) ? saved.cards.map((card: Partial<AnswerEntry>, index: number) => ({
+            order: Number(card.order ?? index + 1),
+            cardId: String(card.cardId ?? ""),
+            front: String(card.front ?? ""),
+            pinyin: String(card.pinyin ?? ""),
+            japanese: String(card.japanese ?? ""),
+            example: String(card.example ?? ""),
+            exampleJapanese: String(card.exampleJapanese ?? ""),
+            correct: card.correct === true,
+          })) : [],
+        };
+      }).sort((a, b) => b.createdAt - a.createdAt);
+      setHistorySessions(sessions);
+    } catch (error) {
+      setHistoryError(`回答履歴を取得できませんでした: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const toggleAnswerHistory = () => {
+    if (!historyOpen && user) void loadAnswerHistory(user.uid);
+    setHistoryOpen((previous) => !previous);
+  };
+
+  // ショップ操作では学習XP・学習回数を上書きしない。
+  // 直近のFirestore値に対してコイン差分とショップの変更だけを適用する。
+  const saveData = async (next: LifeData) => {
+    if (!user) return false;
+    const coinDelta = next.coins - data.coins;
+    try {
+      const updated = await runTransaction(db, async (transaction) => {
+        const ref = stateRef(user.uid);
+        const snapshot = await transaction.get(ref);
+        const current = snapshot.exists() ? snapshot.data() as Partial<LifeData> : {};
+        const currentCoins = Number(current.coins ?? 0);
+        if (currentCoins + coinDelta < 0) {
+          throw new Error("コインが不足しています。最新の残高を確認してください。");
+        }
+        const changes = {
+          coins: currentCoins + coinDelta,
+          items: next.items,
+          rewards: next.rewards,
+        };
+        transaction.set(ref, changes, { merge: true });
+        return {
+          ...INITIAL_DATA,
+          ...current,
+          ...changes,
+          milestoneClaims: current.milestoneClaims || {},
+        } as LifeData;
+      });
+      setData(updated);
+      return true;
     } catch (error) {
       console.error("Anki Life保存エラー:", error);
-      setMessage("保存に失敗しました。通信状態を確認してください。");
+      const detail = error instanceof Error ? error.message : String(error);
+      setMessage(`保存に失敗しました。Firebase詳細: ${detail}`);
+      return false;
     }
   };
 
@@ -234,11 +329,11 @@ export default function AnkiLifePage() {
       return;
     }
 
-    await saveData({
+    if (!(await saveData({
       ...data,
       coins: data.coins - item.price,
       items: [...data.items, item.id],
-    });
+    }))) return;
     setMessage(`${item.emoji} ${item.name}を手に入れました！`);
   };
 
@@ -267,10 +362,10 @@ export default function AnkiLifePage() {
       redeemed: false,
     };
 
-    await saveData({
+    if (!(await saveData({
       ...data,
       rewards: [...data.rewards, reward],
-    });
+    }))) return;
 
     setRewardName("");
     setRewardPrice("800");
@@ -289,11 +384,11 @@ export default function AnkiLifePage() {
       item.id === reward.id ? { ...item, redeemed: true } : item
     );
 
-    await saveData({
+    if (!(await saveData({
       ...data,
       coins: data.coins - reward.price,
       rewards: nextRewards,
-    });
+    }))) return;
 
     setMessage(`🎉「${reward.name}」を交換しました！実際のご褒美を楽しんでね。`);
   };
@@ -421,13 +516,85 @@ export default function AnkiLifePage() {
             ["📖", "学習回数", data.totalSessions],
             ["📝", "回答カード", data.totalCards],
           ].map(([emoji, label, value]) => (
-            <div key={String(label)} style={cardStyle}>
+            <div
+              key={String(label)}
+              style={{ ...cardStyle, ...(label === "回答カード" ? { cursor: "pointer", borderColor: "#A4BBA5" } : {}) }}
+              onClick={label === "回答カード" ? toggleAnswerHistory : undefined}
+              role={label === "回答カード" ? "button" : undefined}
+              tabIndex={label === "回答カード" ? 0 : undefined}
+              onKeyDown={label === "回答カード" ? (event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  toggleAnswerHistory();
+                }
+              } : undefined}
+            >
               <div style={{ fontSize: 23 }}>{emoji}</div>
               <div style={{ color: "#849187", fontSize: 12 }}>{label}</div>
               <strong style={{ fontSize: 23 }}>{value}</strong>
+              {label === "回答カード" && <div style={{ fontSize: 11, color: "#647D6B", marginTop: 5 }}>履歴を見る {historyOpen ? "▲" : "▼"}</div>}
             </div>
           ))}
         </section>
+
+        {historyOpen && (
+          <section style={{ ...cardStyle, marginBottom: 18 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <h2 style={{ margin: 0 }}>📝 回答カード履歴</h2>
+              <button type="button" style={buttonStyle} onClick={() => user && void loadAnswerHistory(user.uid)} disabled={historyLoading}>更新</button>
+            </div>
+            <p style={{ color: "#78847B", fontSize: 13 }}>通常学習・タイムアタックの回答を、回答順で振り返れます。</p>
+            {historyLoading && <p>履歴を読み込み中…</p>}
+            {historyError && <p style={{ color: "#B45353" }}>{historyError}</p>}
+            {!historyLoading && !historyError && (
+              <>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                  <select aria-label="学習セッション" value={selectedSession} onChange={(event) => setSelectedSession(event.target.value)} style={{ padding: 10, borderRadius: 10, border: "1px solid #DDE6DA", maxWidth: "100%" }}>
+                    <option value="all">すべての学習</option>
+                    {historySessions.map((session) => (
+                      <option key={session.id} value={session.id}>
+                        {new Date(session.createdAt).toLocaleString("ja-JP")} · {session.deckName} · {session.mode === "normal" ? "通常学習" : session.mode === "unknown" ? "旧記録" : `タイムアタック ${session.mode}`}
+                      </option>
+                    ))}
+                  </select>
+                  <select aria-label="正誤フィルター" value={historyFilter} onChange={(event) => setHistoryFilter(event.target.value as "all" | "correct" | "incorrect")} style={{ padding: 10, borderRadius: 10, border: "1px solid #DDE6DA" }}>
+                    <option value="all">すべて</option>
+                    <option value="correct">正解のみ</option>
+                    <option value="incorrect">不正解のみ</option>
+                  </select>
+                </div>
+                {historySessions.length === 0 && <p>まだ保存済みの学習履歴がありません。</p>}
+                {historySessions.filter((session) => selectedSession === "all" || session.id === selectedSession).map((session) => {
+                  const visibleCards = session.cards.filter((card) => historyFilter === "all" || (historyFilter === "correct" ? card.correct : !card.correct));
+                  return (
+                    <div key={session.id} style={{ marginBottom: 16, border: "1px solid #E8E8E5", borderRadius: 14, padding: 14 }}>
+                      <strong>{session.deckName}</strong>
+                      <p style={{ color: "#78847B", fontSize: 12, margin: "6px 0 12px" }}>
+                        {new Date(session.createdAt).toLocaleString("ja-JP")} · {session.mode === "normal" ? "通常学習" : session.mode === "unknown" ? "旧記録" : `タイムアタック ${session.mode}`} · {session.answered}問（正解{session.correct}・不正解{session.incorrect}）
+                      </p>
+                      {session.cards.length === 0 ? (
+                        <p style={{ color: "#78847B", fontSize: 13 }}>この学習はカード詳細の保存開始前の記録です。回答数のみ確認できます。</p>
+                      ) : visibleCards.length === 0 ? (
+                        <p style={{ color: "#78847B", fontSize: 13 }}>この条件に一致するカードはありません。</p>
+                      ) : visibleCards.map((card, index) => (
+                        <div key={`${session.id}-${card.order}-${index}`} style={{ padding: "12px 0", borderTop: "1px solid #EDF0EA" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
+                            <strong>{card.order}. {card.front || "（表面なし）"}</strong>
+                            <span style={{ color: card.correct ? "#39744B" : "#B45353", fontSize: 12, whiteSpace: "nowrap" }}>{card.correct ? "✓ 正解" : "✕ 不正解"}</span>
+                          </div>
+                          {card.pinyin && <div style={{ fontSize: 12, color: "#78847B" }}>{card.pinyin}</div>}
+                          {card.japanese && <div style={{ fontSize: 14, marginTop: 3 }}>{card.japanese}</div>}
+                          {card.example && <div style={{ fontSize: 13, marginTop: 5 }}>{card.example}</div>}
+                          {card.exampleJapanese && <div style={{ fontSize: 12, color: "#78847B" }}>{card.exampleJapanese}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </>
+            )}
+          </section>
+        )}
 
         <section style={{ ...cardStyle, marginBottom: 18 }}>
           <h2 style={{ marginTop: 0 }}>🎯 XP達成ご褒美</h2>
