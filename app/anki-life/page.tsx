@@ -31,6 +31,8 @@ type LifeData = {
   totalCards: number;
   rewards: Reward[];
   items: string[];
+  itemPurchaseDate?: string;
+  dailyPurchasedItems?: string[];
   milestoneClaims?: Record<string, string>;
 };
 
@@ -67,6 +69,8 @@ const INITIAL_DATA: LifeData = {
   items: [],
   milestoneClaims: {},
 };
+
+const japanDay = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 
 const XP_MILESTONES = [
   { xp: 10000, emoji: "☕", title: "カフェ・スイーツ", description: "好きなカフェやスイーツを楽しむ" },
@@ -160,6 +164,13 @@ function CatPet({ level }: { level: number }) {
 }
 
 export default function AnkiLifePage() {
+  const [shopDay, setShopDay] = useState(japanDay);
+  useEffect(() => {
+    const refresh = () => setShopDay(japanDay());
+    const timer = window.setInterval(refresh, 1000);
+    window.addEventListener("focus", refresh);
+    return () => { window.clearInterval(timer); window.removeEventListener("focus", refresh); };
+  }, []);
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [data, setData] = useState<LifeData>(INITIAL_DATA);
@@ -271,7 +282,6 @@ export default function AnkiLifePage() {
         }
         const changes = {
           coins: currentCoins + coinDelta,
-          items: next.items,
           rewards: next.rewards,
         };
         transaction.set(ref, changes, { merge: true });
@@ -319,22 +329,32 @@ export default function AnkiLifePage() {
   };
 
   const buyItem = async (item: (typeof GAME_ITEMS)[number]) => {
-    if (data.coins < item.price) {
-      setMessage("コインが足りません。少し学習して集めましょう！");
-      return;
+    if (!user) return;
+    try {
+      const updated = await runTransaction(db, async (transaction) => {
+        const ref = stateRef(user.uid);
+        const snapshot = await transaction.get(ref);
+        const current = snapshot.exists() ? snapshot.data() as Partial<LifeData> : {};
+        const today = japanDay();
+        const purchased = current.itemPurchaseDate === today && Array.isArray(current.dailyPurchasedItems) ? current.dailyPurchasedItems : [];
+        if (purchased.includes(item.id)) throw new Error("今日は購入済みです。明日また交換できます。");
+        const coins = Number(current.coins ?? 0);
+        if (coins < item.price) throw new Error("コインが足りません。少し学習して集めましょう！");
+        const changes = {
+          coins: coins - item.price,
+          items: Array.from(new Set([...(Array.isArray(current.items) ? current.items : []), item.id])),
+          itemPurchaseDate: today,
+          dailyPurchasedItems: [...purchased, item.id],
+        };
+        transaction.set(ref, changes, { merge: true });
+        return { ...INITIAL_DATA, ...current, ...changes } as LifeData;
+      });
+      setData(updated);
+      setShopDay(japanDay());
+      setMessage(`${item.emoji} ${item.name}を手に入れました！`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "購入に失敗しました。");
     }
-
-    if (data.items.includes(item.id)) {
-      setMessage("このアイテムはもう持っています！");
-      return;
-    }
-
-    if (!(await saveData({
-      ...data,
-      coins: data.coins - item.price,
-      items: [...data.items, item.id],
-    }))) return;
-    setMessage(`${item.emoji} ${item.name}を手に入れました！`);
   };
 
   const addReward = async (event: FormEvent<HTMLFormElement>) => {
@@ -683,6 +703,7 @@ export default function AnkiLifePage() {
 
         <section style={{ ...cardStyle, marginBottom: 18 }}>
           <h2 style={{ marginTop: 0 }}>🛍️ ペットのお店</h2>
+          <p style={{ color: "#78847B", fontSize: 13 }}>毎日午前0時（日本時間）に再購入可能になります。購入済みの家具や島の飾りは残ります。</p>
           <div
             style={{
               display: "grid",
@@ -691,7 +712,7 @@ export default function AnkiLifePage() {
             }}
           >
             {GAME_ITEMS.map((item) => {
-              const owned = data.items.includes(item.id);
+              const owned = data.itemPurchaseDate === shopDay && (data.dailyPurchasedItems ?? []).includes(item.id);
               return (
                 <div
                   key={item.id}
@@ -716,7 +737,7 @@ export default function AnkiLifePage() {
                     disabled={owned}
                     onClick={() => buyItem(item)}
                   >
-                    {owned ? "購入済み" : "交換する"}
+                    {owned ? "本日購入済み" : "交換する"}
                   </button>
                 </div>
               );
