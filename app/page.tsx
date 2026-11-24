@@ -883,6 +883,22 @@ export default function Page() {
     await persistDuplicateChange(deck, deck.cards.filter((c) => !remove.has(c.id)));
   };
 
+  const autoRemoveSameFrontDuplicates = async () => {
+    const deck = decks.find((item) => item.name === duplicateDeckName);
+    if (!deck || duplicateLock.current) return;
+    const groups = getDuplicateCardGroups(deck.name);
+    const remove = new Set<string>();
+    const history = (c: Card) => Math.max(c.reviewCount ?? 0, (c.correctCount ?? 0) + (c.incorrectCount ?? 0));
+    for (const group of groups) {
+      const sorted = group.items.map((item) => item.card).sort((a, b) =>
+        history(b) - history(a) || (b.lastReviewedAt ?? 0) - (a.lastReviewedAt ?? 0));
+      for (const card of sorted.slice(1)) remove.add(card.id);
+    }
+    if (!remove.size) return;
+    if (!confirm(`「${deck.name}」の同じ単語を各1枚に整理します。${remove.size}枚を削除し、${deck.cards.length - remove.size}枚を残します。削除するカードの異なる意味・例文・学習履歴は失われます。実行しますか？`)) return;
+    await persistDuplicateChange(deck, deck.cards.filter((card) => !remove.has(card.id)));
+  };
+
   const moveFolderOrder = async (index: number, direction: "up" | "down") => {
     const targetIndex = direction === "up" ? index - 1 : index + 1;
 
@@ -3722,6 +3738,12 @@ if (deckSaveErrorsRef.current.length > 0) {
               </div>
 
               <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
+                {duplicateGroups.length > 0 && (
+                  <button type="button" onClick={autoRemoveSameFrontDuplicates}
+                    disabled={duplicateBusy} style={{ ...secondaryButtonStyle, background: "#A93226", color: "#FFFFFF" }}>
+                    {duplicateBusy ? "保存中…" : `同じ単語を一括削除 (${duplicateGroups.reduce((sum, group) => sum + group.items.length - 1, 0)}枚)`}
+                  </button>
+                )}
                 {exactDuplicateCount > 0 && (
                   <button
                     onClick={autoRemoveExactDuplicates}
