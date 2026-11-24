@@ -1604,16 +1604,14 @@ export default function Page() {
     setStudyMode(true);
   };
 
-  const saveStudyRecord = async (
-    correctCount: number,
-    incorrectCount: number
-  ) => {
+  const pendingKey = (uid: string, id: string) => `anki-pending-v1:${uid}:${id}`;
+  const checkpoint = (correctCount: number, incorrectCount: number) => {
     const studyStartTime = studyStartRef.current;
     const studySessionId = sessionIdRef.current;
-    if (studyStartTime === null || studySessionId === null) return;
+    if (studyStartTime === null || studySessionId === null || !sessionUidRef.current) return null;
 
     const answered = correctCount + incorrectCount;
-    if (answered === 0) return;
+    if (answered === 0) return null;
 
     const now = Date.now();
     const dateObject = new Date(now);
@@ -1644,89 +1642,29 @@ export default function Page() {
         : Math.max(0, Math.floor(quickElapsedMs() / 1000)),
     };
 
+    const pending = { uid: sessionUidRef.current, record, deckName: currentDeck, mode: quickModeRef.current, history: answerHistoryRef.current.slice() };
     try {
-      await setDoc(doc(db, "studyRecords", record.id), record);
-
-      setStudyRecords((previous) =>
-        [record, ...previous.filter((item) => item.id !== record.id)].sort(
-          (a, b) => (b.startedAt || 0) - (a.startedAt || 0)
-        )
-      );
+      localStorage.setItem(pendingKey(pending.uid!, record.id), JSON.stringify(pending));
+      return pending;
     } catch (error) {
-      console.error("学習記録保存エラー:", error);
-      alert(tx("alert.studyRecordSaveFailed"));
+      console.error("端末保存失敗", error);
+      setRewardSaveMessage("端末保存に失敗しました。結果画面を閉じないでください。");
+      return null;
     }
   };
-
-  const finishStudy = async () => {
-    if (finishLockRef.current) return;
-    finishLockRef.current = true;
-    if (quickActiveStartedRef.current !== null) {
-      quickElapsedRef.current += Date.now() - quickActiveStartedRef.current;
-      quickActiveStartedRef.current = null;
-    }
-    quickDeadlineRef.current = null;
-    if ("speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-    }
-
-    await deckSaveQueueRef.current;
-
-    // Reactのstate反映を待たず、最後の回答まで確実に集計する。
-    const { correct: finalCorrect, incorrect: finalIncorrect } = studyCountsRef.current;
-    const total = finalCorrect + finalIncorrect;
-
-    const rate =
-      total > 0
-        ? ((finalCorrect / total) * 100).toFixed(1)
-        : "0.0";
-
-    const studyStartTime = studyStartRef.current;
-    const studySessionId = sessionIdRef.current;
-    const sessionUid = sessionUidRef.current;
-    const durationSec = quickModeRef.current === "normal"
-      ? (studyStartTime ? Math.max(0, Math.floor((Date.now() - studyStartTime) / 1000)) : 0)
-      : Math.max(0, Math.floor(quickElapsedMs() / 1000));
-
-    await saveStudyRecord(finalCorrect, finalIncorrect);
-    // Anki Lifeへの報酬連携
-const saveReward = async () => {
-if (rewardBusyRef.current) return;
-rewardBusyRef.current = true;
-setRewardBusy(true);
-try {
-if (sessionUid && auth.currentUser?.uid === sessionUid && studySessionId && total > 0) {
-  try {
-    const now = new Date();
-    const today = [
-      now.getFullYear(),
-      String(now.getMonth() + 1).padStart(2, "0"),
-      String(now.getDate()).padStart(2, "0"),
-    ].join("-");
-
-    const lifeStateRef = doc(
-      db,
-      "users",
-      sessionUid,
-      "ankiLife",
-      "state"
-    );
-
-    const rewardEventRef = doc(
-      db,
-      "users",
-      sessionUid,
-      "ankiLife",
-      "state",
-      "rewardEvents",
-      studySessionId
-    );
-
+  type Pending = NonNullable<ReturnType<typeof checkpoint>>;
+  const syncPending = async (pending: Pending) => {
+    const sessionUid = pending.uid;
+    const studySessionId = pending.record.id;
+    if (!sessionUid || auth.currentUser?.uid !== sessionUid) throw new Error("学習時のアカウントでログインしてください");
+    const { answered: total, correct: finalCorrect, incorrect: finalIncorrect, duration: durationSec, date: today } = pending.record;
+    const lifeStateRef = doc(db, "users", sessionUid, "ankiLife", "state");
+    const rewardEventRef = doc(lifeStateRef, "rewardEvents", studySessionId);
     const rewardResult = await runTransaction(db, async (transaction) => {
       const eventSnapshot = await transaction.get(rewardEventRef);
 
       // 同じ学習セッションの二重付与を防止
-      if (eventSnapshot.exists()) return { alreadyGranted: true, xp: Number(eventSnapshot.data()?.xp || 0), coins: Number(eventSnapshot.data()?.coins || 0) };
+      if (eventSnapshot.exists()) { transaction.set(doc(db, "studyRecords", studySessionId), pending.record); return { alreadyGranted: true, xp: Number(eventSnapshot.data()?.xp || 0), coins: Number(eventSnapshot.data()?.coins || 0) }; }
 
       const stateSnapshot = await transaction.get(lifeStateRef);
       const saved = stateSnapshot.exists()
@@ -1769,19 +1707,20 @@ if (sessionUid && auth.currentUser?.uid === sessionUid && studySessionId && tota
         { merge: true }
       );
 
+      transaction.set(doc(db, "studyRecords", studySessionId), pending.record);
       transaction.set(rewardEventRef, {
         sessionId: studySessionId,
-        deckName: currentDeck,
+        deckName: pending.deckName,
         answered: total,
         correct: finalCorrect,
         incorrect: finalIncorrect,
         coins: earnedCoins,
         xp: earnedXp,
         returnBonus,
-        mode: quickModeRef.current,
+        mode: pending.mode,
         durationSec,
         // 回答順を保持。未回答カードは記録しない。
-        cards: answerHistoryRef.current.map(({ card, correct }, index) => ({
+        cards: pending.history.map(({ card, correct }, index) => ({
           order: index + 1,
           cardId: String(card.id ?? ""),
           front: String(card.front ?? ""),
@@ -1795,30 +1734,77 @@ if (sessionUid && auth.currentUser?.uid === sessionUid && studySessionId && tota
       });
       return { alreadyGranted: false, xp: earnedXp, coins: earnedCoins };
     });
-    setRewardSaveStatus("success");
-    setRewardEarnedXp(rewardResult.xp);
-    setRewardEarnedCoins(rewardResult.coins);
-    setRewardSaveMessage(rewardResult.alreadyGranted ? "この学習のXP・コインは付与済みです（二重付与なし）。" : "Anki Lifeへの保存が完了しました。");
-  } catch (error) {
-    console.error("Anki Life報酬付与エラー:", error);
-    setRewardSaveStatus("failed");
-    setRewardSaveMessage(`XP・コインの保存に失敗しました。Firebaseの認証・Firestoreルール・通信を確認してください。詳細: ${error instanceof Error ? error.message : String(error)}`);
-  }
-} else if (total > 0) {
-  setRewardSaveStatus("failed");
-  setRewardSaveMessage("学習開始時と同じアカウントでログインして再保存してください。セッションIDがない場合は新しい学習を開始してください。");
-}
- } finally {
-  rewardBusyRef.current = false;
-  setRewardBusy(false);
- }
-};
-retryRewardRef.current = saveReward;
-await saveReward();
-if (deckSaveErrorsRef.current.length > 0) {
-  setRewardSaveMessage((previous) => `${previous} カード保存にも失敗しました: ${deckSaveErrorsRef.current[0]}`);
-}
+    localStorage.removeItem(pendingKey(sessionUid, studySessionId));
+    setStudyRecords(previous => [pending.record, ...previous.filter(item => item.id !== studySessionId)].sort((a,b) => (b.startedAt || 0) - (a.startedAt || 0)));
+    return rewardResult;
+  };
+  const syncAllPending = async () => {
+    const uid = auth.currentUser?.uid;
+    if (!uid || rewardBusyRef.current || (sessionIdRef.current && !finishLockRef.current)) return;
+    rewardBusyRef.current = true;
+    setRewardBusy(true);
+    try {
+      const keys = Object.keys(localStorage).filter(key => key.startsWith(`anki-pending-v1:${uid}:`));
+      for (const key of keys) {
+        try {
+          const raw = localStorage.getItem(key);
+          if (!raw) continue;
+          const pending = JSON.parse(raw) as Pending;
+          const result = await syncPending(pending);
+          if (pending.record.id === sessionIdRef.current) {
+            setRewardSaveStatus("success"); setRewardEarnedXp(result.xp); setRewardEarnedCoins(result.coins);
+            setRewardSaveMessage("Anki Lifeへの保存が完了しました。");
+          }
+        } catch (error) { console.error("再同期待ち", error); }
+      }
+    } finally { rewardBusyRef.current = false; setRewardBusy(false); }
+  };
+  useEffect(() => {
+    if (!authUser) return;
+    const retry = () => { void syncAllPending(); };
+    retry();
+    window.addEventListener("online", retry);
+    const timer = window.setInterval(retry, 15000);
+    return () => { window.removeEventListener("online", retry); window.clearInterval(timer); };
+  }, [authUser]);
 
+  const finishStudy = async () => {
+    if (finishLockRef.current) return;
+    finishLockRef.current = true;
+    if (quickActiveStartedRef.current !== null) {
+      quickElapsedRef.current += Date.now() - quickActiveStartedRef.current;
+      quickActiveStartedRef.current = null;
+    }
+    quickDeadlineRef.current = null;
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+
+    // Reactのstate反映を待たず、最後の回答まで確実に集計する。
+    const { correct: finalCorrect, incorrect: finalIncorrect } = studyCountsRef.current;
+    const total = finalCorrect + finalIncorrect;
+
+    const rate =
+      total > 0
+        ? ((finalCorrect / total) * 100).toFixed(1)
+        : "0.0";
+
+    const studyStartTime = studyStartRef.current;
+    const studySessionId = sessionIdRef.current;
+    const sessionUid = sessionUidRef.current;
+    const durationSec = quickModeRef.current === "normal"
+      ? (studyStartTime ? Math.max(0, Math.floor((Date.now() - studyStartTime) / 1000)) : 0)
+      : Math.max(0, Math.floor(quickElapsedMs() / 1000));
+
+    const pending = checkpoint(finalCorrect, finalIncorrect);
+    if (total > 0) {
+      setRewardSaveStatus("failed");
+      setRewardSaveMessage(pending ? "端末に保存済み。Firebaseへの同期待ちです。" : "端末保存失敗。画面を閉じないでください。");
+    }
+    retryRewardRef.current = async () => {
+      if (!pending || rewardBusyRef.current) return;
+      await syncAllPending();
+    };
     setSummaryData({
       total,
       correct: finalCorrect,
@@ -1830,13 +1816,14 @@ if (deckSaveErrorsRef.current.length > 0) {
     });
 
     setShowSummaryModal(true);
+    void retryRewardRef.current?.();
   };
 
   finishStudyRef.current = finishStudy;
 
   const closeSummaryModal = () => {
     if (rewardBusyRef.current) return;
-    if (rewardSaveStatus === "failed" && !confirm("XPが未保存です。結果画面を閉じると再保存できなくなります。閉じますか？")) return;
+    if (rewardSaveStatus === "failed" && sessionUidRef.current && sessionIdRef.current && !localStorage.getItem(pendingKey(sessionUidRef.current, sessionIdRef.current)) && !confirm("端末保存を確認できません。閉じますか？")) return;
     quickDeadlineRef.current = null;
     quickActiveStartedRef.current = null;
     quickModeRef.current = "normal";
@@ -1967,6 +1954,7 @@ if (deckSaveErrorsRef.current.length > 0) {
     const nextCorrect = studyCountsRef.current.correct + (correct ? 1 : 0);
     const nextIncorrect = studyCountsRef.current.incorrect + (correct ? 0 : 1);
     studyCountsRef.current = { correct: nextCorrect, incorrect: nextIncorrect };
+    checkpoint(nextCorrect, nextIncorrect);
 
     setStudyCorrect(nextCorrect);
     setStudyIncorrect(nextIncorrect);
@@ -2029,7 +2017,6 @@ if (deckSaveErrorsRef.current.length > 0) {
     }
 
     void (async () => {
-      await deckSaveQueueRef.current;
       await finishStudy();
     })();
   };
@@ -2236,11 +2223,11 @@ if (deckSaveErrorsRef.current.length > 0) {
               {rewardSaveStatus === "success" ? `+${rewardEarnedXp} XP` : rewardSaveStatus === "failed" ? `獲得予定 +${summary.total * 10} XP（未保存）` : "+0 XP"}
             </strong>
             <div style={{ fontSize: 12, color: "#66766A", marginTop: 4 }}>
-              {rewardSaveStatus === "success" ? `Anki Lifeに反映済み / +${rewardEarnedCoins} コイン` : rewardSaveStatus === "failed" ? "Firebaseへの保存に失敗したため、まだ加算されていません" : "報酬なし"}
+              {rewardSaveStatus === "success" ? `Anki Lifeに反映済み / +${rewardEarnedCoins} コイン` : rewardSaveStatus === "failed" ? "Firebaseへの同期待ち（端末保存状況は下記参照）" : "報酬なし"}
             </div>
           </div>
           <div role="status" style={{ marginTop: 12, padding: 14, borderRadius: 12, background: rewardSaveStatus === "success" ? "#F1F5F1" : "#FFF1EE", border: `1px solid ${rewardSaveStatus === "success" ? "#C9DCCC" : "#F0C6BD"}` }}>
-            <strong>{rewardSaveStatus === "success" ? `⭐ +${rewardEarnedXp} XP / 🪙 +${rewardEarnedCoins} コイン` : rewardSaveStatus === "failed" ? "⚠️ Anki Lifeへの報酬保存に失敗" : "報酬なし"}</strong>
+            <strong>{rewardSaveStatus === "success" ? `⭐ +${rewardEarnedXp} XP / 🪙 +${rewardEarnedCoins} コイン` : rewardSaveStatus === "failed" ? "Anki Lifeへの報酬同期待ち" : "報酬なし"}</strong>
             <div style={{ marginTop: 5, fontSize: 13, whiteSpace: "pre-wrap" }}>{rewardSaveMessage || "回答数が0件のため報酬はありません。"}</div>
           </div>
           {rewardSaveStatus === "failed" && <button type="button" disabled={rewardBusy} onClick={() => void retryRewardRef.current?.()} style={{ ...primaryButtonStyle, marginTop: 12 }}>{rewardBusy ? "保存中…" : "XP・コインを再保存"}</button>}
