@@ -374,7 +374,9 @@ export default function Page() {
     remembered: Card[];
   } | null>(null);
 
-  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [duplicateDeckName, setDuplicateDeckName] = useState<string | null>(null);
+  const [duplicateBusy, setDuplicateBusy] = useState(false);
+  const duplicateLock = useRef(false);
   const [editingDuplicateCard, setEditingDuplicateCard] = useState<{
     deckName: string;
     card: Card;
@@ -790,13 +792,13 @@ export default function Page() {
     );
   };
 
-  // 横断重複検出用のヘルパー関数
-  const getDuplicateCardGroups = (): DuplicateCardGroup[] => {
+  // デッキ内重複検出用のヘルパー関数
+  const getDuplicateCardGroups = (deckName: string | null): DuplicateCardGroup[] => {
     const map = new Map<string, { deckName: string; card: Card }[]>();
 
-    for (const deck of decks) {
+    for (const deck of decks.filter((item) => item.name === deckName)) {
       for (const card of deck.cards) {
-        const key = card.front.trim().toLowerCase();
+        const key = (card.front ?? "").normalize("NFC").trim().replace(/\s+/g, " ").toLowerCase();
         if (!key) continue;
 
         if (!map.has(key)) {
@@ -816,120 +818,69 @@ export default function Page() {
     return result;
   };
 
+  const persistDuplicateChange = async (deck: Deck, cards: Card[]) => {
+    if (duplicateLock.current || deck.name !== duplicateDeckName) return;
+    duplicateLock.current = true;
+    setDuplicateBusy(true);
+    try {
+      const updatedDeck = { ...deck, cards };
+      await persistDeck(updatedDeck);
+      updateDeckState(updatedDeck);
+      setEditingDuplicateCard(null);
+    } catch (error) {
+      console.error(error);
+      alert("保存に失敗しました。もう一度お試しください。");
+    } finally {
+      duplicateLock.current = false;
+      setDuplicateBusy(false);
+    }
+  };
+
   const deleteDuplicateCard = async (targetDeckName: string, cardId: string) => {
     const deck = decks.find((item) => item.name === targetDeckName);
-    if (!deck) return;
-
-    const card = deck.cards.find((c) => c.id === cardId);
-    if (!card) return;
-
-    if (!confirm(`デッキ「${targetDeckName}」から「${card.front}」を削除しますか？`)) {
-      return;
-    }
-
-    const updatedDeck: Deck = {
-      ...deck,
-      cards: deck.cards.filter((c) => c.id !== cardId),
-    };
-
-    try {
-      await persistDeck(updatedDeck);
-      updateDeckState(updatedDeck);
-      if (editingDuplicateCard?.card.id === cardId) {
-        setEditingDuplicateCard(null);
-      }
-    } catch (error) {
-      console.error(error);
-      alert("カードの削除に失敗しました。");
-    }
+    const card = deck?.cards.find((c) => c.id === cardId);
+    if (!deck || !card || duplicateLock.current || targetDeckName !== duplicateDeckName) return;
+    if (!confirm(`デッキ「${targetDeckName}」から「${card.front}」を削除しますか？`)) return;
+    await persistDuplicateChange(deck, deck.cards.filter((c) => c.id !== cardId));
   };
 
-  const saveDuplicateCardEdit = async (
-    targetDeckName: string,
-    updatedCard: Card
-  ) => {
+  const saveDuplicateCardEdit = async (targetDeckName: string, updatedCard: Card) => {
     const deck = decks.find((item) => item.name === targetDeckName);
-    if (!deck) return;
-
-    const updatedDeck: Deck = {
-      ...deck,
-      cards: deck.cards.map((c) => (c.id === updatedCard.id ? updatedCard : c)),
-    };
-
-    try {
-      await persistDeck(updatedDeck);
-      updateDeckState(updatedDeck);
-      setEditingDuplicateCard(null);
-      alert("カードを更新しました。");
-    } catch (error) {
-      console.error(error);
-      alert("カードの更新に失敗しました。");
-    }
+    if (!deck || !updatedCard.front.trim()) { alert("単語を入力してください。"); return; }
+    await persistDuplicateChange(deck, deck.cards.map((c) => c.id === updatedCard.id ? {
+      ...c, front: updatedCard.front.trim(), pinyin: updatedCard.pinyin,
+      japanese: updatedCard.japanese, example: updatedCard.example,
+      exampleJapanese: updatedCard.exampleJapanese,
+    } : c));
   };
 
-  // 完全重複を一括削除する機能（表面・読み・訳・例文がすべて一致、または表面+意味が完全一致するもの）
+  const exactSignature = (card: Card) => JSON.stringify(
+    [card.front, card.pinyin, card.japanese, card.example, card.exampleJapanese]
+      .map((value) => (value ?? "").normalize("NFC").trim())
+  );
+  const getExactDuplicateIds = (deck: Deck) => {
+    const keep = new Map<string, Card>();
+    const remove = new Set<string>();
+    const history = (c: Card) => Math.max(c.reviewCount ?? 0, (c.correctCount ?? 0) + (c.incorrectCount ?? 0));
+    for (const card of deck.cards) {
+      if (!card.front.trim()) continue;
+      const key = exactSignature(card);
+      const previous = keep.get(key);
+      if (!previous) keep.set(key, card);
+      else if (history(card) > history(previous) || (history(card) === history(previous) && (card.lastReviewedAt ?? 0) > (previous.lastReviewedAt ?? 0))) {
+        remove.add(previous.id);
+        keep.set(key, card);
+      } else remove.add(card.id);
+    }
+    return remove;
+  };
   const autoRemoveExactDuplicates = async () => {
-    if (!confirm("表面（単語）および意味が完全に一致する重複カードについて、各グループの最初の1枚を残して残りの重複分をすべて自動削除しますか？")) {
-      return;
-    }
-
-    try {
-      // どのデッキをどう書き替えるかの変更マップ
-      const deckCardMap = new Map<string, Card[]>();
-      for (const deck of decks) {
-        deckCardMap.set(deck.name, [...deck.cards]);
-      }
-
-      let removedCount = 0;
-
-      // 厳密な重複チェック（front + pinyin + japanese がすべて一致するもの）
-      const globalSeen = new Set<string>();
-
-      for (const deck of decks) {
-        const currentCards = deckCardMap.get(deck.name) || [];
-        const keptCards: Card[] = [];
-
-        for (const card of currentCards) {
-          const signature = [
-            card.front.trim().toLowerCase(),
-            card.pinyin.trim().toLowerCase(),
-            card.japanese.trim().toLowerCase(),
-          ].join("|||");
-
-          if (globalSeen.has(signature)) {
-            removedCount++;
-          } else {
-            globalSeen.add(signature);
-            keptCards.push(card);
-          }
-        }
-
-        deckCardMap.set(deck.name, keptCards);
-      }
-
-      if (removedCount === 0) {
-        alert("自動削除対象となる完全一致の重複カードはありませんでした。");
-        return;
-      }
-
-      // Firestoreへ一括保存
-      const updatedDecks = decks.map((deck) => {
-        const newCards = deckCardMap.get(deck.name);
-        if (newCards) {
-          return { ...deck, cards: newCards };
-        }
-        return deck;
-      });
-
-      await Promise.all(updatedDecks.map((deck) => persistDeck(deck)));
-      setDecks(updatedDecks);
-      setEditingDuplicateCard(null);
-
-      alert(`完全一致する重複カードを ${removedCount}件 自動削除しました！`);
-    } catch (error) {
-      console.error("一括削除エラー:", error);
-      alert("完全重複の一括削除に失敗しました。");
-    }
+    const deck = decks.find((item) => item.name === duplicateDeckName);
+    if (!deck || duplicateLock.current) return;
+    const remove = getExactDuplicateIds(deck);
+    if (!remove.size) return;
+    if (!confirm(`「${deck.name}」内の完全一致カード ${remove.size}枚を削除しますか？ 学習履歴の多いカードを優先して残します。`)) return;
+    await persistDuplicateChange(deck, deck.cards.filter((c) => !remove.has(c.id)));
   };
 
   const moveFolderOrder = async (index: number, direction: "up" | "down") => {
@@ -1604,14 +1555,16 @@ export default function Page() {
     setStudyMode(true);
   };
 
-  const pendingKey = (uid: string, id: string) => `anki-pending-v1:${uid}:${id}`;
-  const checkpoint = (correctCount: number, incorrectCount: number) => {
+  const saveStudyRecord = async (
+    correctCount: number,
+    incorrectCount: number
+  ) => {
     const studyStartTime = studyStartRef.current;
     const studySessionId = sessionIdRef.current;
-    if (studyStartTime === null || studySessionId === null || !sessionUidRef.current) return null;
+    if (studyStartTime === null || studySessionId === null) return;
 
     const answered = correctCount + incorrectCount;
-    if (answered === 0) return null;
+    if (answered === 0) return;
 
     const now = Date.now();
     const dateObject = new Date(now);
@@ -1642,29 +1595,89 @@ export default function Page() {
         : Math.max(0, Math.floor(quickElapsedMs() / 1000)),
     };
 
-    const pending = { uid: sessionUidRef.current, record, deckName: currentDeck, mode: quickModeRef.current, history: answerHistoryRef.current.slice() };
     try {
-      localStorage.setItem(pendingKey(pending.uid!, record.id), JSON.stringify(pending));
-      return pending;
+      await setDoc(doc(db, "studyRecords", record.id), record);
+
+      setStudyRecords((previous) =>
+        [record, ...previous.filter((item) => item.id !== record.id)].sort(
+          (a, b) => (b.startedAt || 0) - (a.startedAt || 0)
+        )
+      );
     } catch (error) {
-      console.error("端末保存失敗", error);
-      setRewardSaveMessage("端末保存に失敗しました。結果画面を閉じないでください。");
-      return null;
+      console.error("学習記録保存エラー:", error);
+      alert(tx("alert.studyRecordSaveFailed"));
     }
   };
-  type Pending = NonNullable<ReturnType<typeof checkpoint>>;
-  const syncPending = async (pending: Pending) => {
-    const sessionUid = pending.uid;
-    const studySessionId = pending.record.id;
-    if (!sessionUid || auth.currentUser?.uid !== sessionUid) throw new Error("学習時のアカウントでログインしてください");
-    const { answered: total, correct: finalCorrect, incorrect: finalIncorrect, duration: durationSec, date: today } = pending.record;
-    const lifeStateRef = doc(db, "users", sessionUid, "ankiLife", "state");
-    const rewardEventRef = doc(lifeStateRef, "rewardEvents", studySessionId);
+
+  const finishStudy = async () => {
+    if (finishLockRef.current) return;
+    finishLockRef.current = true;
+    if (quickActiveStartedRef.current !== null) {
+      quickElapsedRef.current += Date.now() - quickActiveStartedRef.current;
+      quickActiveStartedRef.current = null;
+    }
+    quickDeadlineRef.current = null;
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+
+    await deckSaveQueueRef.current;
+
+    // Reactのstate反映を待たず、最後の回答まで確実に集計する。
+    const { correct: finalCorrect, incorrect: finalIncorrect } = studyCountsRef.current;
+    const total = finalCorrect + finalIncorrect;
+
+    const rate =
+      total > 0
+        ? ((finalCorrect / total) * 100).toFixed(1)
+        : "0.0";
+
+    const studyStartTime = studyStartRef.current;
+    const studySessionId = sessionIdRef.current;
+    const sessionUid = sessionUidRef.current;
+    const durationSec = quickModeRef.current === "normal"
+      ? (studyStartTime ? Math.max(0, Math.floor((Date.now() - studyStartTime) / 1000)) : 0)
+      : Math.max(0, Math.floor(quickElapsedMs() / 1000));
+
+    await saveStudyRecord(finalCorrect, finalIncorrect);
+    // Anki Lifeへの報酬連携
+const saveReward = async () => {
+if (rewardBusyRef.current) return;
+rewardBusyRef.current = true;
+setRewardBusy(true);
+try {
+if (sessionUid && auth.currentUser?.uid === sessionUid && studySessionId && total > 0) {
+  try {
+    const now = new Date();
+    const today = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, "0"),
+      String(now.getDate()).padStart(2, "0"),
+    ].join("-");
+
+    const lifeStateRef = doc(
+      db,
+      "users",
+      sessionUid,
+      "ankiLife",
+      "state"
+    );
+
+    const rewardEventRef = doc(
+      db,
+      "users",
+      sessionUid,
+      "ankiLife",
+      "state",
+      "rewardEvents",
+      studySessionId
+    );
+
     const rewardResult = await runTransaction(db, async (transaction) => {
       const eventSnapshot = await transaction.get(rewardEventRef);
 
       // 同じ学習セッションの二重付与を防止
-      if (eventSnapshot.exists()) { transaction.set(doc(db, "studyRecords", studySessionId), pending.record); return { alreadyGranted: true, xp: Number(eventSnapshot.data()?.xp || 0), coins: Number(eventSnapshot.data()?.coins || 0) }; }
+      if (eventSnapshot.exists()) return { alreadyGranted: true, xp: Number(eventSnapshot.data()?.xp || 0), coins: Number(eventSnapshot.data()?.coins || 0) };
 
       const stateSnapshot = await transaction.get(lifeStateRef);
       const saved = stateSnapshot.exists()
@@ -1707,20 +1720,19 @@ export default function Page() {
         { merge: true }
       );
 
-      transaction.set(doc(db, "studyRecords", studySessionId), pending.record);
       transaction.set(rewardEventRef, {
         sessionId: studySessionId,
-        deckName: pending.deckName,
+        deckName: currentDeck,
         answered: total,
         correct: finalCorrect,
         incorrect: finalIncorrect,
         coins: earnedCoins,
         xp: earnedXp,
         returnBonus,
-        mode: pending.mode,
+        mode: quickModeRef.current,
         durationSec,
         // 回答順を保持。未回答カードは記録しない。
-        cards: pending.history.map(({ card, correct }, index) => ({
+        cards: answerHistoryRef.current.map(({ card, correct }, index) => ({
           order: index + 1,
           cardId: String(card.id ?? ""),
           front: String(card.front ?? ""),
@@ -1734,77 +1746,30 @@ export default function Page() {
       });
       return { alreadyGranted: false, xp: earnedXp, coins: earnedCoins };
     });
-    localStorage.removeItem(pendingKey(sessionUid, studySessionId));
-    setStudyRecords(previous => [pending.record, ...previous.filter(item => item.id !== studySessionId)].sort((a,b) => (b.startedAt || 0) - (a.startedAt || 0)));
-    return rewardResult;
-  };
-  const syncAllPending = async () => {
-    const uid = auth.currentUser?.uid;
-    if (!uid || rewardBusyRef.current || (sessionIdRef.current && !finishLockRef.current)) return;
-    rewardBusyRef.current = true;
-    setRewardBusy(true);
-    try {
-      const keys = Object.keys(localStorage).filter(key => key.startsWith(`anki-pending-v1:${uid}:`));
-      for (const key of keys) {
-        try {
-          const raw = localStorage.getItem(key);
-          if (!raw) continue;
-          const pending = JSON.parse(raw) as Pending;
-          const result = await syncPending(pending);
-          if (pending.record.id === sessionIdRef.current) {
-            setRewardSaveStatus("success"); setRewardEarnedXp(result.xp); setRewardEarnedCoins(result.coins);
-            setRewardSaveMessage("Anki Lifeへの保存が完了しました。");
-          }
-        } catch (error) { console.error("再同期待ち", error); }
-      }
-    } finally { rewardBusyRef.current = false; setRewardBusy(false); }
-  };
-  useEffect(() => {
-    if (!authUser) return;
-    const retry = () => { void syncAllPending(); };
-    retry();
-    window.addEventListener("online", retry);
-    const timer = window.setInterval(retry, 15000);
-    return () => { window.removeEventListener("online", retry); window.clearInterval(timer); };
-  }, [authUser]);
+    setRewardSaveStatus("success");
+    setRewardEarnedXp(rewardResult.xp);
+    setRewardEarnedCoins(rewardResult.coins);
+    setRewardSaveMessage(rewardResult.alreadyGranted ? "この学習のXP・コインは付与済みです（二重付与なし）。" : "Anki Lifeへの保存が完了しました。");
+  } catch (error) {
+    console.error("Anki Life報酬付与エラー:", error);
+    setRewardSaveStatus("failed");
+    setRewardSaveMessage(`XP・コインの保存に失敗しました。Firebaseの認証・Firestoreルール・通信を確認してください。詳細: ${error instanceof Error ? error.message : String(error)}`);
+  }
+} else if (total > 0) {
+  setRewardSaveStatus("failed");
+  setRewardSaveMessage("学習開始時と同じアカウントでログインして再保存してください。セッションIDがない場合は新しい学習を開始してください。");
+}
+ } finally {
+  rewardBusyRef.current = false;
+  setRewardBusy(false);
+ }
+};
+retryRewardRef.current = saveReward;
+await saveReward();
+if (deckSaveErrorsRef.current.length > 0) {
+  setRewardSaveMessage((previous) => `${previous} カード保存にも失敗しました: ${deckSaveErrorsRef.current[0]}`);
+}
 
-  const finishStudy = async () => {
-    if (finishLockRef.current) return;
-    finishLockRef.current = true;
-    if (quickActiveStartedRef.current !== null) {
-      quickElapsedRef.current += Date.now() - quickActiveStartedRef.current;
-      quickActiveStartedRef.current = null;
-    }
-    quickDeadlineRef.current = null;
-    if ("speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-    }
-
-    // Reactのstate反映を待たず、最後の回答まで確実に集計する。
-    const { correct: finalCorrect, incorrect: finalIncorrect } = studyCountsRef.current;
-    const total = finalCorrect + finalIncorrect;
-
-    const rate =
-      total > 0
-        ? ((finalCorrect / total) * 100).toFixed(1)
-        : "0.0";
-
-    const studyStartTime = studyStartRef.current;
-    const studySessionId = sessionIdRef.current;
-    const sessionUid = sessionUidRef.current;
-    const durationSec = quickModeRef.current === "normal"
-      ? (studyStartTime ? Math.max(0, Math.floor((Date.now() - studyStartTime) / 1000)) : 0)
-      : Math.max(0, Math.floor(quickElapsedMs() / 1000));
-
-    const pending = checkpoint(finalCorrect, finalIncorrect);
-    if (total > 0) {
-      setRewardSaveStatus("failed");
-      setRewardSaveMessage(pending ? "端末に保存済み。Firebaseへの同期待ちです。" : "端末保存失敗。画面を閉じないでください。");
-    }
-    retryRewardRef.current = async () => {
-      if (!pending || rewardBusyRef.current) return;
-      await syncAllPending();
-    };
     setSummaryData({
       total,
       correct: finalCorrect,
@@ -1816,14 +1781,13 @@ export default function Page() {
     });
 
     setShowSummaryModal(true);
-    void retryRewardRef.current?.();
   };
 
   finishStudyRef.current = finishStudy;
 
   const closeSummaryModal = () => {
     if (rewardBusyRef.current) return;
-    if (rewardSaveStatus === "failed" && sessionUidRef.current && sessionIdRef.current && !localStorage.getItem(pendingKey(sessionUidRef.current, sessionIdRef.current)) && !confirm("端末保存を確認できません。閉じますか？")) return;
+    if (rewardSaveStatus === "failed" && !confirm("XPが未保存です。結果画面を閉じると再保存できなくなります。閉じますか？")) return;
     quickDeadlineRef.current = null;
     quickActiveStartedRef.current = null;
     quickModeRef.current = "normal";
@@ -1954,7 +1918,6 @@ export default function Page() {
     const nextCorrect = studyCountsRef.current.correct + (correct ? 1 : 0);
     const nextIncorrect = studyCountsRef.current.incorrect + (correct ? 0 : 1);
     studyCountsRef.current = { correct: nextCorrect, incorrect: nextIncorrect };
-    checkpoint(nextCorrect, nextIncorrect);
 
     setStudyCorrect(nextCorrect);
     setStudyIncorrect(nextIncorrect);
@@ -2017,6 +1980,7 @@ export default function Page() {
     }
 
     void (async () => {
+      await deckSaveQueueRef.current;
       await finishStudy();
     })();
   };
@@ -2223,11 +2187,11 @@ export default function Page() {
               {rewardSaveStatus === "success" ? `+${rewardEarnedXp} XP` : rewardSaveStatus === "failed" ? `獲得予定 +${summary.total * 10} XP（未保存）` : "+0 XP"}
             </strong>
             <div style={{ fontSize: 12, color: "#66766A", marginTop: 4 }}>
-              {rewardSaveStatus === "success" ? `Anki Lifeに反映済み / +${rewardEarnedCoins} コイン` : rewardSaveStatus === "failed" ? "Firebaseへの同期待ち（端末保存状況は下記参照）" : "報酬なし"}
+              {rewardSaveStatus === "success" ? `Anki Lifeに反映済み / +${rewardEarnedCoins} コイン` : rewardSaveStatus === "failed" ? "Firebaseへの保存に失敗したため、まだ加算されていません" : "報酬なし"}
             </div>
           </div>
           <div role="status" style={{ marginTop: 12, padding: 14, borderRadius: 12, background: rewardSaveStatus === "success" ? "#F1F5F1" : "#FFF1EE", border: `1px solid ${rewardSaveStatus === "success" ? "#C9DCCC" : "#F0C6BD"}` }}>
-            <strong>{rewardSaveStatus === "success" ? `⭐ +${rewardEarnedXp} XP / 🪙 +${rewardEarnedCoins} コイン` : rewardSaveStatus === "failed" ? "Anki Lifeへの報酬同期待ち" : "報酬なし"}</strong>
+            <strong>{rewardSaveStatus === "success" ? `⭐ +${rewardEarnedXp} XP / 🪙 +${rewardEarnedCoins} コイン` : rewardSaveStatus === "failed" ? "⚠️ Anki Lifeへの報酬保存に失敗" : "報酬なし"}</strong>
             <div style={{ marginTop: 5, fontSize: 13, whiteSpace: "pre-wrap" }}>{rewardSaveMessage || "回答数が0件のため報酬はありません。"}</div>
           </div>
           {rewardSaveStatus === "failed" && <button type="button" disabled={rewardBusy} onClick={() => void retryRewardRef.current?.()} style={{ ...primaryButtonStyle, marginTop: 12 }}>{rewardBusy ? "保存中…" : "XP・コインを再保存"}</button>}
@@ -3520,6 +3484,10 @@ export default function Page() {
           alignItems: "stretch",
         }}
       >
+        <button type="button" style={{ ...secondaryButtonStyle, padding: "6px", fontSize: "11px" }}
+          onClick={() => { setEditingDuplicateCard(null); setDuplicateDeckName(deck.name); }}>
+          重複チェック ({getDuplicateCardGroups(deck.name).length})
+        </button>
         <select
           aria-label={`${deck.name}の今日の学習語数`}
           value={taskTargets[deck.name] ?? 30}
@@ -3631,7 +3599,9 @@ export default function Page() {
     </div>
   );
 
-  const duplicateGroups = getDuplicateCardGroups();
+  const duplicateGroups = getDuplicateCardGroups(duplicateDeckName);
+  const duplicateDeck = decks.find((deck) => deck.name === duplicateDeckName);
+  const exactDuplicateCount = duplicateDeck ? getExactDuplicateIds(duplicateDeck).size : 0;
 
   return (
     <main
@@ -3694,34 +3664,6 @@ export default function Page() {
 
         <div style={{ display: "flex", gap: "8px" }}>
           <button
-            onClick={() => setShowDuplicateModal(true)}
-            style={{
-              ...secondaryButtonStyle,
-              position: "relative",
-              borderColor: duplicateGroups.length > 0 ? "#E8B4B4" : "#E5E5EA",
-              background: duplicateGroups.length > 0 ? "#FDF2F2" : "#FFFFFF",
-              color: duplicateGroups.length > 0 ? "#A93226" : "#1D1D1F",
-            }}
-          >
-            重複チェック
-            {duplicateGroups.length > 0 && (
-              <span
-                style={{
-                  marginLeft: "6px",
-                  background: "#A93226",
-                  color: "#FFFFFF",
-                  borderRadius: "10px",
-                  padding: "2px 6px",
-                  fontSize: "11px",
-                  fontWeight: 700,
-                }}
-              >
-                {duplicateGroups.length}
-              </span>
-            )}
-          </button>
-
-          <button
             onClick={() => setShowThemeSettings(true)}
             style={secondaryButtonStyle}
           >
@@ -3731,7 +3673,7 @@ export default function Page() {
       </header>
 
       {/* 重複チェック・自動一括削除モーダル */}
-      {showDuplicateModal && (
+      {duplicateDeck && (
         <div
           style={{
             position: "fixed",
@@ -3772,17 +3714,18 @@ export default function Page() {
             >
               <div>
                 <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 700 }}>
-                  全デッキ横断 重複チェック
+                  {duplicateDeck.name}：重複チェック
                 </h2>
                 <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#8E8E93" }}>
-                  表記のズレを確認して個別に修正・削除するか、完全一致を一括削除できます。
+                  全 {duplicateDeck.cards.length} 枚 ／ 重複 {duplicateGroups.length} グループ ／ 余分なカード {duplicateGroups.reduce((sum, group) => sum + group.items.length - 1, 0)} 枚 ／ 完全一致の削除候補 {exactDuplicateCount} 枚
                 </p>
               </div>
 
               <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
-                {duplicateGroups.length > 0 && (
+                {exactDuplicateCount > 0 && (
                   <button
                     onClick={autoRemoveExactDuplicates}
+                    disabled={duplicateBusy}
                     style={{
                       padding: "10px 14px",
                       background: "#A93226",
@@ -3799,8 +3742,9 @@ export default function Page() {
                 )}
 
                 <button
+                  disabled={duplicateBusy}
                   onClick={() => {
-                    setShowDuplicateModal(false);
+                    setDuplicateDeckName(null);
                     setEditingDuplicateCard(null);
                   }}
                   style={secondaryButtonStyle}
@@ -3820,7 +3764,7 @@ export default function Page() {
                     fontSize: "14px",
                   }}
                 >
-                  🎉 全てのデッキで重複した単語は見つかりませんでした！
+                  🎉 このデッキに重複した単語は見つかりませんでした！
                 </div>
               ) : (
                 duplicateGroups.map((group) => (
@@ -3938,6 +3882,7 @@ export default function Page() {
                                       例: {card.example}
                                     </div>
                                   )}
+                                  {card.exampleJapanese && <div style={{ fontSize: "12px", color: "#555" }}>{card.exampleJapanese}</div>}
                                 </>
                               ) : (
                                 <div style={{ marginTop: "10px" }}>
@@ -4000,6 +3945,11 @@ export default function Page() {
                                     }
                                     style={{ ...inputStyle, padding: "8px", fontSize: "13px" }}
                                   />
+                                  <label style={{ fontSize: "11px", color: "#8E8E93" }}>例文の日本語訳</label>
+                                  <input value={editingDuplicateCard.card.exampleJapanese ?? ""}
+                                    onChange={(e) => setEditingDuplicateCard({ ...editingDuplicateCard, card: { ...editingDuplicateCard.card, exampleJapanese: e.target.value } })}
+                                    style={{ ...inputStyle, padding: "8px", fontSize: "13px" }} />
+                                  <button type="button" disabled={duplicateBusy} onClick={() => setEditingDuplicateCard(null)} style={secondaryButtonStyle}>キャンセル</button>
                                 </div>
                               )}
                             </div>
@@ -4032,6 +3982,7 @@ export default function Page() {
                                 </button>
                               ) : (
                                 <button
+                                  disabled={duplicateBusy}
                                   onClick={() =>
                                     saveDuplicateCardEdit(
                                       deckName,
@@ -4050,6 +4001,7 @@ export default function Page() {
                               )}
 
                               <button
+                                disabled={duplicateBusy}
                                 onClick={() =>
                                   deleteDuplicateCard(deckName, card.id)
                                 }
