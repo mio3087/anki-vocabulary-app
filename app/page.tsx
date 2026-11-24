@@ -350,8 +350,12 @@ export default function Page() {
 
   const [studyCorrect, setStudyCorrect] = useState(0);
   const [studyIncorrect, setStudyIncorrect] = useState(0);
-  const [studyStartTime, setStudyStartTime] = useState<number | null>(null);
-  const [studySessionId, setStudySessionId] = useState<string | null>(null);
+  const studyStartRef = useRef<number | null>(null);
+  const sessionIdRef = useRef<string | null>(null);
+  const sessionUidRef = useRef<string | null>(null);
+  const retryRewardRef = useRef<(() => Promise<void>) | null>(null);
+  const rewardBusyRef = useRef(false);
+  const [rewardBusy, setRewardBusy] = useState(false);
 
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [rewardSaveStatus, setRewardSaveStatus] = useState<"success" | "failed" | "skipped">("skipped");
@@ -481,6 +485,19 @@ export default function Page() {
           order: item.data().order ?? index,
         }));
 
+        if (!loadedFolders.some((folder) => ["フランス語", "🇫🇷 フランス語", "French", "Français"].includes(folder.name.trim()))) {
+          const folder: Folder = { id: "language-fr-FR", name: "フランス語", order: Math.max(-1, ...loadedFolders.map(f => f.order ?? 0)) + 1 };
+          try {
+            const ref = doc(db, "folders", folder.id);
+            await runTransaction(db, async transaction => {
+              const existing = await transaction.get(ref);
+              if (!existing.exists()) transaction.set(ref, folder);
+            });
+            loadedFolders.push(folder);
+          } catch (error) {
+            console.error("フランス語フォルダ作成エラー:", error);
+          }
+        }
         loadedFolders.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
         setFolders(loadedFolders);
 
@@ -554,8 +571,9 @@ export default function Page() {
       }
     };
 
-    void loadData();
-  }, []);
+    if (authReady && authUser) void loadData();
+    else if (authReady) setLoading(false);
+  }, [authReady, authUser]);
 
   useEffect(() => {
     answerLockRef.current = false;
@@ -1060,7 +1078,7 @@ export default function Page() {
         name,
         language: newDeckLanguage,
         cards: [],
-        folderId: newDeckFolderId,
+        folderId: newDeckFolderId ?? (newDeckLanguage === "fr-FR" ? folders.find(f => ["フランス語", "🇫🇷 フランス語", "French", "Français"].includes(f.name.trim()))?.id ?? null : null),
         coverImageUrl,
         order: decks.length,
       };
@@ -1491,6 +1509,10 @@ export default function Page() {
   }, [studyMode, activeChallengeMode]);
 
   const startStudy = () => {
+    if (!authReady || !auth.currentUser) {
+      alert("XPを保存するため、ログイン状態を確認してから学習を開始してください。");
+      return;
+    }
     answerLockRef.current = false;
 
     const deck = decks.find((item) => item.name === currentDeck);
@@ -1554,8 +1576,10 @@ export default function Page() {
     setShowAnswer(false);
     setStudyCorrect(0);
     setStudyIncorrect(0);
-    setStudyStartTime(Date.now());
-    setStudySessionId(createId());
+    studyStartRef.current = now;
+    sessionIdRef.current = createId();
+    sessionUidRef.current = auth.currentUser.uid;
+    retryRewardRef.current = null;
     setStudyMode(true);
   };
 
@@ -1563,6 +1587,8 @@ export default function Page() {
     correctCount: number,
     incorrectCount: number
   ) => {
+    const studyStartTime = studyStartRef.current;
+    const studySessionId = sessionIdRef.current;
     if (studyStartTime === null || studySessionId === null) return;
 
     const answered = correctCount + incorrectCount;
@@ -1634,13 +1660,21 @@ export default function Page() {
         ? ((finalCorrect / total) * 100).toFixed(1)
         : "0.0";
 
+    const studyStartTime = studyStartRef.current;
+    const studySessionId = sessionIdRef.current;
+    const sessionUid = sessionUidRef.current;
     const durationSec = quickModeRef.current === "normal"
       ? (studyStartTime ? Math.max(0, Math.floor((Date.now() - studyStartTime) / 1000)) : 0)
       : Math.max(0, Math.floor(quickElapsedMs() / 1000));
 
     await saveStudyRecord(finalCorrect, finalIncorrect);
     // Anki Lifeへの報酬連携
-if (authUser && studySessionId && total > 0) {
+const saveReward = async () => {
+if (rewardBusyRef.current) return;
+rewardBusyRef.current = true;
+setRewardBusy(true);
+try {
+if (sessionUid && auth.currentUser?.uid === sessionUid && studySessionId && total > 0) {
   try {
     const now = new Date();
     const today = [
@@ -1652,7 +1686,7 @@ if (authUser && studySessionId && total > 0) {
     const lifeStateRef = doc(
       db,
       "users",
-      authUser.uid,
+      sessionUid,
       "ankiLife",
       "state"
     );
@@ -1660,7 +1694,7 @@ if (authUser && studySessionId && total > 0) {
     const rewardEventRef = doc(
       db,
       "users",
-      authUser.uid,
+      sessionUid,
       "ankiLife",
       "state",
       "rewardEvents",
@@ -1751,8 +1785,15 @@ if (authUser && studySessionId && total > 0) {
   }
 } else if (total > 0) {
   setRewardSaveStatus("failed");
-  setRewardSaveMessage("ログイン情報または学習セッションIDがないため、XPを保存できませんでした。");
+  setRewardSaveMessage("学習開始時と同じアカウントでログインして再保存してください。セッションIDがない場合は新しい学習を開始してください。");
 }
+ } finally {
+  rewardBusyRef.current = false;
+  setRewardBusy(false);
+ }
+};
+retryRewardRef.current = saveReward;
+await saveReward();
 if (deckSaveErrorsRef.current.length > 0) {
   setRewardSaveMessage((previous) => `${previous} カード保存にも失敗しました: ${deckSaveErrorsRef.current[0]}`);
 }
@@ -1773,6 +1814,8 @@ if (deckSaveErrorsRef.current.length > 0) {
   finishStudyRef.current = finishStudy;
 
   const closeSummaryModal = () => {
+    if (rewardBusyRef.current) return;
+    if (rewardSaveStatus === "failed" && !confirm("XPが未保存です。結果画面を閉じると再保存できなくなります。閉じますか？")) return;
     quickDeadlineRef.current = null;
     quickActiveStartedRef.current = null;
     quickModeRef.current = "normal";
@@ -1785,8 +1828,10 @@ if (deckSaveErrorsRef.current.length > 0) {
     setStudyIndex(0);
     setStudyCorrect(0);
     setStudyIncorrect(0);
-    setStudyStartTime(null);
-    setStudySessionId(null);
+    studyStartRef.current = null;
+    sessionIdRef.current = null;
+    sessionUidRef.current = null;
+    retryRewardRef.current = null;
     resetCardForm();
   };
 
@@ -2155,6 +2200,7 @@ if (deckSaveErrorsRef.current.length > 0) {
             <strong>{rewardSaveStatus === "success" ? `⭐ +${rewardEarnedXp} XP / 🪙 +${rewardEarnedCoins} コイン` : rewardSaveStatus === "failed" ? "⚠️ Anki Lifeへの報酬保存に失敗" : "報酬なし"}</strong>
             <div style={{ marginTop: 5, fontSize: 13, whiteSpace: "pre-wrap" }}>{rewardSaveMessage || "回答数が0件のため報酬はありません。"}</div>
           </div>
+          {rewardSaveStatus === "failed" && <button type="button" disabled={rewardBusy} onClick={() => void retryRewardRef.current?.()} style={{ ...primaryButtonStyle, marginTop: 12 }}>{rewardBusy ? "保存中…" : "XP・コインを再保存"}</button>}
           <h2 style={{ marginTop: 28, fontSize: 19 }}>間違えた単語 ({summary.missed.length}件)</h2>
           {summary.missed.length === 0 ? (
             <p style={{ color: "#456B55" }}>今回間違えた単語はありません！</p>
