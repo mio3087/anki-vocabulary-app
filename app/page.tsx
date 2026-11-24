@@ -11,6 +11,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  getDocsFromServer,
   serverTimestamp,
     setDoc,
   runTransaction,
@@ -399,6 +400,8 @@ export default function Page() {
 
   const [cardSearch, setCardSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   const tx = (key: string) => {
     const ja: Record<string, string> = {
@@ -476,9 +479,12 @@ export default function Page() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     const loadData = async () => {
+      setLoading(true);
+      setLoadError("");
       try {
-        const folderSnapshot = await getDocs(collection(db, "folders"));
+        const folderSnapshot = await getDocsFromServer(collection(db, "folders"));
         const loadedFolders: Folder[] = folderSnapshot.docs.map((item, index) => ({
           id: item.id,
           name: item.data().name || item.id,
@@ -499,9 +505,10 @@ export default function Page() {
           }
         }
         loadedFolders.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+        if (cancelled) return;
         setFolders(loadedFolders);
 
-        const deckSnapshot = await getDocs(collection(db, "decks"));
+        const deckSnapshot = await getDocsFromServer(collection(db, "decks"));
         const loadedDecks: Deck[] = deckSnapshot.docs.map((item, index) => {
           const data = item.data();
 
@@ -538,6 +545,7 @@ export default function Page() {
           };
         });
 
+        if (cancelled) return;
         setDecks(loadedDecks);
 
         if (loadedDecks.length > 0) {
@@ -563,17 +571,25 @@ export default function Page() {
         });
 
         loadedRecords.sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0));
-        setStudyRecords(loadedRecords);
+        if (!cancelled) setStudyRecords(loadedRecords);
       } catch (error) {
         console.error("Firestore読み込みエラー:", error);
+        if (!cancelled) setLoadError(error instanceof Error ? error.message : String(error));
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     if (authReady && authUser) void loadData();
-    else if (authReady) setLoading(false);
-  }, [authReady, authUser]);
+    else if (authReady) {
+      setLoading(false);
+      setLoadError("");
+      setDecks([]);
+      setFolders([]);
+      setStudyRecords([]);
+    }
+    return () => { cancelled = true; };
+  }, [authReady, authUser, loadAttempt]);
 
   useEffect(() => {
     answerLockRef.current = false;
@@ -1083,7 +1099,12 @@ export default function Page() {
         order: decks.length,
       };
 
-      await persistDeck(newDeck);
+      await runTransaction(db, async (transaction) => {
+        const ref = doc(db, "decks", name);
+        const existing = await transaction.get(ref);
+        if (existing.exists()) throw new Error("同じ名前のデッキがFirebaseに存在します。上書きしません。");
+        transaction.set(ref, newDeck);
+      });
 
       setDecks((previous) => [...previous, newDeck]);
       setCurrentDeck(name);
@@ -2015,7 +2036,29 @@ if (deckSaveErrorsRef.current.length > 0) {
 
   const currentCard = studyCards[studyIndex];
 
-  if (loading) {
+  if (authReady && !authUser) {
+    return (
+      <main style={{ maxWidth: 600, margin: "40px auto", padding: 24 }}>
+        <h2>ログインが必要です</h2>
+        <p>デッキは削除されていません。この端末でアプリのログイン操作を行ってください。</p>
+        <p>ログイン後に一覧を再読み込みしてください。</p>
+        <button style={primaryButtonStyle} onClick={() => window.location.reload()}>再読み込み</button>
+      </main>
+    );
+  }
+
+  if (loadError && !loading) {
+    return (
+      <main style={{ maxWidth: 600, margin: "40px auto", padding: 24 }}>
+        <h2>データを読み込めませんでした</h2>
+        <p>既存データは初期化していません。通信とログイン状態を確認してください。</p>
+        <p style={{ overflowWrap: "anywhere" }}>{loadError}</p>
+        <button style={primaryButtonStyle} onClick={() => { setLoading(true); setLoadAttempt(n => n + 1); }}>再試行</button>
+      </main>
+    );
+  }
+
+  if (!authReady || loading) {
     return (
       <main
         style={{
