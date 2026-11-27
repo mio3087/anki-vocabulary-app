@@ -3795,7 +3795,7 @@ if (deckSaveErrorsRef.current.length > 0) {
       </header>
 
       <details style={{margin:"0 0 16px",border:"1px solid #E5E5EA",borderRadius:12,padding:"12px 16px",background:"white"}}>
-        <summary style={{cursor:"pointer",fontWeight:600,fontSize:15,color:"#51458B"}}>◉ Learning Observatory · 学習時間の研究室</summary>
+        <summary style={{cursor:"pointer",fontWeight:600,fontSize:15,color:"#51458B"}}>◉ Learning Observatory</summary>
       <LearningTimeAnalytics decks={decks} records={studyRecords} mode={timeMode} setMode={setTimeMode} period={timePeriod} setPeriod={setTimePeriod} mistakes={d=>getMistakeCards(d,"all").length} openDeck={(d,weak)=>{setCurrentDeck(d.name);setSpeechLanguage(d.language);setStudyStatusFilter(weak?"mistakes":"all");setDeckOpen(true);}} />
       </details>
       {/* 重複チェック・自動一括削除モーダル */}
