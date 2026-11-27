@@ -2906,12 +2906,6 @@ if (deckSaveErrorsRef.current.length > 0) {
             </div>
           </div>
 
-          <button
-            onClick={() => setShowThemeSettings(true)}
-            style={secondaryButtonStyle}
-          >
-            テーマ
-          </button>
         </div>
 
         <div
