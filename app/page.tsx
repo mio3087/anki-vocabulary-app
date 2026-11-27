@@ -320,37 +320,42 @@ function deckTimeEstimate(records: StudyRecord[], decks: Deck[], deck: Deck, mod
   return {speed:fallback,label:fallback===null?"":"同言語参考"};
 }
 const estimateTime = (speed: number | null, n: number) => n === 0 ? 0 : speed === null ? null : speed*n;
-const timeBox: React.CSSProperties = {border:"1px solid #DCE5DD",borderRadius:14,padding:14,margin:"12px 0",background:"#F5F8F5",color:"#34493B",overflowWrap:"anywhere",fontSize:13};
+const timeBox: React.CSSProperties = {border:"1px solid #DCE5DD",borderRadius:14,padding:22,margin:"18px 0",lineHeight:1.8,display:"grid",gap:16,background:"#F5F8F5",color:"#34493B",overflowWrap:"anywhere",fontSize:13};
 function LearningTimeAnalytics({decks,records,mode,setMode,period,setPeriod,mistakes,openDeck}: {decks:Deck[];records:StudyRecord[];mode:TimeMode;setMode:(v:TimeMode)=>void;period:TimeWindow;setPeriod:(v:TimeWindow)=>void;mistakes:(d:Deck)=>number;openDeck:(d:Deck,weak:boolean)=>void}) {
- const [name,setName]=useState(""); const [count,setCount]=useState(1000); const [rounds,setRounds]=useState(1); const [daily,setDaily]=useState(25); const [budget,setBudget]=useState(300);
+ const [name,setName]=useState(""); const [count,setCount]=useState(decks[0]?.cards.length||1000); const [rounds,setRounds]=useState(1); const [daily,setDaily]=useState(25);
  const deck=decks.find(d=>d.name===name) ?? decks[0];
  const rows=deck ? timeRecords(records,deck.name,mode,period):[];
  const prediction=deck?deckTimeEstimate(records,decks,deck,mode,period):{speed:null,label:""}; const speed=prediction.speed; const weakRows=deck?timeRecords(records,deck.name,mode,period,"mistakes"):[]; const weakSpeed=timeSpeed(weakRows);
  const total=estimateTime(speed,count*rounds); const days=total===null?null:Math.ceil(total/(daily*60));
  const finish=new Date(); if(days!==null) finish.setDate(finish.getDate()+Math.max(0,days-1));
  const chronological=[...rows].reverse(); const best=rows.filter(r=>r.answered>=10 && r.correct/r.answered>=0.8).sort((a,b)=>recordSeconds(a)/a.answered-recordSeconds(b)/b.answered)[0];
- const budgetDecks=decks.filter(d=>deckTimeEstimate(records,decks,d,mode,period).speed!==null || (mistakes(d)>0 && timeSpeed(timeRecords(records,d.name,mode,period,"mistakes"))!==null)).sort((a,b)=>{const t=(d:Deck)=>(deckTimeEstimate(records,decks,d,mode,period).speed??Infinity)*d.cards.length;return Number(t(b)<=budget)-Number(t(a)<=budget)||t(a)-t(b)||a.name.localeCompare(b.name);});
- const field={width:"100%",padding:8,border:"1px solid #CCD7CD",borderRadius:8,boxSizing:"border-box" as const};
- return <section style={timeBox}>
- <h2 style={{margin:"0 0 6px",fontSize:19}}>Learning Time Analytics</h2><p>単語数を、今使える時間に変えよう。</p>
- <div style={{display:"flex",flexWrap:"wrap",gap:8}}><label>集計モード <select value={mode} onChange={e=>setMode(e.target.value as TimeMode)}><option value="all">すべて（旧履歴含む）</option><option value="normal">通常</option><option value="quick">Quick Challenge</option></select></label><label>期間 <select value={period} onChange={e=>setPeriod(e.target.value==="all"?"all":Number(e.target.value) as 5|10)}><option value="5">直近5回</option><option value="10">直近10回</option><option value="all">全期間</option></select></label></div>
+ const fullDecks=decks.map(d=>({deck:d,...deckTimeEstimate(records,decks,d,mode,period)}));
+ const allWords=fullDecks.reduce((n,x)=>n+x.deck.cards.length,0);
+ const measuredWords=fullDecks.reduce((n,x)=>n+(x.speed===null?0:x.deck.cards.length),0);
+ const measuredSeconds=fullDecks.reduce((n,x)=>n+(x.speed??0)*x.deck.cards.length,0);
+
+ const field={width:"100%",padding:12,border:"1px solid #D9DCE8",borderRadius:10,background:"#F5F6FA",color:"#26324B",boxSizing:"border-box" as const,fontSize:16};
+ const panel: React.CSSProperties={background:"#F5F6FA",border:"1px solid #E1E4EF",borderRadius:16,padding:18,display:"grid",gap:14};
+ const action: React.CSSProperties={...secondaryButtonStyle,background:"#FFFFFF",color:"#26324B",border:"1px solid #D6D9E8",padding:"10px 14px"};
+ return <section style={{...timeBox,background:"#FFFFFF",color:"#30384D",border:"1px solid #E5E7EF",padding:"clamp(16px, 4vw, 28px)",gap:22,fontSize:14,colorScheme:"light",lineHeight:1.7,marginTop:16}}>
+ <header><small style={{color:"#6555AE",letterSpacing:"0.14em"}}>LEARNING OBSERVATORY</small><h2 style={{margin:"6px 0",fontSize:24,color:"#26324B"}}>学習時間の研究室</h2><p style={{margin:0,color:"#646C80"}}>全単語を1周する時間を、学習実績から自動計算。</p></header>
+ <div style={{display:"flex",flexWrap:"wrap",gap:16}}><label>集計モード <select style={field} value={mode} onChange={e=>setMode(e.target.value as TimeMode)}><option value="all">すべて（旧履歴含む）</option><option value="normal">通常</option><option value="quick">Quick Challenge</option></select></label><label>期間 <select style={field} value={period} onChange={e=>setPeriod(e.target.value==="all"?"all":Number(e.target.value) as 5|10)}><option value="5">直近5回</option><option value="10">直近10回</option><option value="all">全期間</option></select></label></div>
  <label>対象デッキ<select style={field} value={deck?.name??""} onChange={e=>{setName(e.target.value);setCount(decks.find(d=>d.name===e.target.value)?.cards.length??1000)}}>{decks.map(d=><option key={d.name}>{d.name}</option>)}</select></label>
- <p>推定速度：{speed===null?"未計測":`${speed.toFixed(2)}秒 / 回答・${(60/speed).toFixed(1)}回答 / 分`}（対象デッキ履歴 {rows.length}回{prediction.label?`・${prediction.label}`:""}）</p>
- <p>苦手のみ：{weakSpeed===null?"未計測":`${(60/weakSpeed).toFixed(1)}回答 / 分`}</p>
- <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))",gap:8}}>{[100,500,1000].map(n=><div key={n}><strong>{n}語</strong><br/>{timeFormat(estimateTime(speed,n))}</div>)}{[5,10,15,25,30].map(n=><div key={n}><strong>{n}分</strong><br/>{speed===null?"収集中":`約${Math.floor(n*60/speed)}回答`}</div>)}</div>
- <details style={{marginTop:12}}><summary style={{cursor:"pointer",fontWeight:600}}>学習時間シミュレーター</summary><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(95px,1fr))",gap:8}}>{([{label:"単語数",value:count,set:setCount,max:1000000},{label:"周回数",value:rounds,set:setRounds,max:1000},{label:"1日（分）",value:daily,set:setDaily,max:1440}]).map(f=><label key={f.label}>{f.label}<input style={field} type="number" min={1} max={f.max} value={f.value} onChange={e=>f.set(Math.min(f.max,Math.max(1,Math.floor(Number(e.target.value)||1))))}/></label>)}</div>
- <p>推定合計：<strong>{timeFormat(total)}</strong> ／ {days===null?"日数未確定":`${days}日・1日約${Math.ceil(count*rounds/Math.max(1,days))}回答・完了予定 ${finish.toLocaleDateString("ja-JP")}`}</p><small>周回完了は暗記完了ではありません。今日から毎日学習する場合の目安です。</small></details>
- <h3>Time Budget</h3><select value={budget} onChange={e=>setBudget(Number(e.target.value))}>{[50,100,300,600,900,1500,1800,3600].map(n=><option key={n} value={n}>{n<120?`${n}秒`:`${n/60}分`}</option>)}</select>
- {budgetDecks.map(d=>{const prediction=deckTimeEstimate(records,decks,d,mode,period);const sp=prediction.speed;const ws=timeSpeed(timeRecords(records,d.name,mode,period,"mistakes"));const weak=mistakes(d);return <div key={d.name} style={{borderTop:"1px solid #DCE5DD",padding:"8px 0"}}><strong>{d.name}</strong> {prediction.label&&<small>（{prediction.label}）</small>}<br/>{sp===null?"未計測":`全体：推定 ${Math.min(d.cards.length,Math.floor(budget/sp))}/${d.cards.length}語${sp*d.cards.length<=budget?"・1周可能":""}`} <button type="button" onClick={()=>openDeck(d,false)}>デッキを開く</button><br/>{weak>0&&<>{ws===null?"苦手復習速度は収集中":`苦手：推定 ${Math.min(weak,Math.floor(budget/ws))}/${weak}語${ws*weak<=budget?"・1周可能":""}`} <button type="button" onClick={()=>openDeck(d,true)}>苦手を開く</button></>}</div>})}
- <small>未計測のデッキは一覧から省略しています。全デッキは対象デッキの選択欄から確認できます。</small>
+ <div style={{...panel,background:"#F4F3FA"}}><small style={{color:"#646C80"}}>{deck?.name??"対象デッキなし"} · 全単語1周</small><strong style={{fontSize:32,color:"#5145A6",lineHeight:1.25}}>{deck?timeFormat(estimateTime(speed,deck.cards.length)):"未計測"}</strong><span>{deck?.cards.length.toLocaleString()??0}語 {prediction.label&&`・${prediction.label}`}</span>{deck&&mistakes(deck)>0&&<small>苦手 {mistakes(deck)}語：{timeFormat(estimateTime(weakSpeed,mistakes(deck)))}</small>}</div>
+ <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))",gap:12}}>{[{label:"1問あたり",value:speed===null?"未計測":`${speed.toFixed(2)}秒`},{label:"1分あたり",value:speed===null?"未計測":`${(60/speed).toFixed(1)}回答`}].map(x=><div key={x.label} style={panel}><small>{x.label}</small><strong style={{fontSize:22,color:"#6555AE"}}>{x.value}</strong></div>)}</div>
+ <small>対象デッキの有効履歴 {rows.length}回 · 苦手復習速度 {weakSpeed===null?"未計測":`${(60/weakSpeed).toFixed(1)}回答/分`}</small>
+ <div style={{...panel,gap:16}}><strong>語彙量と所要時間</strong>{Array.from(new Set([100,500,1000,...(deck&&deck.cards.length>0?[deck.cards.length]:[])])).sort((a,b)=>a-b).map(n=><div key={n} style={{display:"grid",gap:6}}><div style={{display:"flex",justifyContent:"space-between",gap:8}}><span>{n.toLocaleString()}語</span><strong style={{color:"#5145A6"}}>{timeFormat(estimateTime(speed,n))}</strong></div><div style={{height:7,background:"#E1E4EF",borderRadius:8,overflow:"hidden"}}><div style={{height:"100%",width:speed===null?"0%":`${100*n/Math.max(1000,deck?.cards.length??0)}%`,background:"#9B91D5",borderRadius:8}}/></div></div>)}</div>
+ <details style={{marginTop:12}}><summary style={{cursor:"pointer",fontWeight:600}}>学習時間シミュレーター</summary><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(95px,1fr))",gap:16,marginTop:16}}>{([{label:"単語数",value:count,set:setCount,max:1000000},{label:"周回数",value:rounds,set:setRounds,max:1000},{label:"1日（分）",value:daily,set:setDaily,max:1440}]).map(f=><label key={f.label}>{f.label}<input style={field} type="number" min={1} max={f.max} value={f.value} onChange={e=>f.set(Math.min(f.max,Math.max(1,Math.floor(Number(e.target.value)||1))))}/></label>)}</div>
+ <p>推定合計：<strong style={{color:"#5145A6",fontSize:22}}>{timeFormat(total)}</strong> ／ {days===null?"日数未確定":`${days}日・1日約${Math.ceil(count*rounds/Math.max(1,days))}回答・完了予定 ${finish.toLocaleDateString("ja-JP")}`}</p><small>周回完了は暗記完了ではありません。今日から毎日学習する場合の目安です。</small></details>
+ <details><summary style={{cursor:"pointer",fontWeight:600}}>全デッキの1周時間（{allWords.toLocaleString()}語）</summary><div style={{padding:"16px 0",lineHeight:1.8}}><strong>{measuredWords===allWords?timeFormat(measuredSeconds):measuredWords>0?`計測可能分 ${timeFormat(measuredSeconds)}`:"未計測"}</strong><div>推定可能 {measuredWords.toLocaleString()} / {allWords.toLocaleString()}語</div>{measuredWords<allWords&&<small>未計測分は合計に含めません。</small>}</div><div style={{display:"grid",gap:12}}>{fullDecks.map(({deck:d,speed:sp,label})=><div key={d.name} style={panel}><strong>{d.name}</strong><div>{d.cards.length.toLocaleString()}語 · <strong>{timeFormat(estimateTime(sp,d.cards.length))}</strong> {label&&<small>（{label}）</small>}</div><button type="button" style={action} onClick={()=>openDeck(d,false)}>デッキを開く</button>{mistakes(d)>0&&<button type="button" style={action} onClick={()=>openDeck(d,true)}>苦手を開く</button>}</div>)}</div></details>
  <details style={{marginTop:12}}><summary style={{cursor:"pointer",fontWeight:600}}>学習速度の推移・自己ベスト</summary><p>回答/分と正答率を並べて比較。速さより理解を優先。</p>
- {chronological.length>0&&<svg role="img" aria-label="学習速度推移と正答率" viewBox="0 0 320 110" style={{width:"100%",maxHeight:180}}>{[0,1,2,3].map(i=><line key={i} x1="8" x2="312" y1={10+i*30} y2={10+i*30} stroke="#DCE5DD"/>)}{["speed","accuracy"].map(kind=><polyline key={kind} fill="none" stroke={kind==="speed"?"#477A60":"#8365A0"} strokeWidth="2" points={chronological.map((r,i)=>`${8+304*i/Math.max(1,chronological.length-1)},${100-90*(kind==="speed"?(60*r.answered/recordSeconds(r))/Math.max(1,...chronological.map(x=>60*x.answered/recordSeconds(x))):Math.max(0,Math.min(1,r.correct/r.answered)))}`).join(" ")}/>)}</svg>}
- <small>緑：回答速度（期間内最大を基準）／紫：正答率（100%を基準）</small>
+ {chronological.length>0&&<svg role="img" aria-label="学習速度推移と正答率" viewBox="0 0 320 110" style={{width:"100%",maxHeight:180}}>{[0,1,2,3].map(i=><line key={i} x1="8" x2="312" y1={10+i*30} y2={10+i*30} stroke="#E1E4EF"/>)}{["speed","accuracy"].map(kind=><polyline key={kind} fill="none" stroke={kind==="speed"?"#A47C37":"#6555AE"} strokeWidth="2" points={chronological.map((r,i)=>`${8+304*i/Math.max(1,chronological.length-1)},${100-90*(kind==="speed"?(60*r.answered/recordSeconds(r))/Math.max(1,...chronological.map(x=>60*x.answered/recordSeconds(x))):Math.max(0,Math.min(1,r.correct/r.answered)))}`).join(" ")}/>)}</svg>}
+ <small>アンバー：回答速度（期間内最大を基準）／ラベンダー：正答率（100%を基準）</small>
  <div style={{maxHeight:180,overflowY:"auto"}}>{rows.map(r=><div key={r.id}>{r.date}：{(60*r.answered/recordSeconds(r)).toFixed(1)}回答/分・正答率{(100*r.correct/r.answered).toFixed(0)}%・{r.answered}回答・実測{r.duration}秒</div>)}</div>
  <p>自己ベスト（10回答以上・正答率80%以上）：{best?`${(60*best.answered/recordSeconds(best)).toFixed(1)}回答/分`:"該当データなし"}</p>
  <p>前回と今回：{rows.length>=2?`${rows[1].duration}秒 / ${rows[1].answered}回答 → ${rows[0].duration}秒 / ${rows[0].answered}回答（実測）`:"比較データ収集中"}</p>
  <p>苦手復習速度：{weakRows.length>=2?`${(60*weakRows[1].answered/recordSeconds(weakRows[1])).toFixed(1)} → ${(60*weakRows[0].answered/recordSeconds(weakRows[0])).toFixed(1)}回答/分`:"比較データ収集中"}</p></details>
- <small>学習データと同じ studyRecords の実測時間・回答数を使用。1回から暫定推定し、履歴がない場合は同言語の参考値を表示します。旧履歴のモード・苦手区分は不明のため、該当フィルターでは除外します。</small>
+ <small style={{background:"#FBF7EE",color:"#806A45",padding:14,borderRadius:10}}>学習データと同じ studyRecords の実測時間・回答数を使用。1回から暫定推定し、履歴がない場合は同言語の参考値を表示します。旧履歴のモード・苦手区分は不明のため、該当フィルターでは除外します。</small>
  </section>;
 }
 export default function Page() {
@@ -3455,8 +3460,13 @@ if (deckSaveErrorsRef.current.length > 0) {
       style={{
         display: "flex",
         alignItems: "center",
-        gap: "8px",
-        marginBottom: "10px",
+        gap: "12px",
+        flexWrap: "wrap",
+        padding: "14px",
+        border: "1px solid #E5E5EA",
+        borderRadius: "16px",
+        background: "#FFFFFF",
+        marginBottom: "18px",
       }}
     >
       <div
@@ -3511,9 +3521,9 @@ if (deckSaveErrorsRef.current.length > 0) {
           setDeckOpen(true);
         }}
         style={{
-          flex: 1,
+          flex: "1 1 75%",
           minWidth: 0,
-          padding: "11px 12px",
+          padding: "18px 14px",
           textAlign: "left",
           background: "#FFFFFF",
           border: "1px solid #E5E5EA",
@@ -3558,11 +3568,13 @@ if (deckSaveErrorsRef.current.length > 0) {
           <strong
             style={{
               display: "block",
-              fontSize: "14px",
+              fontSize: "16px",
+              lineHeight: 1.6,
               fontWeight: 600,
               overflow: "hidden",
               textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
+              whiteSpace: "normal",
+              overflowWrap: "anywhere",
             }}
           >
             {deck.name}
@@ -3571,14 +3583,14 @@ if (deckSaveErrorsRef.current.length > 0) {
           <span
             style={{
               display: "block",
-              fontSize: "12px",
-              color: "#8E8E93",
-              marginTop: "5px",
+              fontSize: "14px",
+              color: "#69736B",
+              marginTop: "10px",
             }}
           >
             {deck.cards.length} {tx("deck.cards")}
           </span>
-          <span style={{display:"block",fontSize:12,color:"#456B55",marginTop:4}}>1周：{timeFormat(estimateTime(deckTimeEstimate(studyRecords,decks,deck,timeMode,timePeriod).speed,deck.cards.length))}{deckTimeEstimate(studyRecords,decks,deck,timeMode,timePeriod).label?`（${deckTimeEstimate(studyRecords,decks,deck,timeMode,timePeriod).label}）`:""}</span>
+          <span style={{display:"block",fontSize:19,fontWeight:600,lineHeight:1.6,color:"#456B55",marginTop:10}}>1周：{timeFormat(estimateTime(deckTimeEstimate(studyRecords,decks,deck,timeMode,timePeriod).speed,deck.cards.length))}{deckTimeEstimate(studyRecords,decks,deck,timeMode,timePeriod).label?`（${deckTimeEstimate(studyRecords,decks,deck,timeMode,timePeriod).label}）`:""}</span>
         </span>
 
         <span style={{ color: "#A0A0A5", fontSize: "20px" }}>›</span>
@@ -3587,8 +3599,9 @@ if (deckSaveErrorsRef.current.length > 0) {
       <div
         style={{
           display: "flex",
-          flexDirection: "column",
-          gap: "5px",
+          flexDirection: "row",
+          flexWrap: "wrap",
+          gap: "8px",
           flexShrink: 0,
           alignItems: "stretch",
         }}
@@ -3782,7 +3795,7 @@ if (deckSaveErrorsRef.current.length > 0) {
       </header>
 
       <details style={{margin:"0 0 16px",border:"1px solid #E5E5EA",borderRadius:12,padding:"12px 16px",background:"white"}}>
-        <summary style={{cursor:"pointer",fontWeight:600,fontSize:14}}>学習時間分析・シミュレーター</summary>
+        <summary style={{cursor:"pointer",fontWeight:600,fontSize:15,color:"#51458B"}}>◉ Learning Observatory · 学習時間の研究室</summary>
       <LearningTimeAnalytics decks={decks} records={studyRecords} mode={timeMode} setMode={setTimeMode} period={timePeriod} setPeriod={setTimePeriod} mistakes={d=>getMistakeCards(d,"all").length} openDeck={(d,weak)=>{setCurrentDeck(d.name);setSpeechLanguage(d.language);setStudyStatusFilter(weak?"mistakes":"all");setDeckOpen(true);}} />
       </details>
       {/* 重複チェック・自動一括削除モーダル */}
