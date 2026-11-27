@@ -76,6 +76,9 @@ type StudyRecord = {
   correct: number;
   incorrect: number;
   duration: number;
+  analyticsMode?: "normal" | "quick";
+  analyticsScope?: "all" | "mistakes" | "other";
+  activeAnswerSeconds?: number;
 };
 
 const languageOptions = [
@@ -288,6 +291,68 @@ const secondaryButtonStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
+type TimeMode = "all" | "normal" | "quick";
+type TimeWindow = 5 | 10 | "all";
+const timeFormat = (n: number | null) => n === null ? "未計測" : n <= 0 ? "0秒" : n < 60 ? `${Math.ceil(n)}秒` : n < 3600 ? `約${Math.ceil(n / 60)}分` : `約${Math.floor(Math.ceil(n / 60) / 60)}時間${Math.ceil(n / 60) % 60}分`;
+const recordSeconds = (r: StudyRecord) => r.duration;
+function recordTimestamp(r: StudyRecord) {
+  return r.startedAt || Date.parse(`${r.date}T${r.time || "00:00"}`) || Date.parse(r.date) || 0;
+}
+function timeRecords(records: StudyRecord[], name: string, mode: TimeMode, window: TimeWindow, scope?: "mistakes") {
+  const sorted = records.filter(r => r.deckName === name && (mode === "all" || r.analyticsMode === mode) && (!scope || r.analyticsScope === scope) && Number.isFinite(recordSeconds(r)) && Number.isFinite(r.answered) && r.answered > 0 && recordSeconds(r) > 0 && recordSeconds(r) / r.answered >= 0.2 && recordSeconds(r) / r.answered <= 120).sort((a,b) => recordTimestamp(b)-recordTimestamp(a));
+  const sample = window === "all" ? sorted : sorted.slice(0,window);
+  if (sample.length < 5) return sample;
+  const rates = sample.map(r => recordSeconds(r)/r.answered).sort((a,b)=>a-b);
+  const median = rates[Math.floor(rates.length/2)];
+  return sample.filter(r => recordSeconds(r)/r.answered >= median/4 && recordSeconds(r)/r.answered <= median*4);
+}
+function timeSpeed(rows: StudyRecord[]) {
+  const count = rows.reduce((n,r)=>n+r.answered,0);
+  return rows.length >= 1 && count > 0 ? rows.reduce((n,r)=>n+recordSeconds(r),0)/count : null;
+}
+function deckTimeEstimate(records: StudyRecord[], decks: Deck[], deck: Deck, mode: TimeMode, period: TimeWindow) {
+  const rows = timeRecords(records, deck.name, mode, period);
+  const speed = timeSpeed(rows);
+  if (speed !== null) return {speed, label: rows.length < 2 || rows.reduce((n,r)=>n+r.answered,0)<20 ? "暫定" : ""};
+  const peers = decks.filter(d=>d.language===deck.language && d.name!==deck.name);
+  const peerRows = peers.flatMap(d=>timeRecords(records,d.name,mode,period)).sort((a,b)=>recordTimestamp(b)-recordTimestamp(a));
+  const fallback = timeSpeed(period==="all"?peerRows:peerRows.slice(0,period));
+  return {speed:fallback,label:fallback===null?"":"同言語参考"};
+}
+const estimateTime = (speed: number | null, n: number) => n === 0 ? 0 : speed === null ? null : speed*n;
+const timeBox: React.CSSProperties = {border:"1px solid #DCE5DD",borderRadius:14,padding:14,margin:"12px 0",background:"#F5F8F5",color:"#34493B",overflowWrap:"anywhere",fontSize:13};
+function LearningTimeAnalytics({decks,records,mode,setMode,period,setPeriod,mistakes,openDeck}: {decks:Deck[];records:StudyRecord[];mode:TimeMode;setMode:(v:TimeMode)=>void;period:TimeWindow;setPeriod:(v:TimeWindow)=>void;mistakes:(d:Deck)=>number;openDeck:(d:Deck,weak:boolean)=>void}) {
+ const [name,setName]=useState(""); const [count,setCount]=useState(1000); const [rounds,setRounds]=useState(1); const [daily,setDaily]=useState(25); const [budget,setBudget]=useState(300);
+ const deck=decks.find(d=>d.name===name) ?? decks[0];
+ const rows=deck ? timeRecords(records,deck.name,mode,period):[];
+ const prediction=deck?deckTimeEstimate(records,decks,deck,mode,period):{speed:null,label:""}; const speed=prediction.speed; const weakRows=deck?timeRecords(records,deck.name,mode,period,"mistakes"):[]; const weakSpeed=timeSpeed(weakRows);
+ const total=estimateTime(speed,count*rounds); const days=total===null?null:Math.ceil(total/(daily*60));
+ const finish=new Date(); if(days!==null) finish.setDate(finish.getDate()+Math.max(0,days-1));
+ const chronological=[...rows].reverse(); const best=rows.filter(r=>r.answered>=10 && r.correct/r.answered>=0.8).sort((a,b)=>recordSeconds(a)/a.answered-recordSeconds(b)/b.answered)[0];
+ const budgetDecks=decks.filter(d=>deckTimeEstimate(records,decks,d,mode,period).speed!==null || (mistakes(d)>0 && timeSpeed(timeRecords(records,d.name,mode,period,"mistakes"))!==null)).sort((a,b)=>{const t=(d:Deck)=>(deckTimeEstimate(records,decks,d,mode,period).speed??Infinity)*d.cards.length;return Number(t(b)<=budget)-Number(t(a)<=budget)||t(a)-t(b)||a.name.localeCompare(b.name);});
+ const field={width:"100%",padding:8,border:"1px solid #CCD7CD",borderRadius:8,boxSizing:"border-box" as const};
+ return <section style={timeBox}>
+ <h2 style={{margin:"0 0 6px",fontSize:19}}>Learning Time Analytics</h2><p>単語数を、今使える時間に変えよう。</p>
+ <div style={{display:"flex",flexWrap:"wrap",gap:8}}><label>集計モード <select value={mode} onChange={e=>setMode(e.target.value as TimeMode)}><option value="all">すべて（旧履歴含む）</option><option value="normal">通常</option><option value="quick">Quick Challenge</option></select></label><label>期間 <select value={period} onChange={e=>setPeriod(e.target.value==="all"?"all":Number(e.target.value) as 5|10)}><option value="5">直近5回</option><option value="10">直近10回</option><option value="all">全期間</option></select></label></div>
+ <label>対象デッキ<select style={field} value={deck?.name??""} onChange={e=>{setName(e.target.value);setCount(decks.find(d=>d.name===e.target.value)?.cards.length??1000)}}>{decks.map(d=><option key={d.name}>{d.name}</option>)}</select></label>
+ <p>推定速度：{speed===null?"未計測":`${speed.toFixed(2)}秒 / 回答・${(60/speed).toFixed(1)}回答 / 分`}（対象デッキ履歴 {rows.length}回{prediction.label?`・${prediction.label}`:""}）</p>
+ <p>苦手のみ：{weakSpeed===null?"未計測":`${(60/weakSpeed).toFixed(1)}回答 / 分`}</p>
+ <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))",gap:8}}>{[100,500,1000].map(n=><div key={n}><strong>{n}語</strong><br/>{timeFormat(estimateTime(speed,n))}</div>)}{[5,10,15,25,30].map(n=><div key={n}><strong>{n}分</strong><br/>{speed===null?"収集中":`約${Math.floor(n*60/speed)}回答`}</div>)}</div>
+ <details style={{marginTop:12}}><summary style={{cursor:"pointer",fontWeight:600}}>学習時間シミュレーター</summary><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(95px,1fr))",gap:8}}>{([{label:"単語数",value:count,set:setCount,max:1000000},{label:"周回数",value:rounds,set:setRounds,max:1000},{label:"1日（分）",value:daily,set:setDaily,max:1440}]).map(f=><label key={f.label}>{f.label}<input style={field} type="number" min={1} max={f.max} value={f.value} onChange={e=>f.set(Math.min(f.max,Math.max(1,Math.floor(Number(e.target.value)||1))))}/></label>)}</div>
+ <p>推定合計：<strong>{timeFormat(total)}</strong> ／ {days===null?"日数未確定":`${days}日・1日約${Math.ceil(count*rounds/Math.max(1,days))}回答・完了予定 ${finish.toLocaleDateString("ja-JP")}`}</p><small>周回完了は暗記完了ではありません。今日から毎日学習する場合の目安です。</small></details>
+ <h3>Time Budget</h3><select value={budget} onChange={e=>setBudget(Number(e.target.value))}>{[50,100,300,600,900,1500,1800,3600].map(n=><option key={n} value={n}>{n<120?`${n}秒`:`${n/60}分`}</option>)}</select>
+ {budgetDecks.map(d=>{const prediction=deckTimeEstimate(records,decks,d,mode,period);const sp=prediction.speed;const ws=timeSpeed(timeRecords(records,d.name,mode,period,"mistakes"));const weak=mistakes(d);return <div key={d.name} style={{borderTop:"1px solid #DCE5DD",padding:"8px 0"}}><strong>{d.name}</strong> {prediction.label&&<small>（{prediction.label}）</small>}<br/>{sp===null?"未計測":`全体：推定 ${Math.min(d.cards.length,Math.floor(budget/sp))}/${d.cards.length}語${sp*d.cards.length<=budget?"・1周可能":""}`} <button type="button" onClick={()=>openDeck(d,false)}>デッキを開く</button><br/>{weak>0&&<>{ws===null?"苦手復習速度は収集中":`苦手：推定 ${Math.min(weak,Math.floor(budget/ws))}/${weak}語${ws*weak<=budget?"・1周可能":""}`} <button type="button" onClick={()=>openDeck(d,true)}>苦手を開く</button></>}</div>})}
+ <small>未計測のデッキは一覧から省略しています。全デッキは対象デッキの選択欄から確認できます。</small>
+ <details style={{marginTop:12}}><summary style={{cursor:"pointer",fontWeight:600}}>学習速度の推移・自己ベスト</summary><p>回答/分と正答率を並べて比較。速さより理解を優先。</p>
+ {chronological.length>0&&<svg role="img" aria-label="学習速度推移と正答率" viewBox="0 0 320 110" style={{width:"100%",maxHeight:180}}>{[0,1,2,3].map(i=><line key={i} x1="8" x2="312" y1={10+i*30} y2={10+i*30} stroke="#DCE5DD"/>)}{["speed","accuracy"].map(kind=><polyline key={kind} fill="none" stroke={kind==="speed"?"#477A60":"#8365A0"} strokeWidth="2" points={chronological.map((r,i)=>`${8+304*i/Math.max(1,chronological.length-1)},${100-90*(kind==="speed"?(60*r.answered/recordSeconds(r))/Math.max(1,...chronological.map(x=>60*x.answered/recordSeconds(x))):Math.max(0,Math.min(1,r.correct/r.answered)))}`).join(" ")}/>)}</svg>}
+ <small>緑：回答速度（期間内最大を基準）／紫：正答率（100%を基準）</small>
+ <div style={{maxHeight:180,overflowY:"auto"}}>{rows.map(r=><div key={r.id}>{r.date}：{(60*r.answered/recordSeconds(r)).toFixed(1)}回答/分・正答率{(100*r.correct/r.answered).toFixed(0)}%・{r.answered}回答・実測{r.duration}秒</div>)}</div>
+ <p>自己ベスト（10回答以上・正答率80%以上）：{best?`${(60*best.answered/recordSeconds(best)).toFixed(1)}回答/分`:"該当データなし"}</p>
+ <p>前回と今回：{rows.length>=2?`${rows[1].duration}秒 / ${rows[1].answered}回答 → ${rows[0].duration}秒 / ${rows[0].answered}回答（実測）`:"比較データ収集中"}</p>
+ <p>苦手復習速度：{weakRows.length>=2?`${(60*weakRows[1].answered/recordSeconds(weakRows[1])).toFixed(1)} → ${(60*weakRows[0].answered/recordSeconds(weakRows[0])).toFixed(1)}回答/分`:"比較データ収集中"}</p></details>
+ <small>学習データと同じ studyRecords の実測時間・回答数を使用。1回から暫定推定し、履歴がない場合は同言語の参考値を表示します。旧履歴のモード・苦手区分は不明のため、該当フィルターでは除外します。</small>
+ </section>;
+}
 export default function Page() {
   const { language } = useLanguage();
 
@@ -325,6 +390,10 @@ export default function Page() {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [decks, setDecks] = useState<Deck[]>([]);
   const [studyRecords, setStudyRecords] = useState<StudyRecord[]>([]);
+  const [timeMode,setTimeMode]=useState<TimeMode>("all");
+  const [timePeriod,setTimePeriod]=useState<TimeWindow>(10);
+  const [analyticsElapsed,setAnalyticsElapsed]=useState(0);
+  const analyticsClock=useRef({last:0,active:0,scope:"all" as "all"|"mistakes"|"other",visible:true});
 
   const [currentDeck, setCurrentDeck] = useState("");
   const [deckOpen, setDeckOpen] = useState(false);
@@ -569,10 +638,13 @@ export default function Page() {
             correct: Number(data.correct || 0),
             incorrect: Number(data.incorrect || 0),
             duration: Number(data.duration || 0),
+            ...(data.analyticsMode === "normal" || data.analyticsMode === "quick" ? {analyticsMode:data.analyticsMode} : {}),
+            ...(data.analyticsScope === "all" || data.analyticsScope === "mistakes" || data.analyticsScope === "other" ? {analyticsScope:data.analyticsScope} : {}),
+            ...(typeof data.activeAnswerSeconds === "number" ? {activeAnswerSeconds:data.activeAnswerSeconds} : {}),
           };
         });
 
-        loadedRecords.sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0));
+        loadedRecords.sort((a, b) => recordTimestamp(b)-recordTimestamp(a));
         if (!cancelled) setStudyRecords(loadedRecords);
       } catch (error) {
         console.error("Firestore読み込みエラー:", error);
@@ -1477,6 +1549,7 @@ export default function Page() {
     }
     quickPausedRef.current = false;
     setQuickPaused(false);
+    analyticsClock.current.last=Date.now();
   };
 
   useEffect(() => {
@@ -1496,6 +1569,13 @@ export default function Page() {
     return () => window.clearInterval(interval);
   }, [studyMode, activeChallengeMode]);
 
+  useEffect(()=>{
+    if(!studyMode || showSummaryModal) return;
+    const tick=()=>{if(!finishLockRef.current && studyStartRef.current!==null) setAnalyticsElapsed(activeChallengeMode==="normal"?(Date.now()-studyStartRef.current)/1000:quickElapsedMs()/1000);};
+    const visibility=()=>{analyticsClock.current.last=Date.now();analyticsClock.current.visible=!document.hidden;};
+    const id=window.setInterval(tick,500);document.addEventListener("visibilitychange",visibility);
+    return ()=>{window.clearInterval(id);document.removeEventListener("visibilitychange",visibility);};
+  },[studyMode,showSummaryModal,activeChallengeMode]);
   const startStudy = () => {
     if (!authReady || !auth.currentUser) {
       alert("XPを保存するため、ログイン状態を確認してから学習を開始してください。");
@@ -1513,7 +1593,7 @@ export default function Page() {
       studyStatusFilter === "all"
         ? deck.cards
         : studyStatusFilter === "mistakes"
-          ? deck.cards.filter((card) => (card.incorrectCount || 0) > 0 && (card.correctStreak || 0) < 3)
+          ? getMistakeCards(deck,"all")
         : deck.cards.filter(
             (card) =>
               (card.learningStatus ?? "unlearned") === studyStatusFilter
@@ -1565,6 +1645,8 @@ export default function Page() {
     setStudyCorrect(0);
     setStudyIncorrect(0);
     studyStartRef.current = now;
+    analyticsClock.current={last:now,active:0,scope:studyStatusFilter==="mistakes"||studyStatusFilter==="weak"?"mistakes":studyStatusFilter==="all"?"all":"other",visible:!document.hidden};
+    setAnalyticsElapsed(0);
     sessionIdRef.current = createId();
     sessionUidRef.current = auth.currentUser.uid;
     retryRewardRef.current = null;
@@ -1604,6 +1686,9 @@ export default function Page() {
       startedAt: studyStartTime,
       deckName: currentDeck,
       answered,
+      analyticsMode: quickModeRef.current === "normal" ? "normal" : "quick",
+      analyticsScope: analyticsClock.current.scope,
+      activeAnswerSeconds: analyticsClock.current.active,
       correct: correctCount,
       incorrect: incorrectCount,
       duration: quickModeRef.current === "normal"
@@ -1616,7 +1701,7 @@ export default function Page() {
 
       setStudyRecords((previous) =>
         [record, ...previous.filter((item) => item.id !== record.id)].sort(
-          (a, b) => (b.startedAt || 0) - (a.startedAt || 0)
+          (a, b) => recordTimestamp(b)-recordTimestamp(a)
         )
       );
     } catch (error) {
@@ -1929,6 +2014,9 @@ if (deckSaveErrorsRef.current.length > 0) {
 
     answerLockRef.current = true;
 
+    const analyticsNow=Date.now();
+    if(analyticsClock.current.visible) analyticsClock.current.active+=Math.min(60,Math.max(0,(analyticsNow-analyticsClock.current.last)/1000));
+    analyticsClock.current.last=analyticsNow;
     answerHistoryRef.current.push({ card: currentCard, correct });
 
     const nextCorrect = studyCountsRef.current.correct + (correct ? 1 : 0);
@@ -2239,6 +2327,9 @@ if (deckSaveErrorsRef.current.length > 0) {
     if (!currentCard) return null;
 
     const currentAnswered = studyCorrect + studyIncorrect;
+    const remainingCards=Math.max(0,studyCards.length-currentAnswered);
+    const historySpeed=timeSpeed(timeRecords(studyRecords,currentDeck,activeChallengeMode==="normal"?"normal":"quick",timePeriod,analyticsClock.current.scope==="mistakes"?"mistakes":undefined)) ?? timeSpeed(timeRecords(studyRecords,currentDeck,"all",timePeriod,analyticsClock.current.scope==="mistakes"?"mistakes":undefined));
+    const liveSpeed=currentAnswered>=5 && analyticsClock.current.active>0 ? analyticsClock.current.active/currentAnswered : historySpeed;
     return (
       <main
         style={{
@@ -2264,6 +2355,7 @@ if (deckSaveErrorsRef.current.length > 0) {
             boxSizing: "border-box",
           }}
         >
+          <section style={timeBox}><strong>学習の進み具合</strong><p>実測経過 {Math.floor(analyticsElapsed)}秒 ／ {currentAnswered}回答 ／ 残り{remainingCards}語</p><progress style={{width:"100%"}} value={currentAnswered} max={Math.max(1,studyCards.length)}/><p>残り1周の推定：{timeFormat(estimateTime(liveSpeed,remainingCards))}</p>{activeChallengeMode==="50"||activeChallengeMode==="100"?<small>タイマー終了時には途中でも学習が終了します。</small>:null}</section>
           {activeChallengeMode !== "normal" && (
             <div style={{ textAlign: "center", marginBottom: 18 }}>
               <div style={{ fontSize: 13, color: "#718675", fontWeight: 700 }}>QUICK CHALLENGE</div>
@@ -3040,7 +3132,7 @@ if (deckSaveErrorsRef.current.length > 0) {
 
         <section style={{ marginTop: "18px", padding: "16px", border: "1px solid #E5E5EA", borderRadius: "14px", background: "#FFFFFF" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-            <strong>📖 苦手単語帳（{deck.cards.filter((card) => (card.incorrectCount || 0) > 0 && (card.correctStreak || 0) < 3).length}語）</strong>
+            <strong>📖 苦手単語帳（{getMistakeCards(deck,"all").length}語）</strong>
             <button type="button" style={secondaryButtonStyle} onClick={() => setShowMistakeList((v) => !v)}>{showMistakeList ? "閉じる" : "一覧を見る"}</button>
           </div>
           <p style={{ fontSize: "12px", color: "#777" }}>過去に間違えた単語を自動収集。連続3回正解で克服済みになります。</p>
@@ -3486,6 +3578,7 @@ if (deckSaveErrorsRef.current.length > 0) {
           >
             {deck.cards.length} {tx("deck.cards")}
           </span>
+          <span style={{display:"block",fontSize:12,color:"#456B55",marginTop:4}}>1周：{timeFormat(estimateTime(deckTimeEstimate(studyRecords,decks,deck,timeMode,timePeriod).speed,deck.cards.length))}{deckTimeEstimate(studyRecords,decks,deck,timeMode,timePeriod).label?`（${deckTimeEstimate(studyRecords,decks,deck,timeMode,timePeriod).label}）`:""}</span>
         </span>
 
         <span style={{ color: "#A0A0A5", fontSize: "20px" }}>›</span>
@@ -3688,6 +3781,10 @@ if (deckSaveErrorsRef.current.length > 0) {
         </div>
       </header>
 
+      <details style={{margin:"0 0 16px",border:"1px solid #E5E5EA",borderRadius:12,padding:"12px 16px",background:"white"}}>
+        <summary style={{cursor:"pointer",fontWeight:600,fontSize:14}}>学習時間分析・シミュレーター</summary>
+      <LearningTimeAnalytics decks={decks} records={studyRecords} mode={timeMode} setMode={setTimeMode} period={timePeriod} setPeriod={setTimePeriod} mistakes={d=>getMistakeCards(d,"all").length} openDeck={(d,weak)=>{setCurrentDeck(d.name);setSpeechLanguage(d.language);setStudyStatusFilter(weak?"mistakes":"all");setDeckOpen(true);}} />
+      </details>
       {/* 重複チェック・自動一括削除モーダル */}
       {duplicateDeck && (
         <div
