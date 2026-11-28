@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import Link from "next/link";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { CognitiveAnalytics, useCognitiveRecorder } from "./cognitive-analytics";
 import { useLanguage } from "@/app/component/AppLanguage";
@@ -3284,6 +3285,19 @@ if (deckSaveErrorsRef.current.length > 0) {
         </div>
 
       </header>
+
+      <Link
+        href="/exam"
+        data-observe="試験・資格研究室を開く"
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "16px 18px", marginBottom: 16, border: "1px solid #E5E5EA", borderRadius: 12, background: "#FFFFFF", color: "#1D1D1F", textDecoration: "none" }}
+      >
+        <span style={{ display: "grid", gap: 5 }}>
+          <small style={{ color: "var(--anki-theme-color, #718675)", letterSpacing: "0.12em", fontWeight: 700 }}>EXAM OBSERVATORY</small>
+          <strong style={{ fontSize: 16 }}>試験・資格研究室</strong>
+          <span style={{ fontSize: 13, color: "#646C80", lineHeight: 1.6 }}>合格証・不合格通知を記録し、成績と成長を分析する</span>
+        </span>
+        <span aria-hidden="true" style={{ fontSize: 22, color: "var(--anki-theme-color, #718675)" }}>→</span>
+      </Link>
 
       <details style={{margin:"0 0 16px",border:"1px solid #E5E5EA",borderRadius:12,padding:"12px 16px",background:"white"}}>
         <summary data-observe="Learning Observatory" style={{cursor:"pointer",fontWeight:600,fontSize:15,color:"#51458B"}}>◉ Learning Observatory</summary>
