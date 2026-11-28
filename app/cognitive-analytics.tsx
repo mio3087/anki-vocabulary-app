@@ -24,7 +24,7 @@ export function useCognitiveRecorder(uid:string|null){
  const activity=(value:Omit<Activity,"uid"|"at">)=>{if(uid)save("activities",{...value,uid,at:Date.now()});};
  const answer=(card:CardData, meta:{sessionId:string;deck:string;language:string;mode:string;scope:string;format:string;order:number;correct:boolean;rating:string|null})=>{
   if(!uid)return;const c=clock.current;const valid=c&&!c.invalid&&!document.hidden&&c.key===card.id+version(card);const now=performance.now();
-  save("answers",{...meta,id:`${meta.sessionId}:${meta.order}`,uid,cardId:card.id,version:version(card),front:card.front,at:Date.now(),direction:"foreign-to-japanese",priorAt:card.lastReviewedAt||null,priorResult:card.lastResult||null,priorCount:card.reviewCount??null,revealMs:valid&&c.reveal!==null?Math.round(c.reveal-c.start):null,responseMs:valid?Math.round(now-c.start):null,audioRequested:c?.audio??false,schemaVersion:1});clock.current=null;
+  save("answers",{...meta,id:`${meta.sessionId}:${meta.order}`,uid,cardId:card.id,version:version(card),front:card.front,at:Date.now(),direction:"foreign-to-japanese" as const,priorAt:card.lastReviewedAt||null,priorResult:card.lastResult||null,priorCount:card.reviewCount??null,revealMs:valid&&c.reveal!==null?Math.round(c.reveal-c.start):null,responseMs:valid?Math.round(now-c.start):null,audioRequested:c?.audio??false,schemaVersion:1 as const});clock.current=null;
  };
  return {begin,reset,invalidate,reveal,audio,activity,answer,errors,revision,retry};
 }
