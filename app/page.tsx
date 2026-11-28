@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
+import { CognitiveAnalytics, useCognitiveRecorder } from "./cognitive-analytics";
 import { useLanguage } from "@/app/component/AppLanguage";
 
 import { auth, db } from "@/lib/firebase";
@@ -388,6 +389,7 @@ export default function Page() {
 
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
+  const cognitive = useCognitiveRecorder(authUser?.uid ?? null);
   const [taskTargets, setTaskTargets] = useState<Record<string, number>>({});
   const [taskAddingDeck, setTaskAddingDeck] = useState<string | null>(null);
   const [taskAddedDecks, setTaskAddedDecks] = useState<string[]>([]);
@@ -726,6 +728,11 @@ export default function Page() {
     }
   };
 
+  useEffect(() => {
+    if (studyMode && !showSummaryModal && studyCards[studyIndex]) cognitive.begin(studyCards[studyIndex]);
+  }, [studyMode, showSummaryModal, studyIndex, studyCards]);
+  useEffect(() => { if (showCardForm || quickPaused) cognitive.invalidate(); }, [showCardForm, quickPaused]);
+
   const speakWord = (word: string) => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
 
@@ -744,6 +751,7 @@ export default function Page() {
 
     utterance.lang = speechLanguage || "zh-CN";
     utterance.rate = rate;
+    if (studyMode) cognitive.audio();
     window.speechSynthesis.speak(utterance);
   };
 
@@ -1542,6 +1550,7 @@ export default function Page() {
       quickElapsedRef.current += now - quickActiveStartedRef.current;
       quickActiveStartedRef.current = null;
     }
+    cognitive.invalidate();
     quickPausedRef.current = true;
     setQuickPaused(true);
   };
@@ -1632,6 +1641,7 @@ export default function Page() {
     setRewardSaveMessage("");
     setRewardEarnedXp(0);
     setRewardEarnedCoins(0);
+    cognitive.reset();
     answerHistoryRef.current = [];
     quickModeRef.current = challengeMode;
     setActiveChallengeMode(challengeMode);
@@ -1654,6 +1664,7 @@ export default function Page() {
     setAnalyticsElapsed(0);
     sessionIdRef.current = createId();
     sessionUidRef.current = auth.currentUser.uid;
+    cognitive.activity({id: sessionIdRef.current + ":start", feature:"study/" + challengeMode, kind:"start", sessionId:sessionIdRef.current, language:deck.language, deck:deck.name, mode:challengeMode, target:selectedCards.length});
     retryRewardRef.current = null;
     setStudyMode(true);
   };
@@ -1745,6 +1756,7 @@ export default function Page() {
       ? (studyStartTime ? Math.max(0, Math.floor((Date.now() - studyStartTime) / 1000)) : 0)
       : Math.max(0, Math.floor(quickElapsedMs() / 1000));
 
+    if (studySessionId && sessionUid === auth.currentUser?.uid) cognitive.activity({id:studySessionId+":finish",feature:"study/"+quickModeRef.current,kind:"finish",sessionId:studySessionId,deck:currentDeck,mode:quickModeRef.current,answered:total,correct:finalCorrect,target:studyCards.length,outcome:total===studyCards.length?"all-answered":"partial"});
     await saveStudyRecord(finalCorrect, finalIncorrect);
     // Anki Lifeへの報酬連携
 const saveReward = async () => {
@@ -2022,6 +2034,7 @@ if (deckSaveErrorsRef.current.length > 0) {
     const analyticsNow=Date.now();
     if(analyticsClock.current.visible) analyticsClock.current.active+=Math.min(60,Math.max(0,(analyticsNow-analyticsClock.current.last)/1000));
     analyticsClock.current.last=analyticsNow;
+    if (sessionIdRef.current && sessionUidRef.current === auth.currentUser?.uid) cognitive.answer(currentCard,{sessionId:sessionIdRef.current,deck:currentDeck,language:decks.find(d=>d.name===currentDeck)?.language??"unknown",mode:quickModeRef.current,scope:analyticsClock.current.scope,format:answerMode,order:answerHistoryRef.current.length+1,correct,rating:learningStatus??null});
     answerHistoryRef.current.push({ card: currentCard, correct });
 
     const nextCorrect = studyCountsRef.current.correct + (correct ? 1 : 0);
@@ -2486,7 +2499,7 @@ if (deckSaveErrorsRef.current.length > 0) {
           </div>
 
           <div
-            onClick={() => setShowAnswer((previous) => !previous)}
+            onClick={() => { if (!showAnswer) cognitive.reveal(); setShowAnswer((previous) => !previous); }}
             style={{
               minHeight: "290px",
               padding: "36px 22px",
@@ -3792,6 +3805,7 @@ if (deckSaveErrorsRef.current.length > 0) {
         <summary style={{cursor:"pointer",fontWeight:600,fontSize:15,color:"#51458B"}}>◉ Learning Observatory</summary>
       <LearningTimeAnalytics decks={decks} records={studyRecords} mode={timeMode} setMode={setTimeMode} period={timePeriod} setPeriod={setTimePeriod} mistakes={d=>getMistakeCards(d,"all").length} openDeck={(d,weak)=>{setCurrentDeck(d.name);setSpeechLanguage(d.language);setStudyStatusFilter(weak?"mistakes":"all");setDeckOpen(true);}} />
       </details>
+      {authUser && <CognitiveAnalytics key={authUser.uid} uid={authUser.uid} revision={cognitive.revision} errors={cognitive.errors} retry={cognitive.retry} />}
       {/* 重複チェック・自動一括削除モーダル */}
       {duplicateDeck && (
         <div
