@@ -2,13 +2,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import {
   collection,
   doc,
-  getDoc,
-  getDocs,
+  getDocFromServer,
+  getDocsFromServer,
   setDoc,
+  runTransaction,
 } from "firebase/firestore";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
@@ -474,7 +475,7 @@ function isMoment(value: unknown): value is Moment {
   const item = value as Record<string, unknown>;
 
   return (
-    typeof item.date === "string" &&
+    typeof item.date === "string" && validDate(item.date) &&
     typeof item.highlights === "string" &&
     typeof item.note === "string" &&
     ["happy", "calm", "grateful", "tired", "sad"].includes(
@@ -483,17 +484,24 @@ function isMoment(value: unknown): value is Moment {
   );
 }
 
-function loadLocal(): Moment[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter(isMoment) : [];
-  } catch {
-    return [];
-  }
+function loadLocal(key: string): Moment[] {
+  try { const value = JSON.parse(localStorage.getItem(key) || "[]"); return Array.isArray(value) ? value.filter(isMoment) : []; } catch { return []; }
 }
-
+function writeLocal(key: string, rows: Moment[]) {
+  try { localStorage.setItem(key, JSON.stringify(rows)); return true; } catch (error) { console.error(error); return false; }
+}
+function localKey(uid: string) { return `${STORAGE_KEY}:${uid}`; }
+function dayRef(uid: string, date: string) { return doc(db, "users", uid, "littleMomentDays", date); }
+function validDate(date: string) { return /^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(Date.parse(date)) && new Date(date).toISOString().slice(0,10) === date; }
+async function storeDay(uid: string, entry: Moment, deleted = false) {
+  // Never overwrite a newer version during migration or retry.
+  await runTransaction(db, async tx => {
+    const ref = dayRef(uid, entry.date); const old = await tx.get(ref);
+    if (!old.exists() || String(old.data().updatedAt || "") < entry.updatedAt) tx.set(ref, {...entry, deleted});
+    else if (String(old.data().updatedAt || "") === entry.updatedAt && Boolean(old.data().deleted) === deleted && old.data().note === entry.note && old.data().highlights === entry.highlights && old.data().mood === entry.mood) return;
+    else throw new Error("A newer or conflicting record exists. Reload before editing.");
+  });
+}
 function mergeEntries(...groups: Moment[][]): Moment[] {
   const map = new Map<string, Moment>();
 
@@ -543,6 +551,15 @@ export default function LittleMomentsPage() {
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [cloudReady, setCloudReady] = useState(false);
+  const [reload, setReload] = useState(0);
+  const [pendingCount, setPendingCount] = useState(0);
+  const uidRef = useRef<string | null>(null);
+  const busy = useRef(false);
+  const pendingKey = (uid: string) => localKey(uid) + ":pending";
+  const [legacyCount, setLegacyCount] = useState(0);
+  const status = (ja: string, en: string) => currentLanguage === "ja" ? ja : en;
+
 
   const [mood, setMood] = useState<Mood>("calm");
   const [highlights, setHighlights] = useState("");
@@ -565,82 +582,45 @@ export default function LittleMomentsPage() {
     return () => window.clearInterval(interval);
   }, []);
 
-  // 記録を読み込む。新旧両方のFirestore保存先を確認する。
+  // Read legacy sources independently; a denied old path must not block new records.
   useEffect(() => {
-    let active = true;
-
+    let active = true; let generation = 0;
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setLoaded(false);
-      setUser(currentUser);
-      setMessage("");
-
+      const gen = ++generation; const uid = currentUser?.uid ?? null;
+      uidRef.current = uid; setUser(currentUser); setLoaded(false); setCloudReady(false); setEntries([]); setMessage(""); setPendingCount(0);
+      const live = () => active && generation === gen;
+      setLegacyCount(loadLocal(STORAGE_KEY).length);
+      if (!uid) { setLoaded(true); return; }
+      const key = localKey(uid);
+      const local = loadLocal(key); const pending = loadLocal(pendingKey(uid));
+      setEntries(local); setPendingCount(pending.length);
       try {
-        const localEntries = loadLocal();
-        let newCloudEntries: Moment[] = [];
-        let oldCloudEntries: Moment[] = [];
-
-        if (currentUser) {
-          const [newSnapshot, oldSnapshot] = await Promise.all([
-            getDoc(getLittleMomentsRef(currentUser.uid)),
-            getDoc(getOldLittleMomentsRef(currentUser.uid)),
-          ]);
-
-          if (!active) return;
-
-          if (newSnapshot.exists()) {
-            const saved = newSnapshot.data().entries;
-            if (Array.isArray(saved)) {
-              newCloudEntries = saved.filter(isMoment);
-            }
-          }
-
-          if (oldSnapshot.exists()) {
-            const saved = oldSnapshot.data().entries;
-            if (Array.isArray(saved)) {
-              oldCloudEntries = saved.filter(isMoment);
-            }
-          }
+        const [days, modern, legacy] = await Promise.allSettled([
+          getDocsFromServer(collection(db, "users", uid, "littleMomentDays")),
+          getDocFromServer(getLittleMomentsRef(uid)), getDocFromServer(getOldLittleMomentsRef(uid))
+        ]);
+        if (!live()) return;
+        if (days.status !== "fulfilled") throw days.reason;
+        const cloud = new Map<string, Moment & {deleted?: boolean}>();
+        days.value.forEach(d => { const v = d.data(); if (isMoment(v) && v.date === d.id) cloud.set(d.id, v as Moment & {deleted?: boolean}); });
+        const older = [modern, legacy].flatMap(x => x.status === "fulfilled" && x.value.exists() && Array.isArray(x.value.data().entries) ? x.value.data().entries.filter(isMoment) as Moment[] : []);
+        // Existing per-day documents (including tombstones) take precedence over old archives.
+        const candidates = mergeEntries(local, older).filter(x => !cloud.has(x.date));
+        const failed: Moment[] = [];
+        for (const entry of mergeEntries(candidates, pending)) {
+          if (!live()) return;
+          try { await storeDay(uid, entry); cloud.set(entry.date, entry); } catch (e) { console.error(e); failed.push(entry); }
         }
-
-        if (!active) return;
-
-        const merged = mergeEntries(
-          localEntries,
-          oldCloudEntries,
-          newCloudEntries
-        );
-
-        setEntries(merged);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-
-        // 新しい保存先へ統合データを保存
-        if (currentUser && merged.length > 0) {
-          await setDoc(
-            getLittleMomentsRef(currentUser.uid),
-            {
-              entries: merged,
-              updatedAt: new Date().toISOString(),
-            },
-            { merge: true }
-          );
-        }
-      } catch (error) {
-        console.error("Little Moments 読み込みエラー:", error);
-
-        if (!active) return;
-
-        setEntries(loadLocal());
-        setMessage(t.loadError);
-      } finally {
-        if (active) setLoaded(true);
-      }
+        if (!live()) return;
+        const visible = mergeEntries([...cloud.values()].filter(x=>!x.deleted), failed.filter(x=>!cloud.has(x.date)));
+        const cacheOk = writeLocal(key, visible); const queueOk = writeLocal(pendingKey(uid), failed);
+        setEntries(visible); setPendingCount(failed.length); setCloudReady(true);
+        if (failed.length || !cacheOk || !queueOk || modern.status === "rejected" || legacy.status === "rejected") setMessage(status("一部の旧記録またはバックアップを同期できませんでした。元データは削除していません。", "Some legacy records or backups could not sync. Originals were not deleted."));
+      } catch (error) { if (live()) { console.error(error); setMessage(t.loadError + " (" + String(error) + ")"); } }
+      finally { if (live()) setLoaded(true); }
     });
-
-    return () => {
-      active = false;
-      unsubscribe();
-    };
-  }, [t.loadError]);
+    return () => { active = false; unsubscribe(); };
+  }, [reload]);
 
   useEffect(() => {
     if (!loaded) return;
@@ -654,97 +634,61 @@ export default function LittleMomentsPage() {
   }, [entries, selectedDate, loaded]);
 
   async function saveEntry() {
-    if (!loaded || saving) return;
-
-    if (!highlights.trim() && !note.trim()) {
-      setMessage(
-        currentLanguage === "ja"
-          ? "小さな幸せや今日のことを、ひとつ書いてみてね。"
-          : "Please write something before saving."
-      );
-      return;
-    }
-
-    const entry: Moment = {
-      date: selectedDate,
-      mood,
-      highlights: highlights.trim(),
-      note: note.trim(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    const newEntries = mergeEntries(
-      entries.filter((item) => item.date !== selectedDate),
-      [entry]
-    );
-
-    setSaving(true);
-    setMessage("");
-
-    // まずブラウザに保存。クラウドが失敗しても記録を失わない。
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newEntries));
-    setEntries(newEntries);
-
+    if (!loaded || busy.current || !user) { if (!user) setMessage(status("長期保存にはログインしてください。", "Please sign in for durable storage.")); return; }
+    const uid = user.uid;
+    const entry: Moment = {date:selectedDate,mood,highlights:highlights.trim(),note:note.trim(),updatedAt:new Date().toISOString()};
+    const next = mergeEntries(entries,[entry]);
+    busy.current=true; setSaving(true); setMessage("");
+    const pending = mergeEntries(loadLocal(pendingKey(uid)),[entry]);
+    const queued = writeLocal(pendingKey(uid),pending);
+    const cached = writeLocal(localKey(uid),next);
     try {
-      if (user) {
-        await setDoc(
-          getLittleMomentsRef(user.uid),
-          {
-            entries: newEntries,
-            updatedAt: new Date().toISOString(),
-          },
-          { merge: true }
-        );
-        setMessage(t.savedCloud);
-      } else {
-        setMessage(t.savedLocal);
-      }
-
-      setConfirmDelete(false);
-    } catch (error) {
-      console.error("Little Moments 保存エラー:", error);
-      setMessage(t.saveError);
-    } finally {
-      setSaving(false);
-    }
+      await storeDay(uid,entry);
+      if (uidRef.current !== uid) return;
+      const remaining= pending.filter(x=>x.date!==entry.date);
+      writeLocal(pendingKey(uid),remaining); setPendingCount(remaining.length);
+      setEntries(next); setCloudReady(true); setMessage(t.savedCloud + status("（クラウド確認済み）", " (cloud confirmed)")); setConfirmDelete(false);
+    } catch(error) {
+      console.error(error);
+      if(uidRef.current !== uid) return;
+      if(cached || queued) {setEntries(next); setPendingCount(pending.length);}
+      setMessage((cached || queued ? t.saveError : status("保存できませんでした。入力を残しています。", "Save failed; your input remains.")) + " (" + String(error) + ")");
+    } finally {busy.current=false; setSaving(false);}
   }
-
   async function deleteEntry() {
-    if (!loaded || saving) return;
-
-    const newEntries = entries.filter(
-      (item) => item.date !== selectedDate
-    );
-
-    setSaving(true);
-    setMessage("");
-
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newEntries));
-    setEntries(newEntries);
-
+    if (!loaded || busy.current || !user || !cloudReady) return;
+    const uid=user.uid; const old=entries.find(x=>x.date===selectedDate); if(!old)return;
+    busy.current=true;setSaving(true);setMessage("");
     try {
-      if (user) {
-        await setDoc(
-          getLittleMomentsRef(user.uid),
-          {
-            entries: newEntries,
-            updatedAt: new Date().toISOString(),
-          },
-          { merge: true }
-        );
-      }
-
-      setMood("calm");
-      setHighlights("");
-      setNote("");
-      setConfirmDelete(false);
-      setMessage(t.deleted);
-    } catch (error) {
-      console.error("Little Moments 削除エラー:", error);
-      setMessage(t.deleteError);
-    } finally {
-      setSaving(false);
-    }
+      await storeDay(uid,{...old,highlights:"",note:"",updatedAt:new Date().toISOString()},true);
+      if(uidRef.current!==uid)return;
+      const next=entries.filter(x=>x.date!==selectedDate);
+      writeLocal(localKey(uid),next); const remaining=loadLocal(pendingKey(uid)).filter(x=>x.date!==selectedDate);writeLocal(pendingKey(uid),remaining);setPendingCount(remaining.length);
+      setEntries(next);setConfirmDelete(false);setMessage(t.deleted);
+    } catch(error){if(uidRef.current===uid)setMessage(t.deleteError+" ("+String(error)+")");}
+    finally{busy.current=false;setSaving(false);}
+  }
+  function exportBackup() {
+    const rows=mergeEntries(entries,user?loadLocal(pendingKey(user.uid)):[]);
+    const blob=new Blob([JSON.stringify({version:2,exportedAt:new Date().toISOString(),entries:rows},null,2)],{type:"application/json"});
+    const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`little-moments-${today}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+  async function importBackup(file: File) {
+    if (!user || busy.current || !loaded) return;
+    const uid=user.uid;busy.current=true;setSaving(true);
+    try {
+      const raw=JSON.parse(await file.text());const rows=Array.isArray(raw)?raw:raw.entries;
+      if(!Array.isArray(rows)||!rows.every(isMoment))throw new Error("Invalid backup");
+      const existing=new Set(entries.map(x=>x.date));
+      const candidates=mergeEntries(rows).filter(x=>!existing.has(x.date));
+      const failed:Moment[]=[];const saved:Moment[]=[];
+      for(const row of candidates){try{const ref=dayRef(uid,row.date);await runTransaction(db,async tx=>{const old=await tx.get(ref);if(old.exists())throw new Error("Existing day");tx.set(ref,{...row,updatedAt:row.updatedAt||new Date().toISOString(),deleted:false});});saved.push(row);}catch(e){console.error(e);failed.push(row);}}
+      if(uidRef.current!==uid)return;
+      const next=mergeEntries(entries,saved);writeLocal(localKey(uid),next);setEntries(next);setMessage(status(`復元 ${saved.length}件・既存/競合/失敗 ${rows.length-saved.length}件（元ファイルは保持してください）`,`Restored ${saved.length}; skipped or failed ${rows.length-saved.length}. Keep the original file.`));
+    }catch(e){setMessage(String(e));}finally{busy.current=false;setSaving(false);}
+  }
+  function exportLegacy() {
+    const blob=new Blob([JSON.stringify({version:1,entries:loadLocal(STORAGE_KEY)},null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="little-moments-legacy.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
 
   const year = currentMonth.getFullYear();
@@ -824,6 +768,7 @@ export default function LittleMomentsPage() {
     "rounded-xl bg-[var(--anki-theme-color)] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--anki-theme-dark)] disabled:cursor-not-allowed disabled:opacity-50";
 
   function openEntry(date: string) {
+    if (busy.current) return;
     setSelectedDate(date);
     setCurrentMonth(
       new Date(
@@ -875,6 +820,18 @@ export default function LittleMomentsPage() {
           </div>
         )}
 
+        <section className={`${panel} mb-6`}>
+          <h2 className="text-xl font-medium">{status("思い出の長期保存", "Memory archive")}</h2>
+          <p className="mt-2 text-sm">{!user ? status("ログインが必要です", "Sign in required") : cloudReady ? status("クラウド接続確認済み", "Cloud connection verified") : status("クラウド未確認", "Cloud not verified")} · {status("未同期", "Pending")} {pendingCount}</p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {!user && <Link href="/login" className={secondaryButton}>{status("ログイン", "Sign in")}</Link>}
+            <button type="button" disabled={saving || !loaded || !user} onClick={()=>setReload(x=>x+1)} className={secondaryButton}>{status("再読み込み・同期", "Reload / sync")}</button>
+            <button type="button" disabled={!loaded || saving || !user} onClick={exportBackup} className={secondaryButton}>JSON {status("バックアップ", "backup")}</button>
+            <label className={secondaryButton}>{status("バックアップから復元", "Restore backup")}<input type="file" accept=".json,application/json" disabled={!user || saving || !loaded} className="block mt-2 max-w-full text-xs" onChange={e=>{const f=e.target.files?.[0];if(f)void importBackup(f);e.target.value="";}}/></label>
+            {legacyCount>0&&<button type="button" className={secondaryButton} onClick={exportLegacy}>{status("旧ブラウザ記録を救出", "Export legacy browser records")} ({legacyCount})</button>}
+          </div>
+          <p className="mt-3 text-xs text-stone-500">{status("期限なしの日別保存。旧ブラウザ記録は所有者確認のため自動移行しません。救出したJSONを自分のアカウントで復元してください。定期的にバックアップを保管してください。", "No automatic expiry. Export legacy browser data and restore it only to its owner's account. Keep regular backups.")}</p>
+        </section>
         {/* 今日の記録 */}
         <section className={`${panel} mb-6`}>
           <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
@@ -893,6 +850,7 @@ export default function LittleMomentsPage() {
             </div>
             <button
               type="button"
+              disabled={saving}
               onClick={() => openEntry(today)}
               className="self-start rounded-full bg-[var(--anki-theme-light)] px-5 py-3 text-sm font-medium text-[var(--anki-theme-dark)] transition hover:bg-[var(--anki-theme-soft)] sm:self-center"
             >
@@ -1078,7 +1036,7 @@ export default function LittleMomentsPage() {
                 <button
                   key={date ?? `blank-${index}`}
                   type="button"
-                  disabled={!date || !loaded}
+                  disabled={!date || !loaded || saving}
                   onClick={() => date && setSelectedDate(date)}
                   aria-pressed={isSelected}
                   className={`flex min-h-[58px] min-w-0 flex-col items-center justify-center gap-1 rounded-xl border text-sm transition sm:min-h-[76px] ${
@@ -1137,6 +1095,7 @@ export default function LittleMomentsPage() {
                 <button
                   key={item.id}
                   type="button"
+                  disabled={!loaded || saving}
                   onClick={() => setMood(item.id)}
                   aria-pressed={mood === item.id}
                   className={`flex flex-col items-center gap-2 rounded-2xl border p-2 py-4 transition sm:py-5 ${
@@ -1175,6 +1134,7 @@ export default function LittleMomentsPage() {
             <textarea
               id="highlights"
               value={highlights}
+              disabled={!loaded || saving}
               onChange={(event) => setHighlights(event.target.value)}
               placeholder={t.highlightsPlaceholder}
               rows={3}
@@ -1195,6 +1155,7 @@ export default function LittleMomentsPage() {
             <textarea
               id="note"
               value={note}
+              disabled={!loaded || saving}
               onChange={(event) => setNote(event.target.value)}
               placeholder={t.notePlaceholder}
               rows={5}
@@ -1206,7 +1167,7 @@ export default function LittleMomentsPage() {
             <button
               type="button"
               onClick={saveEntry}
-              disabled={!loaded || saving}
+              disabled={!loaded || saving || !user}
               className={primaryButton}
             >
               {saving
@@ -1404,9 +1365,9 @@ export default function LittleMomentsPage() {
               ? t.loading
               : saving
                 ? t.saving
-                : user
-                  ? t.cloudBackup
-                  : t.localBackup}
+                : user && cloudReady
+                  ? status("クラウド接続確認済み・未同期 " + pendingCount + "件", "Cloud verified · pending " + pendingCount)
+                  : status("クラウド未確認", "Cloud not verified")}
           </p>
           <Link
             href="/"

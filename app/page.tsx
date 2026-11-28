@@ -10,10 +10,8 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDoc,
   getDocs,
   getDocsFromServer,
-  serverTimestamp,
     setDoc,
   runTransaction,
 } from "firebase/firestore";
@@ -152,21 +150,6 @@ const statusOptions: {
   },
 ];
 
-const presets = [
-  { name: "さくら", color: "#FF5A9E" },
-  { name: "スカイ", color: "#78C5FF" },
-  { name: "ラベンダー", color: "#B69AFB" },
-  { name: "ミント", color: "#70D6B5" },
-  { name: "レモン", color: "#FFE16A" },
-  { name: "ピーチ", color: "#FFB477" },
-  { name: "コーラル", color: "#FF7185" },
-  { name: "オーシャン", color: "#36B6C8" },
-  { name: "グレープ", color: "#8A70C8" },
-  { name: "ローズ", color: "#E887B0" },
-  { name: "フォレスト", color: "#59A982" },
-  { name: "ダーク", color: "#46546B" },
-];
-
 function createId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
@@ -228,11 +211,6 @@ async function compressDeckCover(file: File): Promise<string> {
   } finally {
     URL.revokeObjectURL(objectUrl);
   }
-}
-
-function normalizeHex(value: string) {
-  const hex = value.startsWith("#") ? value : `#${value}`;
-  return /^#[0-9a-fA-F]{6}$/.test(hex) ? hex.toUpperCase() : null;
 }
 
 function getDeckSpeechKey(deckName: string) {
@@ -348,7 +326,7 @@ function LearningTimeAnalytics({decks,records,mode,setMode,period,setPeriod,mist
  <div style={{...panel,gap:16}}><strong>語彙量と所要時間</strong>{Array.from(new Set([100,500,1000,...(deck&&deck.cards.length>0?[deck.cards.length]:[])])).sort((a,b)=>a-b).map(n=><div key={n} style={{display:"grid",gap:6}}><div style={{display:"flex",justifyContent:"space-between",gap:8}}><span>{n.toLocaleString()}語</span><strong style={{color:"#5145A6"}}>{timeFormat(estimateTime(speed,n))}</strong></div><div style={{height:7,background:"#E1E4EF",borderRadius:8,overflow:"hidden"}}><div style={{height:"100%",width:speed===null?"0%":`${100*n/Math.max(1000,deck?.cards.length??0)}%`,background:"#9B91D5",borderRadius:8}}/></div></div>)}</div>
  <details style={{marginTop:12}}><summary style={{cursor:"pointer",fontWeight:600}}>学習時間シミュレーター</summary><div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(95px,1fr))",gap:16,marginTop:16}}>{([{label:"単語数",value:count,set:setCount,max:1000000},{label:"周回数",value:rounds,set:setRounds,max:1000},{label:"1日（分）",value:daily,set:setDaily,max:1440}]).map(f=><label key={f.label}>{f.label}<input style={field} type="number" min={1} max={f.max} value={f.value} onChange={e=>f.set(Math.min(f.max,Math.max(1,Math.floor(Number(e.target.value)||1))))}/></label>)}</div>
  <p>推定合計：<strong style={{color:"#5145A6",fontSize:22}}>{timeFormat(total)}</strong> ／ {days===null?"日数未確定":`${days}日・1日約${Math.ceil(count*rounds/Math.max(1,days))}回答・完了予定 ${finish.toLocaleDateString("ja-JP")}`}</p><small>周回完了は暗記完了ではありません。今日から毎日学習する場合の目安です。</small></details>
- <details><summary style={{cursor:"pointer",fontWeight:600}}>全デッキの1周時間（{allWords.toLocaleString()}語）</summary><div style={{padding:"16px 0",lineHeight:1.8}}><strong>{measuredWords===allWords?timeFormat(measuredSeconds):measuredWords>0?`計測可能分 ${timeFormat(measuredSeconds)}`:"未計測"}</strong><div>推定可能 {measuredWords.toLocaleString()} / {allWords.toLocaleString()}語</div>{measuredWords<allWords&&<small>未計測分は合計に含めません。</small>}</div><div style={{display:"grid",gap:12}}>{fullDecks.map(({deck:d,speed:sp,label})=><div key={d.name} style={panel}><strong>{d.name}</strong><div>{d.cards.length.toLocaleString()}語 · <strong>{timeFormat(estimateTime(sp,d.cards.length))}</strong> {label&&<small>（{label}）</small>}</div><button type="button" style={action} onClick={()=>openDeck(d,false)}>デッキを開く</button>{mistakes(d)>0&&<button type="button" style={action} onClick={()=>openDeck(d,true)}>苦手を開く</button>}</div>)}</div></details>
+ <details><summary style={{cursor:"pointer",fontWeight:600}}>全デッキの1周時間（{allWords.toLocaleString()}語）</summary><div style={{padding:"16px 0",lineHeight:1.8}}><strong>{measuredWords===allWords?timeFormat(measuredSeconds):measuredWords>0?`計測可能分 ${timeFormat(measuredSeconds)}`:"未計測"}</strong><div>推定可能 {measuredWords.toLocaleString()} / {allWords.toLocaleString()}語</div>{measuredWords<allWords&&<small>未計測分は合計に含めません。</small>}</div><div style={{display:"grid",gap:12}}>{fullDecks.map(({deck:d,speed:sp,label})=><div key={d.name} style={panel}><strong>{d.name}</strong><div>{d.cards.length.toLocaleString()}語 · <strong>{timeFormat(estimateTime(sp,d.cards.length))}</strong> {label&&<small>（{label}）</small>}</div><button type="button" style={action} data-observe="時間研究室からデッキを開く" onClick={()=>openDeck(d,false)}>デッキを開く</button>{mistakes(d)>0&&<button type="button" style={action} data-observe="時間研究室から苦手を開く" onClick={()=>openDeck(d,true)}>苦手を開く</button>}</div>)}</div></details>
  <details style={{marginTop:12}}><summary style={{cursor:"pointer",fontWeight:600}}>学習速度の推移・自己ベスト</summary><p>回答/分と正答率を並べて比較。速さより理解を優先。</p>
  {chronological.length>0&&<svg role="img" aria-label="学習速度推移と正答率" viewBox="0 0 320 110" style={{width:"100%",maxHeight:180}}>{[0,1,2,3].map(i=><line key={i} x1="8" x2="312" y1={10+i*30} y2={10+i*30} stroke="#E1E4EF"/>)}{["speed","accuracy"].map(kind=><polyline key={kind} fill="none" stroke={kind==="speed"?"#A47C37":"#6555AE"} strokeWidth="2" points={chronological.map((r,i)=>`${8+304*i/Math.max(1,chronological.length-1)},${100-90*(kind==="speed"?(60*r.answered/recordSeconds(r))/Math.max(1,...chronological.map(x=>60*x.answered/recordSeconds(x))):Math.max(0,Math.min(1,r.correct/r.answered)))}`).join(" ")}/>)}</svg>}
  <small>アンバー：回答速度（期間内最大を基準）／ラベンダー：正答率（100%を基準）</small>
@@ -382,18 +360,10 @@ export default function Page() {
   const editImageInputRef = useRef<HTMLInputElement | null>(null);
   const editCameraInputRef = useRef<HTMLInputElement | null>(null);
 
-  const [themeColor, setThemeColor] = useState("#718675");
-  const [showThemeSettings, setShowThemeSettings] = useState(false);
-  const [color, setColor] = useState("#718675");
-  const [savedColor, setSavedColor] = useState("#718675");
-
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const cognitive = useCognitiveRecorder(authUser?.uid ?? null);
-  const [taskTargets, setTaskTargets] = useState<Record<string, number>>({});
-  const [taskAddingDeck, setTaskAddingDeck] = useState<string | null>(null);
-  const [taskAddedDecks, setTaskAddedDecks] = useState<string[]>([]);
-
+  const [deckQuery, setDeckQuery] = useState("");
   const [folders, setFolders] = useState<Folder[]>([]);
   const [decks, setDecks] = useState<Deck[]>([]);
   const [studyRecords, setStudyRecords] = useState<StudyRecord[]>([]);
@@ -405,9 +375,6 @@ export default function Page() {
   const [currentDeck, setCurrentDeck] = useState("");
   const [deckOpen, setDeckOpen] = useState(false);
   const [answerMode, setAnswerMode] = useState<"2" | "4">("2");
-  const [studyLimit, setStudyLimit] = useState<
-    30 | 50 | 100 | 300 | 500 | 1000 | "all"
-  >(30);
   const [studyStatusFilter, setStudyStatusFilter] = useState<
     "all" | "unlearned" | "weak" | "vague" | "mistakes"
   >("all");
@@ -416,7 +383,7 @@ export default function Page() {
   const [mistakeCsvScope, setMistakeCsvScope] = useState<"all" | "normal" | "quick">("all");
   const [speechLanguage, setSpeechLanguage] = useState("zh-CN");
 
-  const [challengeMode, setChallengeMode] = useState<"normal" | "50" | "100" | "unlimited">("100");
+  const [challengeMode, setChallengeMode] = useState<"50" | "unlimited">("unlimited");
   const [activeChallengeMode, setActiveChallengeMode] = useState<"normal" | "50" | "100" | "unlimited">("normal");
   const [quickRemainingMs, setQuickRemainingMs] = useState(100000);
   const [quickPaused, setQuickPaused] = useState(false);
@@ -480,6 +447,37 @@ export default function Page() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [loadAttempt, setLoadAttempt] = useState(0);
+  // Interaction Observatory: only explicitly labelled controls, never typed text.
+  const visitRef = useRef<{id:string; ready:number; deckAt:number|null; first:boolean; valid:boolean}|null>(null);
+  const recorderRef = useRef(cognitive.activity);
+  recorderRef.current = cognitive.activity;
+  useEffect(() => {
+    if (!authUser || loading || loadError) { visitRef.current=null; return; }
+    const visit = {id:createId(),ready:performance.now(),deckAt:null as number|null,first:true,valid:!document.hidden};
+    visitRef.current=visit;
+    recorderRef.current({id:visit.id+":ready",feature:"page",kind:"visit",visitId:visit.id});
+    const invalidate=()=>{visit.valid=false;};
+    window.addEventListener("blur",invalidate);
+    document.addEventListener("visibilitychange",invalidate);
+    return ()=>{window.removeEventListener("blur",invalidate);document.removeEventListener("visibilitychange",invalidate);if(visitRef.current===visit)visitRef.current=null;};
+  },[authUser?.uid,loading,loadError]);
+  useEffect(()=>{
+    const v=visitRef.current;if(v)v.deckAt=deckOpen?performance.now():null;
+  },[deckOpen,currentDeck,loading]);
+  useEffect(()=>{
+    if(!authUser||loading||studyMode||showSummaryModal)return;
+    const click=(event:MouseEvent)=>{
+      const el=event.target instanceof Element?event.target.closest<HTMLElement>("[data-observe]"):null;
+      const v=visitRef.current;if(!el||!v||el.closest("button:disabled"))return;
+      const now=performance.now();const d=decks.find(x=>x.name===currentDeck);
+      recorderRef.current({id:createId(),feature:el.dataset.observe||"unknown",kind:"click",visitId:v.id,firstClick:v.first,
+        ...(deckOpen&&d?{deck:d.name,language:d.language}:{}),
+        ...(v.valid?{elapsedMs:Math.round(now-v.ready),...(v.deckAt===null?{}:{deckElapsedMs:Math.round(now-v.deckAt)})}:{})});
+      v.first=false;
+    };
+    document.addEventListener("click",click,true);return()=>document.removeEventListener("click",click,true);
+  },[authUser?.uid,loading,studyMode,showSummaryModal,deckOpen,currentDeck,decks]);
+
 
   const tx = (key: string) => {
     const ja: Record<string, string> = {
@@ -677,30 +675,10 @@ export default function Page() {
   }, [studyIndex]);
 
   useEffect(() => {
-    const stored = localStorage.getItem("anki-theme-color");
-    const valid = stored ? normalizeHex(stored) : null;
-
-    if (valid) {
-      setThemeColor(valid);
-      setColor(valid);
-      setSavedColor(valid);
-    }
-  }, []);
-
-  useEffect(() => {
     return () => {
       if (coverPreview) URL.revokeObjectURL(coverPreview);
     };
   }, [coverPreview]);
-
-  const saveColor = () => {
-    localStorage.setItem("anki-theme-color", color);
-    localStorage.setItem("anki-custom-color", color);
-    document.documentElement.style.setProperty("--anki-theme-color", color);
-    setThemeColor(color);
-    setSavedColor(color);
-    setShowThemeSettings(false);
-  };
 
   useEffect(() => {
     const deck = decks.find((item) => item.name === currentDeck);
@@ -796,77 +774,6 @@ export default function Page() {
 
   const persistFolder = async (folder: Folder) => {
     await setDoc(doc(db, "folders", folder.id), folder);
-  };
-
-  const addDeckToTodayTask = async (deck: Deck) => {
-    if (!authReady) {
-      alert("ログイン状態を確認しています。少し待ってからもう一度お試しください。");
-      return;
-    }
-
-    if (!authUser) {
-      alert("今日のタスクに追加するにはログインが必要です。");
-      return;
-    }
-
-    if (deck.cards.length === 0) {
-      alert("単語が登録されていないデッキは追加できません。");
-      return;
-    }
-
-    setTaskAddingDeck(deck.name);
-
-    const now = new Date();
-    const today = [
-      now.getFullYear(),
-      String(now.getMonth() + 1).padStart(2, "0"),
-      String(now.getDate()).padStart(2, "0"),
-    ].join("-");
-
-    const requestedTarget = taskTargets[deck.name] ?? 30;
-    const target = Math.min(deck.cards.length, requestedTarget);
-    const taskId = `deck-${today}-${encodeURIComponent(deck.name)}`;
-    const taskRef = doc(db, "users", authUser.uid, "tasks", taskId);
-
-    try {
-      const existingTask = await getDoc(taskRef);
-
-      if (existingTask.exists()) {
-        setTaskAddedDecks((previous) =>
-          previous.includes(deck.name) ? previous : [...previous, deck.name]
-        );
-        alert(`「${deck.name}」は、すでに今日のタスクに登録されています。`);
-        return;
-      }
-
-      await setDoc(taskRef, {
-        title: `${deck.name}の単語学習`,
-        type: "単語の暗記・復習",
-        material: deck.name,
-        deckId: deck.name,
-        source: "deck",
-        target,
-        unit: "単語",
-        startDate: today,
-        scheduledDate: today,
-        dueDate: today,
-        status: "未着手",
-        repeat: "なし",
-        repeatDays: [],
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-
-      setTaskAddedDecks((previous) =>
-        previous.includes(deck.name) ? previous : [...previous, deck.name]
-      );
-      alert(`「${deck.name}」を今日のタスクに追加しました。`);
-    } catch (error) {
-      console.error("今日のタスクへのデッキ追加エラー:", error);
-      alert("今日のタスクへの追加に失敗しました。もう一度お試しください。");
-    } finally {
-      setTaskAddingDeck(null);
-    }
   };
 
   const updateDeckState = (updatedDeck: Deck) => {
@@ -1629,10 +1536,7 @@ export default function Page() {
     }
 
     const prioritizedCards = prioritizeWeakCards(filteredCards);
-    const selectedCards =
-      challengeMode !== "normal" ? prioritizedCards : studyLimit === "all"
-        ? prioritizedCards
-        : prioritizedCards.slice(0, studyLimit);
+    const selectedCards = prioritizedCards;
 
     finishLockRef.current = false;
     studyCountsRef.current = { correct: 0, incorrect: 0 };
@@ -1646,10 +1550,10 @@ export default function Page() {
     quickModeRef.current = challengeMode;
     setActiveChallengeMode(challengeMode);
     const now = Date.now();
-    const limitMs = challengeMode === "50" ? 50000 : challengeMode === "100" ? 100000 : 0;
+    const limitMs = challengeMode === "50" ? 50000 : 0;
     quickRemainingRef.current = limitMs;
     quickDeadlineRef.current = limitMs ? now + limitMs : null;
-    quickActiveStartedRef.current = challengeMode === "normal" ? null : now;
+    quickActiveStartedRef.current = now;
     quickElapsedRef.current = 0;
     quickPausedRef.current = false;
     setQuickPaused(false);
@@ -1664,7 +1568,7 @@ export default function Page() {
     setAnalyticsElapsed(0);
     sessionIdRef.current = createId();
     sessionUidRef.current = auth.currentUser.uid;
-    cognitive.activity({id: sessionIdRef.current + ":start", feature:"study/" + challengeMode, kind:"start", sessionId:sessionIdRef.current, language:deck.language, deck:deck.name, mode:challengeMode, target:selectedCards.length});
+    cognitive.activity({id: sessionIdRef.current + ":start", feature:"study/" + challengeMode, kind:"start", sessionId:sessionIdRef.current, language:deck.language, deck:deck.name, mode:challengeMode, target:selectedCards.length,...(visitRef.current?{visitId:visitRef.current.id,...(visitRef.current.valid?{elapsedMs:Math.round(performance.now()-visitRef.current.ready),...(visitRef.current.deckAt===null?{}:{deckElapsedMs:Math.round(performance.now()-visitRef.current.deckAt)})}: {})}: {})});
     retryRewardRef.current = null;
     setStudyMode(true);
   };
@@ -2143,134 +2047,6 @@ if (deckSaveErrorsRef.current.length > 0) {
         }}
       >
         データを読み込んでいます…
-      </main>
-    );
-  }
-
-  if (showThemeSettings) {
-    return (
-      <main
-        style={{
-          minHeight: "100vh",
-          background: "#F5F7FC",
-          padding: "30px 20px",
-          color: "#26365D",
-        }}
-      >
-        <section
-          style={{
-            maxWidth: "800px",
-            margin: "0 auto",
-            background: "#FFFFFF",
-            borderRadius: "20px",
-            padding: "28px",
-            border: "1px solid #E6EBF5",
-          }}
-        >
-          <h1 style={{ fontSize: "26px", marginTop: 0 }}>
-            {tx("color.title")}
-          </h1>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit,minmax(100px,1fr))",
-              gap: "12px",
-            }}
-          >
-            {presets.map((preset) => (
-              <button
-                key={preset.color}
-                onClick={() => setColor(preset.color)}
-                style={{
-                  padding: "12px",
-                  borderRadius: "12px",
-                  border:
-                    color === preset.color
-                      ? "2px solid #26365D"
-                      : "1px solid #E5E5EA",
-                  background: "#FFFFFF",
-                  cursor: "pointer",
-                }}
-              >
-                <div
-                  style={{
-                    height: "42px",
-                    borderRadius: "10px",
-                    background: preset.color,
-                    marginBottom: "8px",
-                  }}
-                />
-                <span style={{ fontSize: "13px" }}>{preset.name}</span>
-              </button>
-            ))}
-          </div>
-
-          <div style={{ marginTop: "24px" }}>
-            <label
-              style={{
-                display: "block",
-                marginBottom: "8px",
-                fontWeight: 600,
-              }}
-            >
-              カラーバー（自由選択）
-            </label>
-
-            <div
-              style={{
-                display: "flex",
-                gap: "12px",
-                alignItems: "center",
-              }}
-            >
-              <input
-                type="color"
-                value={color}
-                onChange={(event) => setColor(event.target.value)}
-                style={{
-                  width: "80px",
-                  height: "50px",
-                  border: "1px solid #E5E5EA",
-                  borderRadius: "8px",
-                  cursor: "pointer",
-                  background: "none",
-                }}
-              />
-
-              <input
-                type="text"
-                value={color}
-                onChange={(event) => setColor(event.target.value)}
-                style={{ ...inputStyle, flex: 1, marginBottom: 0 }}
-                placeholder="#718675"
-              />
-            </div>
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              gap: "10px",
-              justifyContent: "flex-end",
-              marginTop: "24px",
-            }}
-          >
-            <button
-              style={secondaryButtonStyle}
-              onClick={() => {
-                setColor(savedColor);
-                setShowThemeSettings(false);
-              }}
-            >
-              キャンセル
-            </button>
-
-            <button style={primaryButtonStyle} onClick={saveColor}>
-              保存する
-            </button>
-          </div>
-        </section>
       </main>
     );
   }
@@ -2840,7 +2616,7 @@ if (deckSaveErrorsRef.current.length > 0) {
         }}
       >
         <button
-          onClick={() => {
+          data-observe="デッキ一覧に戻る" onClick={() => {
             setDeckOpen(false);
             setCardSearch("");
             resetCardForm();
@@ -3038,54 +2814,12 @@ if (deckSaveErrorsRef.current.length > 0) {
               <button
                 key={value}
                 type="button"
-                onClick={() => setAnswerMode(value)}
+                data-observe={`回答方式：${value}段階`} onClick={() => setAnswerMode(value)}
                 style={{
                   padding: "11px 8px",
                   borderRadius: "10px",
                   border: answerMode === value ? "2px solid #718675" : "1px solid #E5E5EA",
                   background: answerMode === value ? "#F1F5F1" : "#FFFFFF",
-                  color: "#1D1D1F",
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          <div style={{ fontSize: "13px", fontWeight: 700, margin: "16px 0 10px" }}>
-            学習する枚数
-          </div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-              gap: "7px",
-            }}
-          >
-            {([
-              [30, "30問"],
-              [50, "50問"],
-              [100, "100問"],
-              [300, "300問"],
-              [500, "500問"],
-              [1000, "1000問"],
-              ["all", "全範囲"],
-            ] as const).map(([value, label]) => (
-              <button
-                key={String(value)}
-                type="button"
-                onClick={() => setStudyLimit(value)}
-                style={{
-                  padding: "11px 4px",
-                  borderRadius: "10px",
-                  border:
-                    studyLimit === value
-                      ? "2px solid #718675"
-                      : "1px solid #E5E5EA",
-                  background: studyLimit === value ? "#F1F5F1" : "#FFFFFF",
                   color: "#1D1D1F",
                   fontSize: "12px",
                   fontWeight: 600,
@@ -3117,7 +2851,7 @@ if (deckSaveErrorsRef.current.length > 0) {
               <button
                 key={value}
                 type="button"
-                onClick={() => setStudyStatusFilter(value)}
+                data-observe={`暗記レベル：${label}`} onClick={() => setStudyStatusFilter(value)}
                 style={{
                   padding: "11px 8px",
                   borderRadius: "10px",
@@ -3145,7 +2879,7 @@ if (deckSaveErrorsRef.current.length > 0) {
         <section style={{ marginTop: "18px", padding: "16px", border: "1px solid #E5E5EA", borderRadius: "14px", background: "#FFFFFF" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
             <strong>📖 苦手単語帳（{getMistakeCards(deck,"all").length}語）</strong>
-            <button type="button" style={secondaryButtonStyle} onClick={() => setShowMistakeList((v) => !v)}>{showMistakeList ? "閉じる" : "一覧を見る"}</button>
+            <button type="button" style={secondaryButtonStyle} data-observe="苦手一覧" onClick={() => setShowMistakeList((v) => !v)}>{showMistakeList ? "閉じる" : "一覧を見る"}</button>
           </div>
           <p style={{ fontSize: "12px", color: "#777" }}>過去に間違えた単語を自動収集。連続3回正解で克服済みになります。</p>
           {showMistakeList && (
@@ -3172,25 +2906,25 @@ if (deckSaveErrorsRef.current.length > 0) {
             <span style={{ fontSize: 11, color: "#777" }}>対象 {getMistakeCards(deck, mistakeCsvScope).length}語。以前の学習履歴はモード不明のため「すべて」にのみ含まれます。</span>
           </div>
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" }}>
-            <button type="button" style={secondaryButtonStyle} onClick={() => downloadMistakesCSV(deck, false, mistakeCsvScope)}>学習用CSV</button>
-            <button type="button" style={secondaryButtonStyle} onClick={() => downloadMistakesCSV(deck, true, mistakeCsvScope)}>分析用CSV</button>
+            <button type="button" style={secondaryButtonStyle} data-observe="学習用CSV" onClick={() => downloadMistakesCSV(deck, false, mistakeCsvScope)}>学習用CSV</button>
+            <button type="button" style={secondaryButtonStyle} data-observe="分析用CSV" onClick={() => downloadMistakesCSV(deck, true, mistakeCsvScope)}>分析用CSV</button>
           </div>
         </section>
 
         <section style={{ marginTop: 18, padding: 16, border: "1px solid #E5E5EA", borderRadius: 16, background: "#FFFFFF" }}>
           <strong style={{ display: "block", marginBottom: 10 }}>学習モード</strong>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
-            {([ ["50", "⚡ 50秒"], ["100", "⏱ 100秒"], ["unlimited", "∞ 無制限"], ["normal", "通常学習"] ] as const).map(([value, label]) => (
-              <button key={value} type="button" onClick={() => setChallengeMode(value)}
+            {([ ["50", "⚡ 50秒"], ["unlimited", "∞ 無制限・全範囲"] ] as const).map(([value, label]) => (
+              <button key={value} type="button" data-observe={`モード：${value === "50" ? "50秒" : "無制限"}`} onClick={() => setChallengeMode(value)}
                 style={{ ...secondaryButtonStyle, padding: 12, border: challengeMode === value ? "2px solid #718675" : "1px solid #E5E5EA", background: challengeMode === value ? "#F1F5F1" : "white" }}>
-                {label}{value === "100" ? "（おすすめ）" : ""}
+                {label}
               </button>
             ))}
           </div>
-          <p style={{ fontSize: 12, color: "#777", marginBottom: 0 }}>Quick Challengeは時間内に復習できた枚数を記録します。通常学習の枚数設定は通常学習のみで使用します。</p>
+          <p style={{ fontSize: 12, color: "#777", marginBottom: 0 }}>50秒は短時間チャレンジ。無制限は選択した暗記レベルの全範囲を学習します。</p>
         </section>
         <button
-          onClick={startStudy}
+          data-observe="学習開始" onClick={startStudy}
           style={{
             ...primaryButtonStyle,
             width: "100%",
@@ -3212,14 +2946,14 @@ if (deckSaveErrorsRef.current.length > 0) {
           />
 
           <button
-            onClick={() => fileInputRef.current?.click()}
+            data-observe="CSVインポート" onClick={() => fileInputRef.current?.click()}
             style={{ ...secondaryButtonStyle, flex: 1 }}
           >
             {tx("deck.csv")}
           </button>
 
           <button
-            onClick={openAddCard}
+            data-observe="単語追加" onClick={openAddCard}
             style={{ ...secondaryButtonStyle, flex: 1 }}
           >
             + {tx("deck.addWord")}
@@ -3461,272 +3195,30 @@ if (deckSaveErrorsRef.current.length > 0) {
     );
   };
 
-  const renderDeckCard = (deck: Deck, deckIndex: number, list: Deck[]) => (
-    <div
-      key={deck.name}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "12px",
-        flexWrap: "wrap",
-        padding: "14px",
-        border: "1px solid #E5E5EA",
-        borderRadius: "16px",
-        background: "#FFFFFF",
-        marginBottom: "18px",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "2px",
-          flexShrink: 0,
-        }}
-      >
-        <button
-          onClick={() => moveDeckOrder(list, deckIndex, "up")}
-          disabled={deckIndex === 0}
-          style={{
-            padding: "2px 5px",
-            fontSize: "10px",
-            cursor: deckIndex === 0 ? "default" : "pointer",
-            border: "1px solid #E5E5EA",
-            borderRadius: "4px",
-            background: "#FAFAFC",
-            color: "#777",
-            opacity: deckIndex === 0 ? 0.3 : 1,
-          }}
-          title="上に移動"
-        >
-          ▲
+  const renderDeckCard = (deck: Deck, deckIndex: number, list: Deck[]) => {
+    const prediction = deckTimeEstimate(studyRecords, decks, deck, timeMode, timePeriod);
+    const reviewed = deck.cards.filter(c => (c.reviewCount ?? 0) > 0).length;
+    const mastered = deck.cards.filter(c => c.learningStatus === "learned" || c.learningStatus === "perfect").length;
+    const percent = deck.cards.length ? Math.round(mastered / deck.cards.length * 100) : 0;
+    const duplicates = getDuplicateCardGroups(deck.name).length;
+    const lang = languageOptions.find(([code]) => code === deck.language)?.[1] ?? deck.language;
+    return (
+      <article key={deck.name} style={{border:"1px solid #E2E8E4", borderRadius:14, background:"#FFFFFF", marginBottom:10, overflow:"hidden"}}>
+        <button type="button" data-observe="デッキを開く" onClick={() => {setCurrentDeck(deck.name); setStudyStatusFilter("all"); setDeckOpen(true);}} style={{display:"flex",alignItems:"center",gap:12,width:"100%",padding:14,border:0,background:"white",textAlign:"left",cursor:"pointer",color:"#26372D"}}>
+          {deck.coverImageUrl ? <img src={deck.coverImageUrl} alt="" style={{width:48,height:48,borderRadius:10,objectFit:"cover",flexShrink:0}}/> : <span style={{width:48,height:48,borderRadius:10,background:"#EDF3EF",display:"grid",placeItems:"center",flexShrink:0,fontSize:14,fontWeight:700,color:"#456B55"}}>{deck.language.split("-")[0].toUpperCase()}</span>}
+          <span style={{flex:1,minWidth:0}}><strong style={{display:"block",fontSize:16,overflowWrap:"anywhere",lineHeight:1.4}}>{deck.name}</strong><span style={{display:"block",fontSize:12,color:"#68766D",marginTop:5}}>{lang} · {deck.cards.length.toLocaleString()}語</span></span>
+          <span style={{textAlign:"right",flexShrink:0}}><small style={{display:"block",color:"#68766D",fontSize:11}}>全範囲1周</small><strong style={{display:"block",fontSize:15,color:"#456B55",marginTop:4}}>{timeFormat(estimateTime(prediction.speed,deck.cards.length))}</strong>{prediction.label && <small style={{fontSize:10,color:"#68766D"}}>{prediction.label}</small>}</span><span aria-hidden="true" style={{color:"#87948B",fontSize:20}}>›</span>
         </button>
-
-        <button
-          onClick={() => moveDeckOrder(list, deckIndex, "down")}
-          disabled={deckIndex === list.length - 1}
-          style={{
-            padding: "2px 5px",
-            fontSize: "10px",
-            cursor:
-              deckIndex === list.length - 1 ? "default" : "pointer",
-            border: "1px solid #E5E5EA",
-            borderRadius: "4px",
-            background: "#FAFAFC",
-            color: "#777",
-            opacity: deckIndex === list.length - 1 ? 0.3 : 1,
-          }}
-          title="下に移動"
-        >
-          ▼
-        </button>
-      </div>
-
-      <button
-        onClick={() => {
-          setCurrentDeck(deck.name);
-          setDeckOpen(true);
-        }}
-        style={{
-          flex: "1 1 75%",
-          minWidth: 0,
-          padding: "18px 14px",
-          textAlign: "left",
-          background: "#FFFFFF",
-          border: "1px solid #E5E5EA",
-          borderRadius: "13px",
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          gap: "12px",
-        }}
-      >
-        {deck.coverImageUrl ? (
-          <img
-            src={deck.coverImageUrl}
-            alt=""
-            style={{
-              width: "56px",
-              height: "56px",
-              borderRadius: "9px",
-              objectFit: "cover",
-              flexShrink: 0,
-            }}
-          />
-        ) : (
-          <div
-            style={{
-              width: "56px",
-              height: "56px",
-              borderRadius: "9px",
-              background: "#F1F2EF",
-              display: "grid",
-              placeItems: "center",
-              color: "#8B968C",
-              fontSize: "23px",
-              flexShrink: 0,
-            }}
-          >
-            ▤
-          </div>
-        )}
-
-        <span style={{ flex: 1, minWidth: 0 }}>
-          <strong
-            style={{
-              display: "block",
-              fontSize: "16px",
-              lineHeight: 1.6,
-              fontWeight: 600,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "normal",
-              overflowWrap: "anywhere",
-            }}
-          >
-            {deck.name}
-          </strong>
-
-          <span
-            style={{
-              display: "block",
-              fontSize: "14px",
-              color: "#69736B",
-              marginTop: "10px",
-            }}
-          >
-            {deck.cards.length} {tx("deck.cards")}
-          </span>
-          <span style={{display:"block",fontSize:19,fontWeight:600,lineHeight:1.6,color:"#456B55",marginTop:10}}>1周：{timeFormat(estimateTime(deckTimeEstimate(studyRecords,decks,deck,timeMode,timePeriod).speed,deck.cards.length))}{deckTimeEstimate(studyRecords,decks,deck,timeMode,timePeriod).label?`（${deckTimeEstimate(studyRecords,decks,deck,timeMode,timePeriod).label}）`:""}</span>
-        </span>
-
-        <span style={{ color: "#A0A0A5", fontSize: "20px" }}>›</span>
-      </button>
-
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "row",
-          flexWrap: "wrap",
-          gap: "8px",
-          flexShrink: 0,
-          alignItems: "stretch",
-        }}
-      >
-        <button type="button" style={{ ...secondaryButtonStyle, padding: "6px", fontSize: "11px" }}
-          onClick={() => { setEditingDuplicateCard(null); setDuplicateDeckName(deck.name); }}>
-          重複チェック ({getDuplicateCardGroups(deck.name).length})
-        </button>
-        <select
-          aria-label={`${deck.name}の今日の学習語数`}
-          value={taskTargets[deck.name] ?? 30}
-          onChange={(event) =>
-            setTaskTargets((previous) => ({
-              ...previous,
-              [deck.name]: Number(event.target.value),
-            }))
-          }
-          style={{
-            width: "76px",
-            padding: "6px 4px",
-            border: "1px solid #E5E5EA",
-            borderRadius: "7px",
-            fontSize: "11px",
-            background: "#FFFFFF",
-          }}
-        >
-          {[10, 20, 30, 50, 100].map((count) => (
-            <option key={count} value={count}>
-              {count}語
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          onClick={() => void addDeckToTodayTask(deck)}
-          disabled={
-            !authReady ||
-            !authUser ||
-            deck.cards.length === 0 ||
-            taskAddingDeck === deck.name ||
-            taskAddedDecks.includes(deck.name)
-          }
-          title={
-            !authReady
-              ? "ログイン状態を確認中"
-              : !authUser
-                ? "ログインすると追加できます"
-                : taskAddedDecks.includes(deck.name)
-                  ? "今日のタスクに登録済み"
-                  : "今日のタスクに追加"
-          }
-          style={{
-            minWidth: "76px",
-            padding: "7px 5px",
-            border: "1px solid #D8E3D9",
-            borderRadius: "7px",
-            background: taskAddedDecks.includes(deck.name) ? "#F1F5F1" : "#FFFFFF",
-            color: taskAddedDecks.includes(deck.name) ? "#718675" : "#526B58",
-            fontSize: "11px",
-            fontWeight: 600,
-            cursor: "pointer",
-            opacity:
-              !authReady ||
-              !authUser ||
-              deck.cards.length === 0 ||
-              taskAddingDeck === deck.name ||
-              taskAddedDecks.includes(deck.name)
-                ? 0.55
-                : 1,
-          }}
-        >
-          {taskAddingDeck === deck.name
-            ? "追加中..."
-            : taskAddedDecks.includes(deck.name)
-              ? "追加済み"
-              : "＋ 今日"}
-        </button>
-      </div>
-
-      <select
-        value={deck.folderId || ""}
-        onChange={(event) =>
-          moveDeck(deck.name, event.target.value || null)
-        }
-        title="フォルダを移動"
-        style={{
-          maxWidth: "105px",
-          minWidth: "0",
-          padding: "8px 5px",
-          border: "1px solid #E5E5EA",
-          borderRadius: "8px",
-          fontSize: "11px",
-          background: "#FFFFFF",
-        }}
-      >
-        <option value="">{tx("folder.uncategorized")}</option>
-        {folders.map((folder) => (
-          <option key={folder.id} value={folder.id}>
-            {folder.name}
-          </option>
-        ))}
-      </select>
-
-      <button
-        onClick={() => deleteDeck(deck.name)}
-        style={{
-          border: "none",
-          background: "transparent",
-          color: "#C62828",
-          cursor: "pointer",
-          fontSize: "12px",
-          flexShrink: 0,
-        }}
-      >
-        削除
-      </button>
-    </div>
-  );
+        <div style={{padding:"0 14px 12px"}}><div style={{display:"flex",justifyContent:"space-between",gap:8,fontSize:11,color:"#68766D",marginBottom:6}}><span>学習済み {reviewed}/{deck.cards.length}</span><span>覚えた・完璧 {percent}%</span></div><div role="progressbar" aria-label="覚えた・完璧の割合" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} style={{height:5,background:"#E9EEEA",borderRadius:5,overflow:"hidden"}}><div style={{width:`${percent}%`,height:"100%",background:"#718675"}}/></div></div>
+        <details style={{borderTop:"1px solid #EDF0ED",padding:"9px 14px",fontSize:12,color:"#526B58"}}><summary style={{cursor:"pointer",fontWeight:600}}>デッキ管理{duplicates > 0 ? ` · 重複候補 ${duplicates}組` : ""}</summary><div style={{display:"flex",flexWrap:"wrap",gap:8,alignItems:"center",marginTop:12}}>
+          <button type="button" style={secondaryButtonStyle} disabled={deckIndex===0} onClick={()=>moveDeckOrder(list,deckIndex,"up")} aria-label="上に移動">↑</button><button type="button" style={secondaryButtonStyle} disabled={deckIndex===list.length-1} onClick={()=>moveDeckOrder(list,deckIndex,"down")} aria-label="下に移動">↓</button>
+          <button type="button" style={{...secondaryButtonStyle,fontSize:12}} data-observe="重複チェック" onClick={()=>{setEditingDuplicateCard(null);setDuplicateDeckName(deck.name);}}>重複チェック ({duplicates})</button>
+          <select aria-label="フォルダを移動" value={deck.folderId||""} onChange={e=>moveDeck(deck.name,e.target.value||null)} style={{...secondaryButtonStyle,maxWidth:"100%",fontSize:12}}><option value="">{tx("folder.uncategorized")}</option>{folders.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}</select>
+          <button type="button" onClick={()=>deleteDeck(deck.name)} style={{...secondaryButtonStyle,color:"#B34A4A",fontSize:12}}>削除</button>
+        </div></details>
+      </article>
+    );
+  };
 
   const duplicateGroups = getDuplicateCardGroups(duplicateDeckName);
   const duplicateDeck = decks.find((deck) => deck.name === duplicateDeckName);
@@ -3736,7 +3228,7 @@ if (deckSaveErrorsRef.current.length > 0) {
     <main
       style={{
         minHeight: "100vh",
-        background: "#F7F7F5",
+        background: "#FFFFFF",
         maxWidth: "900px",
         margin: "0 auto",
         padding: "35px 20px 60px",
@@ -3765,7 +3257,7 @@ if (deckSaveErrorsRef.current.length > 0) {
               letterSpacing: "0.12em",
             }}
           >
-            YOUR LIBRARY
+            DECK WORKSPACE
           </p>
 
           <h1
@@ -3791,21 +3283,13 @@ if (deckSaveErrorsRef.current.length > 0) {
           </p>
         </div>
 
-        <div style={{ display: "flex", gap: "8px" }}>
-          <button
-            onClick={() => setShowThemeSettings(true)}
-            style={secondaryButtonStyle}
-          >
-            テーマ
-          </button>
-        </div>
       </header>
 
       <details style={{margin:"0 0 16px",border:"1px solid #E5E5EA",borderRadius:12,padding:"12px 16px",background:"white"}}>
-        <summary style={{cursor:"pointer",fontWeight:600,fontSize:15,color:"#51458B"}}>◉ Learning Observatory</summary>
+        <summary data-observe="Learning Observatory" style={{cursor:"pointer",fontWeight:600,fontSize:15,color:"#51458B"}}>◉ Learning Observatory</summary>
       <LearningTimeAnalytics decks={decks} records={studyRecords} mode={timeMode} setMode={setTimeMode} period={timePeriod} setPeriod={setTimePeriod} mistakes={d=>getMistakeCards(d,"all").length} openDeck={(d,weak)=>{setCurrentDeck(d.name);setSpeechLanguage(d.language);setStudyStatusFilter(weak?"mistakes":"all");setDeckOpen(true);}} />
       </details>
-      {authUser && <CognitiveAnalytics key={authUser.uid} uid={authUser.uid} revision={cognitive.revision} errors={cognitive.errors} retry={cognitive.retry} />}
+      {authUser && <CognitiveAnalytics key={authUser.uid} uid={authUser.uid} revision={cognitive.revision} errors={cognitive.errors} retry={cognitive.retry} records={studyRecords} catalog={decks.map(d=>({name:d.name,language:d.language}))} />}
       {/* 重複チェック・自動一括削除モーダル */}
       {duplicateDeck && (
         <div
@@ -4171,11 +3655,17 @@ if (deckSaveErrorsRef.current.length > 0) {
         </div>
       )}
 
+      <section style={{margin:"20px 0",background:"#FFFFFF",border:"1px solid #E2E8E4",borderRadius:14,padding:16}}>
+        <div style={{display:"flex",flexWrap:"wrap",gap:20,marginBottom:12,color:"#456B55"}}><span><strong style={{fontSize:22}}>{decks.length}</strong> デッキ</span><span><strong style={{fontSize:22}}>{decks.reduce((n,d)=>n+d.cards.length,0).toLocaleString()}</strong> 語</span></div>
+        <input aria-label="デッキ名で検索" placeholder="デッキ名で検索…" value={deckQuery} onChange={e=>setDeckQuery(e.target.value)} style={{...inputStyle,marginBottom:0}}/>
+        {deckQuery.trim() && !decks.some(d=>d.name.toLowerCase().includes(deckQuery.trim().toLowerCase())) && <p style={{fontSize:13,color:"#68766D"}}>一致するデッキがありません。</p>}
+      </section>
       {folders.map((folder, folderIndex) => {
         const folderDecks = sortDecks(
           decks.filter((deck) => deck.folderId === folder.id)
         );
 
+        if (deckQuery.trim() && !folderDecks.some(d=>d.name.toLowerCase().includes(deckQuery.trim().toLowerCase()))) return null;
         return (
           <section
             key={folder.id}
@@ -4277,14 +3767,14 @@ if (deckSaveErrorsRef.current.length > 0) {
               </p>
             ) : (
               folderDecks.map((deck, index) =>
-                renderDeckCard(deck, index, folderDecks)
+                deck.name.toLowerCase().includes(deckQuery.trim().toLowerCase()) ? renderDeckCard(deck, index, folderDecks) : null
               )
             )}
           </section>
         );
       })}
 
-      {decks.some((deck) => deck.folderId === null) && (
+      {decks.some((deck) => deck.folderId === null && deck.name.toLowerCase().includes(deckQuery.trim().toLowerCase())) && (
         <section
           style={{
             border: "1px solid #E5E5EA",
@@ -4310,7 +3800,7 @@ if (deckSaveErrorsRef.current.length > 0) {
             );
 
             return uncategorizedDecks.map((deck, index) =>
-              renderDeckCard(deck, index, uncategorizedDecks)
+              deck.name.toLowerCase().includes(deckQuery.trim().toLowerCase()) ? renderDeckCard(deck, index, uncategorizedDecks) : null
             );
           })()}
         </section>
@@ -4341,7 +3831,7 @@ if (deckSaveErrorsRef.current.length > 0) {
             }}
           />
 
-          <button onClick={addFolder} style={primaryButtonStyle}>
+          <button data-observe="フォルダ作成" onClick={addFolder} style={primaryButtonStyle}>
             {tx("folder.create")}
           </button>
         </div>
@@ -4528,7 +4018,7 @@ if (deckSaveErrorsRef.current.length > 0) {
         </div>
 
         <button
-          onClick={addDeck}
+          data-observe="デッキ作成" onClick={addDeck}
           disabled={uploadingCover}
           style={{
             ...primaryButtonStyle,

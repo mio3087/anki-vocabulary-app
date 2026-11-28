@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { collection, getDocs } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
-import { useAppLanguage, type AppLanguage } from "@/app/component/AppLanguage";
+import { useAppLanguage } from "@/app/component/AppLanguage";
 
 type StudyRange = {
   start: number;
@@ -39,16 +39,6 @@ type Plan = {
 };
 
 const STORAGE_KEY = "anki-study-plans-v1";
-
-const localeMap: Record<AppLanguage, string> = {
-  ja: "ja-JP",
-  en: "en-US",
-  de: "de-DE",
-  "zh-CN": "zh-CN",
-  "zh-TW": "zh-TW",
-  es: "es-ES",
-  it: "it-IT",
-};
 
 const weekdaysByLanguage: Record<string, string[]> = {
   ja: ["月", "火", "水", "木", "金", "土", "日"],
@@ -332,6 +322,9 @@ export default function PlanPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const [showCreate, setShowCreate] = useState(false);
+  const [filter, setFilter] = useState<"all" | PlanStatus>("pending");
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [materialId, setMaterialId] = useState("");
   const [startDate, setStartDate] = useState(todayString());
   const [deadline, setDeadline] = useState("");
@@ -483,9 +476,12 @@ export default function PlanPage() {
   );
 
   function persist(next: Plan[]) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    setPlans(next);
-    window.dispatchEvent(new Event("storage"));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      setPlans(next);
+      window.dispatchEvent(new Event("storage"));
+      return true;
+    } catch { setError(t.error); return false; }
   }
 
   function toggleWeekday(day: number) {
@@ -504,7 +500,8 @@ export default function PlanPage() {
       !startDate ||
       !deadline ||
       startDate > deadline ||
-      rounds < 1 ||
+      !Number.isInteger(rounds) || rounds < 1 || rounds > 100 ||
+      selectedMaterial.total <= 0 || countStudyDays(startDate, deadline, weekdays) === 0 ||
       weekdays.length === 0
     ) {
       setError(t.required);
@@ -512,7 +509,7 @@ export default function PlanPage() {
     }
 
     const next: Plan = {
-      id: crypto.randomUUID(),
+      id: editingId ?? crypto.randomUUID(),
       deckName: selectedMaterial.name,
       materialId: selectedMaterial.id,
       totalItems: selectedMaterial.total,
@@ -520,11 +517,12 @@ export default function PlanPage() {
       deadline,
       rounds,
       weekdays,
-      createdAt: new Date().toISOString(),
-      status: "pending",
+      createdAt: plans.find(p => p.id === editingId)?.createdAt ?? new Date().toISOString(),
+      status: plans.find(p => p.id === editingId)?.status ?? "pending",
     };
 
-    persist([next, ...plans]);
+    if (!persist(editingId ? plans.map(p => p.id === editingId ? next : p) : [next, ...plans])) return;
+    setEditingId(null); setShowCreate(false); setFilter("all");
     setMaterialId("");
     setDeadline("");
     setRounds(1);
@@ -542,609 +540,63 @@ export default function PlanPage() {
     persist(plans.filter((p) => p.id !== id));
   }
 
-  const styles = {
-    page: "min-h-screen bg-[#F7F7F5] text-[#20231F]",
-    border: "#DCDDD6",
-    muted: "#777C74",
-    accent: "var(--anki-theme-color)",
-    dark: "var(--anki-theme-dark)",
+  const ja = lang === "ja";
+  const ui = (j: string, e: string) => ja ? j : e;
+  const panel = "rounded-2xl border border-[#e5e5e9] bg-white p-5 sm:p-6 shadow-sm";
+  const field = "mt-2 w-full rounded-xl border border-[#dedee5] bg-white p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#a5a0c8]";
+  const button = "rounded-xl border border-[#dedee5] bg-white px-4 py-2.5 text-sm font-medium hover:bg-[#f4f3f8]";
+  const primary = "rounded-xl bg-[#555075] px-5 py-3 text-sm font-semibold text-white hover:bg-[#413d61] disabled:opacity-40";
+  const active = plansWithMaterial.filter(p => (p.status ?? "pending") === "pending");
+  const visible = plansWithMaterial.filter(p => filter === "all" || (p.status ?? "pending") === filter).sort((a,b) => a.deadline.localeCompare(b.deadline));
+  const previewDays = countStudyDays(startDate, deadline, weekdays);
+  const dateAfter = (n: number) => { const d = new Date(`${startDate || todayString()}T12:00:00`); d.setDate(d.getDate()+n-1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
+  const today = todayString();
+  const openEditor = (p?: Plan) => {
+    setEditingId(p?.id ?? null); setMaterialId(p?.materialId ?? ""); setStartDate(p?.startDate ?? today); setDeadline(p?.deadline ?? ""); setRounds(p?.rounds ?? 1); setWeekdays(p?.weekdays ?? [0,1,2,3,4,5,6]); setError(""); setShowCreate(true);
+    window.scrollTo({top:0,behavior:"smooth"});
   };
-
-  return (
-    <main className={styles.page}>
-      <div className="mx-auto max-w-5xl px-5 pb-14 pt-8 sm:px-8 md:px-12">
-        <header
-          className="mb-10 border-b pb-7"
-          style={{ borderColor: styles.border }}
-        >
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <p
-                className="text-[10px] font-semibold tracking-[0.2em]"
-                style={{ color: styles.muted }}
-              >
-                {t.subtitle}
-              </p>
-              <h1 className="mt-4 text-3xl font-semibold tracking-[-0.045em] sm:text-5xl">
-                {t.title}
-              </h1>
-              <p
-                className="mt-3 text-sm"
-                style={{ color: styles.muted }}
-              >
-                {t.description}
-              </p>
-            </div>
-
-            <Link
-              href="/today"
-              className="border px-4 py-3 text-sm hover:bg-white"
-              style={{ borderColor: styles.border }}
-            >
-              {t.back} ↗
-            </Link>
-          </div>
-        </header>
-
-        {error && (
-          <div
-            role="alert"
-            className="mb-6 border-l-2 bg-white px-4 py-3 text-sm text-[#8A5145]"
-            style={{ borderColor: "#A86B5C" }}
-          >
-            {error}
-          </div>
-        )}
-
-        {!authReady || loading ? (
-          <p
-            className="py-10 text-sm"
-            style={{ color: styles.muted }}
-          >
-            {t.loading}
-          </p>
-        ) : !user ? (
-          <p className="border-y py-8 text-sm">{t.login}</p>
-        ) : (
-          <>
-            <section className="mb-12">
-              <div
-                className="mb-4 border-b pb-3"
-                style={{ borderColor: styles.border }}
-              >
-                <p
-                  className="text-[10px] font-semibold tracking-[0.2em]"
-                  style={{ color: styles.muted }}
-                >
-                  01 / CREATE
-                </p>
-                <h2 className="mt-2 text-xl font-semibold">
-                  {t.create}
-                </h2>
-              </div>
-
-              <div
-                className="grid gap-5 border p-5 sm:grid-cols-2 sm:p-7"
-                style={{
-                  borderColor: styles.border,
-                  backgroundColor: "#FFFFFF",
-                }}
-              >
-                <label className="block sm:col-span-2">
-                  <span className="mb-2 block text-xs font-medium">
-                    {t.material}
-                  </span>
-
-                  <select
-                    value={materialId}
-                    onChange={(e) => setMaterialId(e.target.value)}
-                    className="w-full border bg-white px-3 py-3 text-sm outline-none focus:border-[var(--anki-theme-color)]"
-                    style={{ borderColor: styles.border }}
-                  >
-                    <option value="">{t.selectMaterial}</option>
-
-                    {materials.map((material) => (
-                      <option key={material.id} value={material.id}>
-                        {material.name} ·{" "}
-                        {material.total.toLocaleString(localeMap[lang])}{" "}
-                        {material.type === "book"
-                          ? t.unitBook
-                          : t.unitDeck}
-                      </option>
-                    ))}
-                  </select>
-
-                  {materials.length === 0 && (
-                    <p
-                      className="mt-2 text-xs"
-                      style={{ color: styles.muted }}
-                    >
-                      {t.noMaterials}{" "}
-                      <Link href="/materials" className="underline">
-                        {t.manage}
-                      </Link>
-                    </p>
-                  )}
-                </label>
-
-                {selectedMaterial && (
-                  <div
-                    className="sm:col-span-2 border-l-2 py-1 pl-4"
-                    style={{ borderColor: styles.accent }}
-                  >
-                    <p
-                      className="text-xs"
-                      style={{ color: styles.muted }}
-                    >
-                      {t.total}
-                    </p>
-                    <p className="mt-1 font-mono text-2xl">
-                      {selectedMaterial.total.toLocaleString(
-                        localeMap[lang]
-                      )}{" "}
-                      <span
-                        className="text-xs"
-                        style={{ color: styles.muted }}
-                      >
-                        {selectedMaterial.type === "book"
-                          ? t.unitBook
-                          : t.unitDeck}
-                      </span>
-                    </p>
-                  </div>
-                )}
-
-                <label className="block">
-                  <span className="mb-2 block text-xs font-medium">
-                    {t.start}
-                  </span>
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full border bg-white px-3 py-3 text-sm"
-                    style={{ borderColor: styles.border }}
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="mb-2 block text-xs font-medium">
-                    {t.deadline}
-                  </span>
-                  <input
-                    type="date"
-                    min={startDate}
-                    value={deadline}
-                    onChange={(e) => setDeadline(e.target.value)}
-                    className="w-full border bg-white px-3 py-3 text-sm"
-                    style={{ borderColor: styles.border }}
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="mb-2 block text-xs font-medium">
-                    {t.rounds}
-                  </span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={100}
-                    value={rounds}
-                    onChange={(e) =>
-                      setRounds(
-                        Math.max(1, Number(e.target.value) || 1)
-                      )
-                    }
-                    className="w-full border bg-white px-3 py-3 text-sm"
-                    style={{ borderColor: styles.border }}
-                  />
-                </label>
-
-                <div className="sm:col-span-2">
-                  <p className="mb-3 text-xs font-medium">
-                    {t.days}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {weekdayLabels.map((label, index) => (
-                      <button
-                        key={label}
-                        type="button"
-                        onClick={() => toggleWeekday(index)}
-                        className="min-w-11 border px-3 py-2 text-xs transition"
-                        style={
-                          weekdays.includes(index)
-                            ? {
-                                borderColor: styles.accent,
-                                backgroundColor: styles.accent,
-                                color: "#FFFFFF",
-                              }
-                            : {
-                                borderColor: styles.border,
-                                backgroundColor: "#FFFFFF",
-                                color: styles.muted,
-                              }
-                        }
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {selectedMaterial &&
-                  deadline &&
-                  startDate <= deadline && (
-                    <div
-                      className="sm:col-span-2 border-t pt-4"
-                      style={{ borderColor: styles.border }}
-                    >
-                      <p
-                        className="text-xs"
-                        style={{ color: styles.muted }}
-                      >
-                        {t.daily}
-                      </p>
-                      <p
-                        className="mt-1 font-mono text-3xl"
-                        style={{ color: styles.dark }}
-                      >
-                        {Math.ceil(
-                          (selectedMaterial.total * rounds) /
-                            Math.max(
-                              1,
-                              countStudyDays(
-                                startDate,
-                                deadline,
-                                weekdays
-                              )
-                            )
-                        ).toLocaleString(localeMap[lang])}
-                        <span
-                          className="ml-2 text-xs"
-                          style={{ color: styles.muted }}
-                        >
-                          {selectedMaterial.type === "book"
-                            ? t.unitBook
-                            : t.unitDeck}{" "}
-                          / day
-                        </span>
-                      </p>
-                    </div>
-                  )}
-
-                <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
-                  <button
-                    type="button"
-                    onClick={createPlan}
-                    disabled={
-                      !selectedMaterial ||
-                      !deadline ||
-                      materials.length === 0
-                    }
-                    className="bg-[var(--anki-theme-dark)] px-6 py-3 text-sm text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    {t.save}
-                  </button>
-
-                  <Link
-                    href="/materials"
-                    className="text-xs underline"
-                    style={{ color: styles.muted }}
-                  >
-                    {t.manage}
-                  </Link>
-                </div>
-              </div>
-            </section>
-
-            <section>
-              <div
-                className="mb-4 border-b pb-3"
-                style={{ borderColor: styles.border }}
-              >
-                <p
-                  className="text-[10px] font-semibold tracking-[0.2em]"
-                  style={{ color: styles.muted }}
-                >
-                  02 / OVERVIEW
-                </p>
-                <h2 className="mt-2 text-xl font-semibold">
-                  {t.plans}
-                </h2>
-              </div>
-
-              {plansWithMaterial.length === 0 ? (
-                <p
-                  className="border-y py-8 text-sm"
-                  style={{ color: styles.muted }}
-                >
-                  {t.noPlans}
-                </p>
-              ) : (
-                <div
-                  className="border-l border-t"
-                  style={{ borderColor: styles.border }}
-                >
-                  {plansWithMaterial.map((plan) => {
-                    const days = countStudyDays(
-                      plan.startDate,
-                      plan.deadline,
-                      plan.weekdays
-                    );
-
-                    const daily =
-                      days > 0
-                        ? Math.ceil(
-                            (plan.totalItems * plan.rounds) / days
-                          )
-                        : 0;
-
-                    const material = materials.find(
-                      (m) => m.id === plan.materialId
-                    );
-
-                    const unit =
-                      material?.type === "deck"
-                        ? t.unitDeck
-                        : t.unitBook;
-
-                    const statusText =
-                      plan.status === "completed"
-                        ? t.completed
-                        : plan.status === "postponed"
-                          ? t.postponed
-                          : t.pending;
-
-                    const actualCount = material
-                      ? getCoveredCount(material.studyRanges)
-                      : 0;
-
-                    const actualPercent =
-                      material && material.total > 0
-                        ? Math.min(
-                            100,
-                            Math.round(
-                              (actualCount / material.total) * 100
-                            )
-                          )
-                        : 0;
-
-                    const plannedPercent =
-                      plan.status === "completed"
-                        ? 100
-                        : getPlannedPercent(plan);
-
-                    return (
-                      <article
-                        key={plan.id}
-                        className="border-b border-r bg-white p-5 sm:p-6"
-                        style={{ borderColor: styles.border }}
-                      >
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <h3 className="break-words text-base font-semibold">
-                              {plan.deckName || "—"}
-                            </h3>
-                            <p
-                              className="mt-2 text-xs"
-                              style={{ color: styles.muted }}
-                            >
-                              {plan.startDate} — {plan.deadline}
-                            </p>
-                          </div>
-
-                          <span
-                            className="text-[10px]"
-                            style={{ color: styles.muted }}
-                          >
-                            {material ? t.linked : t.unlinked}
-                          </span>
-                        </div>
-
-                        <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
-                          <div>
-                            <p
-                              className="text-[10px]"
-                              style={{ color: styles.muted }}
-                            >
-                              {t.total}
-                            </p>
-                            <p className="mt-1 font-mono text-lg">
-                              {plan.totalItems.toLocaleString(
-                                localeMap[lang]
-                              )}{" "}
-                              <span className="text-xs">{unit}</span>
-                            </p>
-                          </div>
-
-                          <div>
-                            <p
-                              className="text-[10px]"
-                              style={{ color: styles.muted }}
-                            >
-                              {t.rounds}
-                            </p>
-                            <p className="mt-1 font-mono text-lg">
-                              {plan.rounds}
-                            </p>
-                          </div>
-
-                          <div>
-                            <p
-                              className="text-[10px]"
-                              style={{ color: styles.muted }}
-                            >
-                              {t.studyDays}
-                            </p>
-                            <p className="mt-1 font-mono text-lg">
-                              {days}
-                            </p>
-                          </div>
-
-                          <div>
-                            <p
-                              className="text-[10px]"
-                              style={{ color: styles.muted }}
-                            >
-                              {t.daily}
-                            </p>
-                            <p
-                              className="mt-1 font-mono text-lg"
-                              style={{ color: styles.dark }}
-                            >
-                              {daily}{" "}
-                              <span className="text-xs">{unit}</span>
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* 進捗バー */}
-                        <div
-                          className="mt-6 space-y-5 border-t pt-5"
-                          style={{ borderColor: styles.border }}
-                        >
-                          <div>
-                            <div className="mb-2 flex items-center justify-between gap-3">
-                              <div>
-                                <p className="text-xs font-medium">
-                                  {t.actual}
-                                </p>
-                                <p
-                                  className="mt-1 text-[10px]"
-                                  style={{ color: styles.muted }}
-                                >
-                                  {t.actualNote}
-                                </p>
-                              </div>
-                              <p className="font-mono text-sm font-semibold">
-                                {actualPercent}%
-                              </p>
-                            </div>
-
-                            <div className="h-2.5 overflow-hidden rounded-full bg-[#EAEAE5]">
-                              <div
-                                className="h-full rounded-full transition-all duration-500"
-                                style={{
-                                  width: `${actualPercent}%`,
-                                  backgroundColor: styles.dark,
-                                }}
-                              />
-                            </div>
-
-                            <p
-                              className="mt-1.5 text-right text-[10px]"
-                              style={{ color: styles.muted }}
-                            >
-                              {actualCount.toLocaleString(
-                                localeMap[lang]
-                              )}{" "}
-                              /{" "}
-                              {plan.totalItems.toLocaleString(
-                                localeMap[lang]
-                              )}{" "}
-                              {unit}
-                            </p>
-                          </div>
-
-                          <div>
-                            <div className="mb-2 flex items-center justify-between gap-3">
-                              <div>
-                                <p className="text-xs font-medium">
-                                  {t.planned}
-                                </p>
-                                <p
-                                  className="mt-1 text-[10px]"
-                                  style={{ color: styles.muted }}
-                                >
-                                  {t.plannedNote}
-                                </p>
-                              </div>
-                              <p className="font-mono text-sm font-semibold">
-                                {plannedPercent}%
-                              </p>
-                            </div>
-
-                            <div className="h-2.5 overflow-hidden rounded-full bg-[#EAEAE5]">
-                              <div
-                                className="h-full rounded-full transition-all duration-500"
-                                style={{
-                                  width: `${plannedPercent}%`,
-                                  backgroundColor: "#A9B5A0",
-                                }}
-                              />
-                            </div>
-                          </div>
-
-                          <p
-                            className="text-[10px]"
-                            style={{ color: styles.muted }}
-                          >
-                            {t.firstRound}
-                          </p>
-                        </div>
-
-                        <div
-                          className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t pt-4"
-                          style={{ borderColor: styles.border }}
-                        >
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span
-                              className="text-xs"
-                              style={{ color: styles.muted }}
-                            >
-                              {t.status}:
-                            </span>
-
-                            <select
-                              value={plan.status ?? "pending"}
-                              onChange={(e) =>
-                                updateStatus(
-                                  plan.id,
-                                  e.target.value as PlanStatus
-                                )
-                              }
-                              className="border bg-white px-2 py-1.5 text-xs"
-                              style={{ borderColor: styles.border }}
-                            >
-                              <option value="pending">
-                                {t.pending}
-                              </option>
-                              <option value="completed">
-                                {t.completed}
-                              </option>
-                              <option value="postponed">
-                                {t.postponed}
-                              </option>
-                            </select>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => deletePlan(plan.id)}
-                            className="text-xs text-[#9A655A] hover:underline"
-                          >
-                            {t.delete}
-                          </button>
-                        </div>
-                      </article>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
-          </>
-        )}
-
-        <footer
-          className="mt-12 border-t pt-5 text-[10px] tracking-[0.12em]"
-          style={{
-            borderColor: styles.border,
-            color: styles.muted,
-          }}
-        >
-          YOUR ANKI / PERSONAL LEARNING SYSTEM
-        </footer>
-      </div>
-    </main>
-  );
+  return <main className="min-h-screen bg-white text-[#29283a]">
+    <div className="mx-auto max-w-5xl px-4 pb-16 pt-20 sm:px-8">
+      <header className="mb-7 flex flex-wrap items-end justify-between gap-4">
+        <div><p className="text-xs font-semibold tracking-[.22em] text-[#777099]">LEARNING STUDIO</p><h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-5xl">{t.title}</h1><p className="mt-3 text-sm leading-6 text-[#716f80]">{ui("学びたいものを、無理なく最後まで。","Make room for what you want to learn.")}</p></div>
+        <div className="flex flex-wrap gap-2"><Link href="/materials" className={button}>{t.manage}</Link><button className={primary} disabled={!user || loading} onClick={()=>openEditor()}>＋ {t.create}</button></div>
+      </header>
+      {error && <p role="alert" className="mb-4 rounded-xl border border-[#e8c9c3] p-4 text-sm text-[#964f43]">{error}</p>}
+      {!authReady || loading ? <p>{t.loading}</p> : !user ? <Link href="/login" className={button}>{t.login}</Link> : <>
+        <section className="mb-6 grid grid-cols-2 gap-3 rounded-2xl bg-[#f4f3f8] p-5 sm:grid-cols-3">
+          {[[t.pending,active.length],[t.completed,plans.filter(p=>p.status==="completed").length],[ui("登録教材","Materials"),materials.length]].map(([label,value])=><div key={label} className="rounded-xl bg-white p-4"><p className="text-xs text-[#716f80]">{label}</p><p className="mt-2 text-3xl font-semibold tabular-nums text-[#555075]">{value}</p></div>)}
+        </section>
+        {showCreate && <section className={`${panel} mb-7`}>
+          <div className="mb-5 flex items-center justify-between"><h2 className="text-xl font-semibold">{editingId?t.edit:t.create}</h2><button className={button} onClick={()=>setShowCreate(false)}>{t.cancel}</button></div>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <label className="text-sm sm:col-span-2">{t.material}<select className={field} value={materialId} onChange={e=>setMaterialId(e.target.value)}><option value="">{t.selectMaterial}</option>{materials.map(m=><option key={m.id} value={m.id}>{m.name} · {m.total} {m.type==="book"?t.unitBook:t.unitDeck}</option>)}</select></label>
+            {!materials.length&&<Link href="/materials" className="text-sm underline sm:col-span-2">{t.noMaterials}</Link>}
+            <label className="text-sm">{t.start}<input className={field} type="date" value={startDate} onChange={e=>setStartDate(e.target.value)}/></label>
+            <label className="text-sm">{t.deadline}<input className={field} type="date" min={startDate} value={deadline} onChange={e=>setDeadline(e.target.value)}/></label>
+            <div className="flex flex-wrap gap-2 sm:col-span-2">{[7,14,30,90].map(n=><button key={n} type="button" className={button} onClick={()=>setDeadline(dateAfter(n))}>{n} {ui("日間","days")}</button>)}</div>
+            <label className="text-sm">{t.rounds}<input className={field} type="number" min={1} max={100} value={rounds} onChange={e=>setRounds(Math.min(100,Math.max(1,Math.floor(Number(e.target.value)||1))))}/></label>
+            <div className="sm:col-span-2"><p className="mb-2 text-sm">{t.days}</p><div className="flex flex-wrap gap-2">{weekdayLabels.map((l,i)=><button key={i} aria-pressed={weekdays.includes(i)} onClick={()=>toggleWeekday(i)} className={weekdays.includes(i)?primary:button}>{l}</button>)}</div><div className="mt-3 flex flex-wrap gap-2"><button className={button} onClick={()=>setWeekdays([0,1,2,3,4,5,6])}>{ui("毎日","Every day")}</button><button className={button} onClick={()=>setWeekdays([0,1,2,3,4])}>{ui("平日","Weekdays")}</button><button className={button} onClick={()=>setWeekdays([5,6])}>{ui("週末","Weekend")}</button></div></div>
+            {selectedMaterial&&<div className="rounded-xl bg-[#f4f3f8] p-5 sm:col-span-2"><p className="text-xs text-[#716f80]">{ui("計画プレビュー・保存前に確認","Plan preview")}</p><p className="mt-2 text-2xl font-semibold">{previewDays?Math.ceil(selectedMaterial.total*rounds/previewDays):"—"} <span className="text-sm font-normal">{selectedMaterial.type==="book"?t.unitBook:t.unitDeck} / {ui("学習日","study day")}</span></p><p className="mt-2 text-sm">{previewDays} {t.studyDays} · {selectedMaterial.total*rounds} {ui("延べ学習量","total items")}</p></div>}
+          </div><button className={`${primary} mt-5`} disabled={!selectedMaterial||!previewDays||selectedMaterial.total<=0} onClick={createPlan}>{editingId?ui("変更を保存","Save changes"):t.save}</button>
+        </section>}
+        <section><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl font-semibold">{t.plans}</h2><div className="flex flex-wrap gap-2">{(["pending","completed","postponed","all"] as const).map(f=><button key={f} aria-pressed={filter===f} onClick={()=>setFilter(f)} className={filter===f?primary:button}>{f==="all"?ui("すべて","All"):t[f]}</button>)}</div></div>
+          {!visible.length?<div className={`${panel} text-center`}><p className="text-sm text-[#716f80]">{t.noPlans}</p><button className={`${button} mt-4`} onClick={()=>openEditor()}>＋ {t.create}</button></div>:<div className="grid gap-4 lg:grid-cols-2">{visible.map(p=>{
+            const m=materials.find(x=>x.id===p.materialId); const total=p.totalItems; const unit=m?.type==="deck"?t.unitDeck:t.unitBook;
+            const covered=m?Math.min(total,getCoveredCount(m.studyRanges.map(r=>({...r,end:Math.min(r.end,total)})))):null;
+            const percent=covered!==null&&total>0?Math.round(100*covered/total):null;
+            const remaining=covered===null?null:Math.max(0,total-covered);
+            const days=countStudyDays(p.startDate,p.deadline,p.weekdays); const left=countStudyDays(today>p.startDate?today:p.startDate,p.deadline,p.weekdays);
+            const target=getPlannedPercent(p); const status=p.status??"pending";
+            return <article key={p.id} className={panel}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs text-[#777099]">{m?.language||"—"} · {m?t.linked:t.unlinked}</p><h3 className="mt-2 break-words text-lg font-semibold">{p.deckName||"—"}</h3><p className="mt-1 text-xs text-[#716f80]">{p.startDate} → {p.deadline}</p></div><span className="shrink-0 rounded-lg bg-[#f4f3f8] px-2 py-1 text-xs">{t[status]}</span></div>
+            <div className="mt-5 flex items-end justify-between gap-2"><div><p className="text-xs text-[#716f80]">{ui("残り（1周目）","Remaining · first round")}</p><p className="mt-1 text-3xl font-semibold tabular-nums text-[#555075]">{remaining??"—"} <span className="text-sm font-normal">{unit}</span></p></div><div className="text-right"><p className="text-xs text-[#716f80]">{ui("残り学習日","Study days left")}</p><p className="text-xl font-semibold tabular-nums">{left}</p></div></div>
+            <div className="mt-5 space-y-3">{[[t.actual,percent,"#70658e"],[t.planned,target,"#a6b5a1"]].map(([label,value,color])=><div key={String(label)}><div className="mb-1 flex justify-between text-xs"><span>{label}</span><span>{value===null?"—":`${value}%`}</span></div><div className="h-2 rounded-full bg-[#eeedf1]" role="progressbar" aria-label={String(label)} aria-valuenow={typeof value==="number"?value:undefined}><div className="h-full rounded-full" style={{width:`${value??0}%`,background:String(color)}}/></div></div>)}</div>
+            <p className="mt-3 text-xs leading-5 text-[#716f80]">{t.firstRound} · {ui("予定は計画全体の経過率。実績は教材の記録範囲。","Plan progress is elapsed schedule; actual is recorded coverage.")}</p>
+            <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl bg-[#f7f7f9] p-3 text-sm"><div><p className="text-xs text-[#716f80]">{t.total} · {t.rounds}</p><p>{total} {unit} × {p.rounds}</p></div><div><p className="text-xs text-[#716f80]">{t.daily} · {ui("当初","Original")}</p><p>{days?Math.ceil(total*p.rounds/days):"—"} {unit}</p></div>{remaining!==null&&left>0&&p.rounds===1&&status==="pending"&&<div className="col-span-2"><p className="text-xs text-[#716f80]">{ui("今からの目安","Adjusted pace")}</p><p>{Math.ceil(remaining/left)} {unit} / {ui("学習日","study day")}</p></div>}</div>
+            <div className="mt-4 flex flex-wrap items-center gap-2"><Link className={primary} href="/materials">{t.manage} ↗</Link><button className={button} onClick={()=>openEditor(p)}>{t.edit}</button><select aria-label={t.status} className={button} value={status} onChange={e=>updateStatus(p.id,e.target.value as PlanStatus)}><option value="pending">{t.pending}</option><option value="completed">{t.completed}</option><option value="postponed">{t.postponed}</option></select><button className="ml-auto px-2 py-2 text-xs text-[#a06b64]" onClick={()=>deletePlan(p.id)}>{t.delete}</button></div></article>;
+          })}</div>}
+        </section>
+      </>}
+      <footer className="mt-8 text-xs text-[#716f80]">{ui("計画はこのブラウザに保存されます。教材の学習範囲はFirebaseから読み込みます。","Plans are saved in this browser. Material ranges are loaded from Firebase.")}</footer>
+    </div>
+  </main>;
 }
